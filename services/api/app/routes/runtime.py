@@ -17,7 +17,7 @@ from app.models.conversation_receipt import ConversationReceipt
 from app.models.object_link import ObjectLink
 from app.models.processing_job import ProcessingJob
 from app.schemas.runtime import AgentContextRequest, IngestEventRequest, MemoryQuestionRequest
-from app.schemas.explorer import ExploreRequest
+from app.schemas.explorer import ExploreRequest, LibraryRequest
 from app.services.briefing import build_briefing
 from app.services.qdrant_store import INDEX_UNREACHABLE, search_memory_embeddings, semantic_status
 from app.services.ollama_service import answer_with_context, ollama_health
@@ -272,6 +272,15 @@ def explore_memory(payload: ExploreRequest, agent_id: str = Depends(get_agent_id
         raise HTTPException(403, "Memory namespace cannot be changed")
     with SessionLocal() as db:
         return explore(db, payload, agent_id)
+
+
+@router.post("/library")
+def memory_library(payload: LibraryRequest, agent_id: str = Depends(get_agent_id), _: str = Depends(require_read_key)):
+    from app.services.memory_explorer import library
+    if payload.agent_id is not None and payload.agent_id != agent_id:
+        raise HTTPException(403, "Memory namespace cannot be changed")
+    with SessionLocal() as db:
+        return library(db, payload, agent_id)
 
 
 @router.post("/ask")

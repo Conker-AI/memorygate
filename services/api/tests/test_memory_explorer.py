@@ -77,6 +77,24 @@ def test_reverse_connections_entity_edges_and_field_allowlist(db):
         explore(db, ExploreRequest(object_type="evidence", object_id="s", operation="content", field="raw_payload_json"), "owner")
 
 
+def test_library_pages_search_and_scopes_preserve_connections(db):
+    from app.schemas.explorer import LibraryRequest
+    from app.services.memory_explorer import library
+    first = library(db, LibraryRequest(limit=2), "owner")
+    second = library(db, LibraryRequest(limit=2, after=first["next_after"]), "owner")
+    assert first["total"] == second["total"] == 4
+    assert second["next_after"] is None
+    assert len({(item["type"], item["id"]) for item in first["objects"] + second["objects"]}) == 4
+    assert "private other namespace" not in json.dumps([first, second])
+    searched = library(db, LibraryRequest(search="Short summary"), "owner")
+    assert searched["total"] == 1
+    assert searched["objects"][0]["connections"] == {"about": 1, "derived_from": 1}
+    selected = library(db, LibraryRequest(scope="selected", memory_ids=["m"]), "owner")
+    assert selected["total"] == 1 and selected["objects"][0]["connections"] == {}
+    assert library(db, LibraryRequest(scope="none"), "owner")["total"] == 0
+    assert library(db, LibraryRequest(search="%"), "owner")["total"] == 0
+
+
 def test_read_tier_cannot_switch_namespace_in_body():
     from app.routes import runtime
     from app.schemas.runtime import MemoryQuestionRequest

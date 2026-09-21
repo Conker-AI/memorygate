@@ -3,6 +3,14 @@ from pydantic import Field
 from app.schemas.runtime import AgentContextRequest
 
 
+class LibraryRequest(AgentContextRequest):
+    query: str = "library"
+    search: str = Field(default="", max_length=200)
+    object_type: Literal["memory", "entity", "evidence", "analysis", "episode", "observation", "pattern", "transcript"] | None = None
+    after: str | None = Field(default=None, min_length=1, max_length=240)
+    limit: int = Field(default=25, ge=1, le=50)
+
+
 class ExploreRequest(AgentContextRequest):
     query: str = "explore"
     object_type: Literal["memory", "entity", "evidence", "analysis", "episode", "observation", "pattern", "transcript"]
