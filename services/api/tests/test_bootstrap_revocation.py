@@ -1,7 +1,6 @@
-import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session
+from concurrent.futures import ThreadPoolExecutor
 
+import pytest
 from app.core.db import Base
 from app.models.agent_access_key import AgentAccessKey
 from app.services.auth_settings_service import (
@@ -9,6 +8,8 @@ from app.services.auth_settings_service import (
     ensure_bootstrap_agent_access_key,
     verify_agent_access_key,
 )
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
 
 RAW = "mg_read_bootstrap_never_resurrect_1234"
 NEW = "mg_read_replacement_owner_changed_5678"
@@ -32,7 +33,10 @@ def test_restart_preserves_revocation_and_scope(database):
     with Session(database) as db:
         seeded = ensure_bootstrap_agent_access_key(db, RAW, "broader-scope")
         assert (seeded.id, seeded.key_hash, seeded.agent_id, seeded.revoked) == (
-            identity, digest, "owner-changed-scope", True,
+            identity,
+            digest,
+            "owner-changed-scope",
+            True,
         )
         assert not verify_agent_access_key(db, RAW, "broader-scope")
         assert not verify_agent_access_key(db, RAW, "owner-changed-scope")
@@ -73,4 +77,64 @@ def test_missing_key_is_seeded_once_without_rehashing(database):
     with Session(database) as db:
         row = ensure_bootstrap_agent_access_key(db, RAW, "original")
         assert (row.id, row.key_hash) == (identity, digest)
+        assert db.query(AgentAccessKey).count() == 1
+
+
+def test_rename_and_rotation_preserve_permanent_bootstrap_identity(database):
+    with Session(database) as db:
+        row = ensure_bootstrap_agent_access_key(db, RAW, "original")
+        identity = row.id
+        row.label = "Renamed by owner"
+        row.key_hash = _hash_key(NEW)
+        row.revoked = True
+        row.agent_id = "restricted"
+        db.commit()
+    with Session(database) as db:
+        seeded = ensure_bootstrap_agent_access_key(
+            db, RAW, "broader", label="New config label"
+        )
+        assert (
+            seeded.id == identity and seeded.revoked and seeded.agent_id == "restricted"
+        )
+        assert db.query(AgentAccessKey).count() == 1
+        assert not verify_agent_access_key(db, RAW, "broader")
+
+
+def test_deleted_bootstrap_key_is_not_recreated(database):
+    with Session(database) as db:
+        row = ensure_bootstrap_agent_access_key(db, RAW, "original")
+        db.delete(row)
+        db.commit()
+    with Session(database) as db, pytest.raises(ValueError, match="removed"):
+        ensure_bootstrap_agent_access_key(db, RAW, "original")
+    with Session(database) as db:
+        assert db.query(AgentAccessKey).count() == 0
+
+
+def test_legacy_unmatched_existing_authority_requires_owner_review(database):
+    with Session(database) as db:
+        db.add(
+            AgentAccessKey(
+                label="Owner renamed",
+                agent_id="restricted",
+                key_hash=_hash_key(NEW),
+                revoked=True,
+            )
+        )
+        db.commit()
+    with Session(database) as db, pytest.raises(ValueError, match="cannot be matched"):
+        ensure_bootstrap_agent_access_key(db, RAW, "broader")
+    with Session(database) as db:
+        assert db.query(AgentAccessKey).count() == 1
+
+
+def test_concurrent_seeders_share_one_authority(database):
+    def seed(scope):
+        with Session(database) as db:
+            return ensure_bootstrap_agent_access_key(db, RAW, scope).id
+
+    with ThreadPoolExecutor(2) as pool:
+        ids = list(pool.map(seed, ["first", "second"]))
+    assert len(set(ids)) == 1
+    with Session(database) as db:
         assert db.query(AgentAccessKey).count() == 1

@@ -7,7 +7,8 @@ import time
 from datetime import datetime, timezone
 from app.core.config import MEMORYGATE_ADMIN_KEY
 from app.models.auth_setting import AuthSetting
-from app.models.agent_access_key import AgentAccessKey
+from app.models.agent_access_key import AgentAccessKey, BootstrapAuthority
+from sqlalchemy.exc import IntegrityError
 
 _PBKDF2_ROUNDS = 200_000
 _SINGLETON_ID = "singleton"
@@ -151,17 +152,38 @@ def ensure_bootstrap_agent_access_key(db, raw_key: str, agent_id: str, label: st
     """Configuration seeds missing authority; it never resets an owner's decision."""
     if not raw_key.startswith("mg_read_") or len(raw_key) < 24:
         raise ValueError("MEMORYGATE_BOOTSTRAP_READ_KEY must start with mg_read_ and be at least 24 characters")
-    row = db.query(AgentAccessKey).filter(AgentAccessKey.label == label).first()
-    if row is not None:
+    binding_id = "environment-read-key"
+    binding = db.get(BootstrapAuthority, binding_id)
+    if binding:
+        row = db.get(AgentAccessKey, binding.key_id)
+        if row is None:
+            raise ValueError("Bootstrap key was removed. Disable bootstrap configuration and "
+                             "provision an owner-issued read key; access was not recreated.")
         return row
-    # Include revoked rows: renaming a key must not mint an active copy on restart.
-    for candidate in db.query(AgentAccessKey).all():
-        if _verify_key(raw_key, candidate.key_hash):
-            return candidate
-    row = AgentAccessKey(label=label, agent_id=agent_id, key_hash=_hash_key(raw_key), revoked=False)
-    db.add(row)
-    db.commit()
-    db.refresh(row)
+    existing = db.query(AgentAccessKey).all()
+    row = next((item for item in existing if item.label == label), None)
+    if row is None:
+        row = next((item for item in existing if _verify_key(raw_key, item.key_hash)), None)
+    if row is None and existing:
+        # Pre-upgrade renamed AND rotated keys have no inferable bootstrap identity.
+        # Failing closed is preferable to silently minting a second authority.
+        raise ValueError("Existing read keys cannot be matched to bootstrap configuration. "
+                         "Disable bootstrap configuration and use an owner-issued read key.")
+    try:
+        if row is None:
+            row = AgentAccessKey(label=label, agent_id=agent_id,
+                                 key_hash=_hash_key(raw_key), revoked=False)
+            db.add(row)
+            db.flush()
+        db.add(BootstrapAuthority(id=binding_id, key_id=row.id))
+        db.commit()
+    except IntegrityError:
+        # Concurrent seeders share the winning identity; neither resets its fields.
+        db.rollback()
+        binding = db.get(BootstrapAuthority, binding_id)
+        row = db.get(AgentAccessKey, binding.key_id) if binding else None
+        if row is None:
+            raise ValueError("Bootstrap authority changed; review read-key provisioning.") from None
     return row
 
 
