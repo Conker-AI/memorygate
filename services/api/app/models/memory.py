@@ -1,4 +1,4 @@
-from sqlalchemy import String, Text, DateTime, Boolean, func
+from sqlalchemy import String, Text, DateTime, Boolean, Integer, func
 from sqlalchemy.orm import Mapped, mapped_column
 from app.core.db import Base
 import uuid
@@ -8,6 +8,9 @@ class Memory(Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     agent_id: Mapped[str] = mapped_column(String, default="default", index=True)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    __mapper_args__ = {"version_id_col": revision}
+
     text: Mapped[str] = mapped_column(Text)
     summary: Mapped[str] = mapped_column(Text, default="")
     memory_type: Mapped[str] = mapped_column(String, default="context")  # fact / phase / context / watch

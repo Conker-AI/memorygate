@@ -1,7 +1,8 @@
 import json
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlalchemy import select
+from sqlalchemy.orm.exc import StaleDataError
 from app.core.db import SessionLocal
 from app.core.agent import get_agent_id, resolve_agent_id
 from app.models.memory import Memory
@@ -46,6 +47,7 @@ def _row_to_dict(row, score=None):
         tags = tags.get("tags", [])
     result = {
         "id": row.id,
+        "revision": row.revision,
         "agent_id": row.agent_id,
         "text": row.text,
         "summary": row.summary,
@@ -422,6 +424,12 @@ def get_memory(memory_id: str, agent_id: str = Depends(get_agent_id)):
     finally:
         db.close()
 
+def _check_revision(row, expected):
+    # Optional for legacy callers; new editors must echo the fetched revision.
+    if expected is not None and row.revision != expected:
+        raise HTTPException(409, {"code": "revision_conflict", "current_revision": row.revision})
+
+
 @router.patch("/{memory_id}")
 def patch_memory(memory_id: str, payload: MemoryPatchRequest, agent_id: str = Depends(get_agent_id)):
     db = SessionLocal()
@@ -430,6 +438,7 @@ def patch_memory(memory_id: str, payload: MemoryPatchRequest, agent_id: str = De
         if not row or row.agent_id != agent_id:
             raise HTTPException(404, "Memory not found")
 
+        _check_revision(row, payload.expected_revision)
         add_revision(db, row, "before manual edit", "user")
         if payload.text is not None:
             row.text = payload.text
@@ -451,6 +460,8 @@ def patch_memory(memory_id: str, payload: MemoryPatchRequest, agent_id: str = De
         if payload.tags is not None:
             row.tags_json = json.dumps(payload.tags)
 
+        db.add(MemoryAudit(action="edit", memory_id=row.id, payload_json=json.dumps({"text": row.text})))
+        detect_conflicts(db, row)
         db.commit()
         db.refresh(row)
 
@@ -467,25 +478,26 @@ def patch_memory(memory_id: str, payload: MemoryPatchRequest, agent_id: str = De
             },
         )
 
-        db.add(MemoryAudit(action="edit", memory_id=row.id, payload_json=json.dumps({"text": row.text})))
-        detect_conflicts(db, row)
-        db.commit()
-
         result = {"status": "ok", "memory": _row_to_dict(row)}
         if indexing["status"] != "ok":
             result["indexing"] = indexing
         return result
+    except StaleDataError:
+        db.rollback()
+        raise HTTPException(409, {"code": "revision_conflict", "message": "Memory changed; reload before editing."})
     finally:
         db.close()
 
 @router.delete("/{memory_id}")
-def delete_memory(memory_id: str, agent_id: str = Depends(get_agent_id)):
+def delete_memory(memory_id: str, agent_id: str = Depends(get_agent_id),
+                  expected_revision: int | None = Query(default=None, ge=1)):
     db = SessionLocal()
     try:
         row = db.get(Memory, memory_id)
         if not row or row.agent_id != agent_id:
             raise HTTPException(404, "Memory not found")
 
+        _check_revision(row, expected_revision)
         db.add(MemoryAudit(action="delete", memory_id=row.id, payload_json=json.dumps({"text": row.text})))
         db.delete(row)
         db.commit()
@@ -499,5 +511,8 @@ def delete_memory(memory_id: str, agent_id: str = Depends(get_agent_id)):
             pass
 
         return {"status": "ok"}
+    except StaleDataError:
+        db.rollback()
+        raise HTTPException(409, {"code": "revision_conflict", "message": "Memory changed; reload before deleting."})
     finally:
         db.close()

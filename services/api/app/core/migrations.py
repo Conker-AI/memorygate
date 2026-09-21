@@ -37,6 +37,7 @@ _CLARIFICATION_STATUS_MAP = {
 
 def run_migrations(engine: Engine) -> None:
     with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE memories ADD COLUMN IF NOT EXISTS revision INTEGER NOT NULL DEFAULT 1"))
         conn.execute(text(
             "CREATE TABLE IF NOT EXISTS auth_settings ("
             "id TEXT PRIMARY KEY, "

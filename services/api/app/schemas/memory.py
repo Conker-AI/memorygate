@@ -16,6 +16,7 @@ class MemorySearchRequest(BaseModel):
     query: str
 
 class MemoryPatchRequest(BaseModel):
+    expected_revision: int | None = Field(default=None, ge=1, strict=True)
     text: str | None = None
     memory_type: str | None = None
     confidence: str | None = None
