@@ -150,6 +150,8 @@ def delete_entity(entity_id: str, agent_id: str = Depends(get_agent_id)):
     db = SessionLocal()
     try:
         row = _get_owned_entity(db, entity_id, agent_id)
+        from app.models.deletion_receipt import record
+        record(db, agent_id, "entity", row.id)
         db.delete(row)
         db.commit()
         try:

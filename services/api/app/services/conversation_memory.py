@@ -173,6 +173,8 @@ def forget(agent_id: str, message_id: str) -> dict:
     with SessionLocal() as db:
         receipt = _lock(db, agent_id, message_id)
         if receipt.state != "deleted":
+            from app.models.deletion_receipt import record
+            record(db, agent_id, "conversation", message_id)
             evidence = db.get(EvidenceObject, receipt.id)
             if evidence:
                 evidence.title = "Forgotten conversation evidence"

@@ -1,4 +1,5 @@
 from .memory import Memory
+from .deletion_receipt import DeletionReceipt
 from .audit import MemoryAudit
 from .agent_config import AgentConfig
 from .auth_setting import AuthSetting

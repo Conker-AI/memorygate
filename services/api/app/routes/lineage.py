@@ -176,11 +176,14 @@ def delete_episode(episode_id: str, agent_id: str = Depends(get_agent_id)):
         row = db.get(EpisodeObject, episode_id)
         if not row or row.agent_id != agent_id:
             raise HTTPException(404, "Episode not found")
+        from app.models.deletion_receipt import record
+        record(db, agent_id, "episode", row.id)
         links = db.execute(select(ObjectLink).where(or_(
             (ObjectLink.source_type == "episode") & (ObjectLink.source_id == episode_id),
             (ObjectLink.target_type == "episode") & (ObjectLink.target_id == episode_id),
         ))).scalars().all()
         for link in links:
+            record(db, "", "link", link.id)
             db.delete(link)
         db.delete(row)
         db.commit()
@@ -208,6 +211,8 @@ def delete_link(link_id: str):
         row = db.get(ObjectLink, link_id)
         if not row:
             raise HTTPException(404, "Lineage link not found")
+        from app.models.deletion_receipt import record
+        record(db, "", "link", row.id)
         db.delete(row)
         db.commit()
         return {"status": "ok"}
