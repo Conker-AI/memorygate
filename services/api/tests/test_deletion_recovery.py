@@ -12,6 +12,50 @@ from app.services import deletion_recovery as recovery
 from app.services import conversation_memory
 
 
+def test_real_local_vectors_are_deleted_and_read_back(target):
+    from uuid import uuid4
+    from qdrant_client import QdrantClient, models
+    from app.models.deletion_receipt import RecoveryVerification
+    identity, keep = str(uuid4()), str(uuid4())
+    client = QdrantClient(":memory:")
+    collections = {kind: "recovery_" + kind for kind in ("memory", "entity", "observation")}
+    try:
+        for name in collections.values():
+            client.create_collection(name, vectors_config=models.VectorParams(size=2, distance=models.Distance.COSINE))
+            client.upsert(name, points=[models.PointStruct(id=key, vector=[1.0, 0.0]) for key in (identity, keep)])
+        recovery.replay([("owner", kind, identity) for kind in collections], target)
+        result = recovery.reconcile_indexes(target, client, collections)
+        assert result["pointCount"] == 3 and result["indexCleanupVerified"]
+        assert result == recovery.reconcile_indexes(target, client, collections)
+        for name in collections.values():
+            assert [str(row.id) for row in client.retrieve(name, ids=[identity, keep])] == [keep]
+        with target() as db:
+            assert db.get(RecoveryVerification, "vector-deletions").evidence_digest == result["evidenceDigest"]
+            with pytest.raises(RuntimeError):
+                recovery.assert_not_held(db)
+    finally:
+        client.close()
+
+
+def test_index_failure_never_records_success(target):
+    from types import SimpleNamespace
+    from app.models.deletion_receipt import RecoveryVerification
+    collections = {kind: kind for kind in ("memory", "entity", "observation")}
+    class FailingClient:
+        def get_collections(self):
+            return SimpleNamespace(collections=[SimpleNamespace(name=name) for name in collections])
+        def delete(self, **kwargs):
+            pass
+        def retrieve(self, **kwargs):
+            return [object()]
+    recovery.replay([("owner", "memory", "still-present")], target)
+    with pytest.raises(ValueError, match="retain the hold"):
+        recovery.reconcile_indexes(target, FailingClient(), collections)
+    with target() as db:
+        assert db.get(RecoveryVerification, "vector-deletions") is None
+        assert db.get(RecoveryHold, "deletion-replay") is not None
+
+
 @pytest.fixture
 def target(tmp_path):
     engine = create_engine(f"sqlite:///{tmp_path / 'restored.db'}")

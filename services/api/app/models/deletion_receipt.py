@@ -21,6 +21,13 @@ class RecoveryHold(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True)
 
 
+class RecoveryVerification(Base):
+    __tablename__ = "recovery_verifications"
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    evidence_digest: Mapped[str] = mapped_column(String)
+    verified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 def record(db, agent_id, object_kind, object_id):
     identity = (agent_id, object_kind, object_id)
     if db.get(DeletionReceipt, identity) is None:

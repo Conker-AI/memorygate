@@ -37,3 +37,15 @@ already-running application: stop applications before offline recovery. No hold
 release exists yet; the returned `indexCleanupVerified=false` must not be treated
 as successful vector reconciliation. Real PostgreSQL/vector recovery acceptance
 and coordinated external-effect reconciliation remain separate requirements.
+
+`reconcile_indexes(target_session_factory, isolated_qdrant_client, collections)`
+now derives cleanup IDs from the target's retained receipts, requires the hold,
+and refuses cleanup while matching SQL records still exist. Supply distinct
+memory/entity/observation collection names on the isolated recovery index. It
+uses synchronous deletion and retrieves each batch to verify absence; a failed
+attempt leaves no current verification record. Missing collections count as
+absent only after a successful collection inventory. It records an evidence digest
+and verification time, preserves unrelated points and never removes the hold.
+Verification applies to the supplied client/index, not an arbitrary later endpoint.
+Five replay/cleanup tests pass, including a real embedded Qdrant instance; this
+does not substitute for the PostgreSQL/networked Qdrant recovery drill.

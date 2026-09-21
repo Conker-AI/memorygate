@@ -1,8 +1,11 @@
 """Offline deletion replay into isolated databases. Never removes the startup hold."""
 
+import hashlib
+import json
+from datetime import datetime, timezone
 from sqlalchemy import select
 
-from app.models.deletion_receipt import DeletionReceipt, RecoveryHold, record
+from app.models.deletion_receipt import DeletionReceipt, RecoveryHold, RecoveryVerification, record
 from app.models.memory import Memory
 from app.models.entity import Entity
 from app.models.observation import Observation
@@ -13,6 +16,61 @@ from app.services import conversation_memory
 
 MODELS = {"memory": Memory, "entity": Entity, "observation": Observation,
           "episode": EpisodeObject, "link": ObjectLink}
+
+
+def reconcile_indexes(target_sessions, client, collections):
+    """Delete and read back points on an explicitly supplied isolated index client.
+
+    Services must remain stopped. No environment-configured live client is used.
+    Receipt records verification, never releases the broader recovery hold.
+    """
+    if (set(collections) != {"memory", "entity", "observation"}
+            or any(not isinstance(name, str) or not name for name in collections.values())
+            or len(set(collections.values())) != 3):
+        raise ValueError("Supply three distinct recovery collection names.")
+    with target_sessions() as db:
+        if db.get(RecoveryHold, "deletion-replay") is None:
+            raise ValueError("Index reconciliation requires a held recovery.")
+        previous = db.get(RecoveryVerification, "vector-deletions")
+        if previous is not None:
+            db.delete(previous)
+            db.commit()
+        indexes = set()
+        for row in db.scalars(select(DeletionReceipt)):
+            if row.object_kind in collections:
+                if db.get(MODELS[row.object_kind], row.object_id) is not None:
+                    raise ValueError("Replay database deletions before reconciling the index.")
+                indexes.add((row.object_kind, row.object_id))
+        for row in db.scalars(select(ConversationReceipt).where(ConversationReceipt.state == "deleted")):
+            if row.memory_id:
+                if db.get(Memory, row.memory_id) is not None:
+                    raise ValueError("Deleted source still has a restored memory.")
+                indexes.add(("memory", row.memory_id))
+    encoded = json.dumps({"collections": collections, "points": sorted(indexes)}, sort_keys=True)
+    digest = hashlib.sha256(encoded.encode()).hexdigest()
+    try:
+        present = {item.name for item in client.get_collections().collections}
+        for kind, collection in collections.items():
+            identities = sorted(identity for category, identity in indexes if category == kind)
+            if collection not in present:
+                continue
+            for offset in range(0, len(identities), 100):
+                batch = identities[offset:offset + 100]
+                client.delete(collection_name=collection, points_selector=batch, wait=True)
+                if client.retrieve(collection_name=collection, ids=batch,
+                                   with_payload=False, with_vectors=False):
+                    raise ValueError("Deleted vector points remain present.")
+    except Exception:
+        raise ValueError("Recovery index verification failed; retain the hold and retry.") from None
+    with target_sessions() as db:
+        row = db.get(RecoveryVerification, "vector-deletions")
+        if row is None:
+            row = RecoveryVerification(id="vector-deletions")
+            db.add(row)
+        row.evidence_digest, row.verified_at = digest, datetime.now(timezone.utc)
+        db.commit()
+    return {"indexCleanupVerified": True, "evidenceDigest": digest,
+            "pointCount": len(indexes), "recoveryHeld": True, "promotesRecovery": False}
 
 
 def assert_not_held(db):
