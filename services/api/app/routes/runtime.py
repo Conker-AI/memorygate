@@ -17,6 +17,7 @@ from app.models.conversation_receipt import ConversationReceipt
 from app.models.object_link import ObjectLink
 from app.models.processing_job import ProcessingJob
 from app.schemas.runtime import AgentContextRequest, IngestEventRequest, MemoryQuestionRequest
+from app.schemas.explorer import ExploreRequest
 from app.services.briefing import build_briefing
 from app.services.qdrant_store import INDEX_UNREACHABLE, search_memory_embeddings, semantic_status
 from app.services.ollama_service import answer_with_context, ollama_health
@@ -232,6 +233,8 @@ def _build_context(db, payload: AgentContextRequest, agent_id: str) -> dict:
 
 @router.post("/context")
 def agent_context(payload: AgentContextRequest, header_agent_id: str = Depends(get_agent_id), _: str = Depends(require_read_key)):
+    if _ != "admin" and payload.agent_id is not None and payload.agent_id != header_agent_id:
+        raise HTTPException(403, "Memory namespace cannot be changed")
     agent_id = resolve_agent_id(header_agent_id, payload.agent_id)
     db = SessionLocal()
     try:
@@ -253,13 +256,28 @@ def agent_context(payload: AgentContextRequest, header_agent_id: str = Depends(g
             }),
         ))
         db.commit()
+        if payload.compact:
+            from app.services.memory_explorer import compact
+            return compact(db, context, payload, agent_id)
         return context
     finally:
         db.close()
 
 
+@router.post("/explore")
+def explore_memory(payload: ExploreRequest, agent_id: str = Depends(get_agent_id), _: str = Depends(require_read_key)):
+    from app.services.memory_explorer import explore
+    # The read key is checked against the header namespace, never a body override.
+    if payload.agent_id is not None and payload.agent_id != agent_id:
+        raise HTTPException(403, "Memory namespace cannot be changed")
+    with SessionLocal() as db:
+        return explore(db, payload, agent_id)
+
+
 @router.post("/ask")
 def ask_memorygate(payload: MemoryQuestionRequest, header_agent_id: str = Depends(get_agent_id), _: str = Depends(require_read_key)):
+    if _ != "admin" and payload.agent_id is not None and payload.agent_id != header_agent_id:
+        raise HTTPException(403, "Memory namespace cannot be changed")
     agent_id = resolve_agent_id(header_agent_id, payload.agent_id)
     db = SessionLocal()
     try:

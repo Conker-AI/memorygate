@@ -18,6 +18,7 @@ class IngestEventRequest(BaseModel):
 
 class AgentContextRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    compact: bool = False
     scope: Literal["all", "none", "selected", "conversation"] = "all"
     memory_ids: list[str] = Field(default_factory=list, max_length=1000)
     session_id: str | None = Field(default=None, min_length=1, max_length=200)
