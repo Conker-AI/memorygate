@@ -18,3 +18,22 @@ no receipts cannot prove that no deletion happened. Complete restore still requi
 a newer authoritative ledger, application to restored records/derived indexes,
 effect reconciliation and a held recovery until those checks finish. This change
 does not promote a recovered installation or claim historical deletion coverage.
+
+The offline `app.services.deletion_recovery` module now exposes `evidence(source)`
+and `replay(receipts, target_session_factory)`. The operator must supply the newer
+authoritative source and a separate, stopped recovery database. It is not a public
+HTTP mutation endpoint. Conversation tombstones from older versions are included
+even when generic receipts do not yet exist.
+
+Replay commits a durable hold first, removes scoped restored objects, and returns
+all memory/entity/observation vector IDs that require deletion. Repeating replay
+returns those IDs even if SQL rows are already absent. Conversation replay reuses
+the normal forgetting routine and blocks late uploads. Namespace conflicts refuse
+the operation and retain the hold. Existing normal-delete audit semantics remain.
+
+MemoryGate startup refuses held databases before migrations, credentials, vector
+probes or workers. Logical backups retain the hold. This is not isolation from an
+already-running application: stop applications before offline recovery. No hold
+release exists yet; the returned `indexCleanupVerified=false` must not be treated
+as successful vector reconciliation. Real PostgreSQL/vector recovery acceptance
+and coordinated external-effect reconciliation remain separate requirements.

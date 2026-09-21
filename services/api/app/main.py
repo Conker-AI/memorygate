@@ -69,6 +69,10 @@ _health_cache: dict = {}
 @app.on_event("startup")
 def startup():
     Base.metadata.create_all(bind=engine)
+    from app.services.deletion_recovery import assert_not_held
+    from app.core.db import SessionLocal
+    with SessionLocal() as recovery_db:
+        assert_not_held(recovery_db)
     run_migrations(engine)
     from app.core.db import SessionLocal
 

@@ -169,8 +169,8 @@ def ingest(agent_id: str, message_id: str, payload: dict) -> dict:
         return _response(receipt)
 
 
-def forget(agent_id: str, message_id: str) -> dict:
-    with SessionLocal() as db:
+def forget(agent_id: str, message_id: str, *, sessions=None) -> dict:
+    with (sessions or SessionLocal)() as db:
         receipt = _lock(db, agent_id, message_id)
         if receipt.state != "deleted":
             from app.models.deletion_receipt import record

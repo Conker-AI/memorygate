@@ -16,6 +16,11 @@ class DeletionReceipt(Base):
         default=lambda: datetime.now(timezone.utc))
 
 
+class RecoveryHold(Base):
+    __tablename__ = "recovery_holds"
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+
+
 def record(db, agent_id, object_kind, object_id):
     identity = (agent_id, object_kind, object_id)
     if db.get(DeletionReceipt, identity) is None:
