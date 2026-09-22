@@ -1,5 +1,7 @@
 # MemoryGate
 
+Part of **[Conker](https://github.com/alexeybe1kin/conker)**, independently usable and deployable. [Project map](https://github.com/alexeybe1kin/conker/blob/feat/dashboard/docs/conker-project.md) · [Connected local setup](https://github.com/alexeybe1kin/conker/blob/feat/dashboard/docs/local-windows-startup.md).
+
 Bootstrap read-key configuration is initial setup, not key rotation. Once its
 label or credential exists, startup preserves the owner's revocation, agent
 assignment and stored hash. Use the owner key-management API to issue replacement
