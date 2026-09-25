@@ -7,7 +7,7 @@ citation and medium confidence, not an inferred fact about the owner.
 import hashlib
 import json
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import NAMESPACE_URL, uuid5
 
 from app.core.db import SessionLocal
@@ -92,7 +92,7 @@ def ingest(agent_id: str, message_id: str, payload: dict) -> dict:
             db.commit()
             return _response(receipt)
         content = payload["content"]
-        occurred = datetime.fromtimestamp(payload["created_at"], timezone.utc)
+        occurred = datetime.fromtimestamp(payload["created_at"], UTC)
         score = score_value(content)
         receipt.session_id = payload["session_id"]
         receipt.fingerprint = fingerprint
@@ -183,7 +183,7 @@ def forget(agent_id: str, message_id: str, *, sessions=None) -> dict:
                     {"message_id": message_id, "content_status": "forgotten"}
                 )
                 evidence.normalized_payload_json = "{}"
-                evidence.invalidated_at = datetime.now(timezone.utc)
+                evidence.invalidated_at = datetime.now(UTC)
                 evidence.invalidation_reason = "Pi owner forgetting"
                 evidence.processing_state = "invalidated"
             analysis_id = str(uuid5(NAMESPACE_URL, receipt.id + ":analysis"))

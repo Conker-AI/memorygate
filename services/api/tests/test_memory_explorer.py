@@ -1,18 +1,18 @@
 import json
+from datetime import UTC
 
 import pytest
-from fastapi import HTTPException
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
 from app.core.db import Base
-from app.models.memory import Memory
 from app.models.entity import Entity, EntityEdge
 from app.models.evidence_object import EvidenceObject
+from app.models.memory import Memory
 from app.models.object_link import ObjectLink
 from app.schemas.explorer import ExploreRequest
 from app.schemas.runtime import AgentContextRequest
 from app.services.memory_explorer import compact, explore
+from fastapi import HTTPException
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 
 @pytest.fixture
@@ -30,9 +30,9 @@ def db(tmp_path):
             EvidenceObject(id="invalid", agent_id="owner", source_id="connector", source_key="call", source_type="audio", title="old"),
             EntityEdge(id="ee", from_entity_id="e", to_entity_id="e2", relationship_type="works_on"),
         ])
-        from datetime import datetime, timezone
+        from datetime import datetime
         db.flush()
-        db.get(EvidenceObject, "invalid").invalidated_at = datetime.now(timezone.utc)
+        db.get(EvidenceObject, "invalid").invalidated_at = datetime.now(UTC)
         for identity, kind, target, relation in [("1", "entity", "e", "about"), ("2", "evidence", "s", "derived_from"),
                 ("3", "memory", "foreign", "related"), ("4", "memory", "inactive", "related"), ("5", "evidence", "invalid", "derived_from")]:
             db.add(ObjectLink(id=identity, source_type="memory", source_id="m", target_type=kind, target_id=target, relationship=relation))
@@ -108,8 +108,8 @@ def test_read_tier_cannot_switch_namespace_in_body():
 
 def test_mcp_context_and_followup_use_same_operator_scope(db, monkeypatch):
     import importlib.util
-    from pathlib import Path
     from io import BytesIO
+    from pathlib import Path
     path = Path(__file__).resolve().parents[2] / "mcp" / "memorygate_mcp.py"
     spec = importlib.util.spec_from_file_location("explorer_mcp", path)
     module = importlib.util.module_from_spec(spec)

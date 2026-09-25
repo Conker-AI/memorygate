@@ -2,17 +2,15 @@ import os
 
 os.environ.setdefault("DATABASE_URL", "sqlite:///./test_skills_import.db")
 
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
-from app.core.db import Base
 from app.core import auth
-from app.models.memory import Memory
+from app.core.db import Base
 from app.routes import skills
 from app.routes.skills import context_router, router
 from app.services.auth_settings_service import create_agent_access_key, set_admin_key
 from fastapi import FastAPI
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 
 def make_client(tmp_path, monkeypatch):

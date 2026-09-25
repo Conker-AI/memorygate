@@ -1,23 +1,29 @@
+import contextlib
 import json
-from datetime import datetime, timezone
-from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy import select, and_
-from app.core.db import SessionLocal
+from datetime import UTC, datetime
+
 from app.core.agent import get_agent_id, resolve_agent_id
+from app.core.db import SessionLocal
 from app.models.observation import Observation
 from app.schemas.observation import (
-    ObservationCreateRequest,
-    ObservationSearchRequest,
-    ObservationUpdateRequest,
+    ObservationArchiveRequest,
     ObservationConfirmRequest,
     ObservationContradictRequest,
-    ObservationArchiveRequest,
+    ObservationCreateRequest,
+    ObservationSearchRequest,
     ObservationSessionContextRequest,
+    ObservationUpdateRequest,
 )
 from app.services.agent_config_service import get_or_create_config
-from app.services.observation_lifecycle import find_duplicate, enforce_budget, apply_session_context
+from app.services.observation_lifecycle import apply_session_context, enforce_budget, find_duplicate
 from app.services.pattern_promotion import promote_from_observations
-from app.services.qdrant_store import index_after_commit, upsert_observation_embedding, delete_observation_embedding
+from app.services.qdrant_store import (
+    delete_observation_embedding,
+    index_after_commit,
+    upsert_observation_embedding,
+)
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import and_, select
 
 router = APIRouter(prefix="/observation", tags=["observation"])
 
@@ -182,13 +188,11 @@ def delete_observation(observation_id: str, agent_id: str = Depends(get_agent_id
         record(db, agent_id, "observation", row.id)
         db.delete(row)
         db.commit()
-        try:
+        # Postgres (the source of truth) already committed the delete -
+        # a stale/malformed Qdrant point shouldn't turn a successful
+        # delete into a 500.
+        with contextlib.suppress(Exception):
             delete_observation_embedding(observation_id)
-        except Exception:
-            # Postgres (the source of truth) already committed the delete -
-            # a stale/malformed Qdrant point shouldn't turn a successful
-            # delete into a 500.
-            pass
         return {"status": "ok"}
     finally:
         db.close()
@@ -267,7 +271,7 @@ def archive_observation(observation_id: str, payload: ObservationArchiveRequest,
     try:
         row = _get_owned_observation(db, observation_id, agent_id)
         row.status = "archived"
-        row.archived_at = datetime.now(timezone.utc)
+        row.archived_at = datetime.now(UTC)
         row.archive_reason = payload.reason
         db.commit()
         db.refresh(row)

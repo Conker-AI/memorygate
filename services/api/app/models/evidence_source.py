@@ -1,7 +1,8 @@
-from sqlalchemy import String, Text, DateTime, Boolean, func
-from sqlalchemy.orm import Mapped, mapped_column
-from app.core.db import Base
 import uuid
+
+from app.core.db import Base
+from sqlalchemy import Boolean, DateTime, String, Text, func
+from sqlalchemy.orm import Mapped, mapped_column
 
 
 class EvidenceSource(Base):

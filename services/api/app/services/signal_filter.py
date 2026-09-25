@@ -54,9 +54,9 @@ def score_value(text: str, existing_similar_text: str | None = None) -> float:
     if lower.rstrip(".!? ") in ACKNOWLEDGMENTS:
         return 0.0
     groups = (PREFERENCE_WORDS, BEHAVIORAL_WORDS, RELATIONSHIP_WORDS, GOAL_WORDS)
-    score = sum(HIGH_VALUE_WEIGHT for phrases, russian in zip(groups, RUSSIAN_SIGNALS)
+    score = sum(HIGH_VALUE_WEIGHT for phrases, russian in zip(groups, RUSSIAN_SIGNALS, strict=True)
                 if _contains(lower, phrases) or re.search(russian, lower))
-    negations = NEGATION_WORDS + ["не", "больше не", "перестал", "перестала"]
+    negations = [*NEGATION_WORDS, "не", "больше не", "перестал", "перестала"]
     if existing_similar_text and _contains(lower, negations) and not _contains(_normalized(existing_similar_text), negations):
         score += HIGH_VALUE_WEIGHT
     return min(score, 1.0)

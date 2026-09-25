@@ -1,21 +1,21 @@
 import pytest
+from app.core.db import Base
+from app.models.conversation_receipt import ConversationReceipt
+from app.models.deletion_receipt import DeletionReceipt, RecoveryHold
+from app.models.entity import Entity
+from app.models.memory import Memory
+from app.models.observation import Observation
+from app.services import conversation_memory
+from app.services import deletion_recovery as recovery
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
-
-from app.core.db import Base
-from app.models.deletion_receipt import DeletionReceipt, RecoveryHold
-from app.models.memory import Memory
-from app.models.entity import Entity
-from app.models.observation import Observation
-from app.models.conversation_receipt import ConversationReceipt
-from app.services import deletion_recovery as recovery
-from app.services import conversation_memory
 
 
 def test_real_local_vectors_are_deleted_and_read_back(target):
     from uuid import uuid4
-    from qdrant_client import QdrantClient, models
+
     from app.models.deletion_receipt import RecoveryVerification
+    from qdrant_client import QdrantClient, models
     identity, keep = str(uuid4()), str(uuid4())
     client = QdrantClient(":memory:")
     collections = {kind: "recovery_" + kind for kind in ("memory", "entity", "observation")}
@@ -39,6 +39,7 @@ def test_real_local_vectors_are_deleted_and_read_back(target):
 
 def test_index_failure_never_records_success(target):
     from types import SimpleNamespace
+
     from app.models.deletion_receipt import RecoveryVerification
     collections = {kind: kind for kind in ("memory", "entity", "observation")}
     class FailingClient:

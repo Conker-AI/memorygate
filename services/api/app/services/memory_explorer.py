@@ -2,13 +2,12 @@
 
 import json
 
-from fastapi import HTTPException
-from sqlalchemy import and_, func, literal, or_, select, union_all
-
 from app.models.conversation_receipt import ConversationReceipt
 from app.models.entity import EntityEdge
 from app.models.object_link import ObjectLink
 from app.routes.lineage import OBJECT_MODELS
+from fastapi import HTTPException
+from sqlalchemy import and_, func, literal, or_, select, union_all
 
 # Explicit projection: never return ORM internals, connector configuration or keys.
 FIELDS = {

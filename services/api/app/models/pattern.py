@@ -1,7 +1,9 @@
-from sqlalchemy import String, Text, DateTime, Float, Integer, func
-from sqlalchemy.orm import Mapped, mapped_column
-from app.core.db import Base
 import uuid
+
+from app.core.db import Base
+from sqlalchemy import DateTime, Float, Integer, String, Text, func
+from sqlalchemy.orm import Mapped, mapped_column
+
 
 class Pattern(Base):
     __tablename__ = "patterns"

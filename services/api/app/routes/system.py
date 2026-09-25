@@ -1,14 +1,19 @@
 import hmac
 
-from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import FileResponse
 from app.core.db import SessionLocal
-from app.services.backup_service import create_backup, list_backups, resolve_backup
+from app.schemas.auth_settings import AiRuntimeUpdateRequest, MemoryResetRequest
 from app.services.ai_runtime_service import get_runtime_status, update_runtime_config
-from app.services.auth_settings_service import clear_failed_attempts, get_lockout_status, register_failed_attempt, verify_admin_key
+from app.services.auth_settings_service import (
+    clear_failed_attempts,
+    get_lockout_status,
+    register_failed_attempt,
+    verify_admin_key,
+)
+from app.services.backup_service import create_backup, list_backups, resolve_backup
 from app.services.memory_reset_service import reset_memory
 from app.services.ollama_service import ollama_health
-from app.schemas.auth_settings import AiRuntimeUpdateRequest, MemoryResetRequest
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import FileResponse
 
 router = APIRouter(prefix="/system", tags=["system"])
 
@@ -42,7 +47,7 @@ def download_backup(filename: str):
     try:
         path = resolve_backup(filename)
     except FileNotFoundError:
-        raise HTTPException(404, "Backup not found")
+        raise HTTPException(404, "Backup not found") from None
     return FileResponse(path, media_type="application/json", filename=path.name)
 
 

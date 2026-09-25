@@ -1,5 +1,7 @@
-from pydantic import BaseModel, Field
 from typing import Any
+
+from pydantic import BaseModel, Field
+
 
 class EntityCreateRequest(BaseModel):
     agent_id: str | None = None

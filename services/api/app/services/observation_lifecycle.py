@@ -1,8 +1,9 @@
 """Dedup, exposure tracking, and active-observation budget enforcement (FIX 3)."""
-from datetime import datetime, timezone
-from sqlalchemy import select
+from datetime import UTC, datetime
+
 from app.models.observation import Observation
 from app.services.qdrant_store import INDEX_UNREACHABLE, find_similar_observations, semantic_status
+from sqlalchemy import select
 
 DEDUP_SIMILARITY_THRESHOLD = 0.85
 
@@ -39,7 +40,7 @@ def enforce_budget(db, agent_id: str, max_observations: int) -> None:
 
     victim = max(active, key=lambda o: o.exposure_count)
     victim.status = "archived"
-    victim.archived_at = datetime.now(timezone.utc)
+    victim.archived_at = datetime.now(UTC)
     victim.archive_reason = "max active observations reached; archived to make room"
     db.commit()
 
@@ -71,7 +72,7 @@ def apply_session_context(db, agent_id: str, session_context: str) -> dict:
 
         if row.exposure_count >= row.max_exposures and row.status == "unconfirmed":
             row.status = "archived"
-            row.archived_at = datetime.now(timezone.utc)
+            row.archived_at = datetime.now(UTC)
             row.archive_reason = "max exposures without confirmation"
             archived_ids.append(row.id)
 

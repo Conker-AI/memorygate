@@ -1,20 +1,25 @@
 import json
-from datetime import datetime, timezone
-from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy import select
-from app.core.db import SessionLocal
+from datetime import UTC, datetime
+
 from app.core.agent import get_agent_id, resolve_agent_id
-from app.models.pattern import Pattern
+from app.core.db import SessionLocal
 from app.models.observation import Observation
+from app.models.pattern import Pattern
 from app.schemas.pattern import (
-    PatternCreateRequest,
-    PatternSearchRequest,
-    PatternUpdateRequest,
-    PatternPromoteRequest,
     PatternConfirmRequest,
     PatternContradictRequest,
+    PatternCreateRequest,
+    PatternPromoteRequest,
+    PatternSearchRequest,
+    PatternUpdateRequest,
 )
-from app.services.pattern_promotion import maybe_promote, clamp_confidence, DEPRECATE_AT_CONTRADICTIONS
+from app.services.pattern_promotion import (
+    DEPRECATE_AT_CONTRADICTIONS,
+    clamp_confidence,
+    maybe_promote,
+)
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 
 router = APIRouter(prefix="/pattern", tags=["pattern"])
 
@@ -65,7 +70,7 @@ def create_pattern(payload: PatternCreateRequest, header_agent_id: str = Depends
             applies_to_entity_ids_json=json.dumps(payload.applies_to_entity_ids),
             context_conditions_json=json.dumps(payload.context_conditions),
             status=payload.status,
-            promoted_at=datetime.now(timezone.utc) if payload.status == "active" else None,
+            promoted_at=datetime.now(UTC) if payload.status == "active" else None,
         )
         db.add(row)
         db.commit()
@@ -169,7 +174,7 @@ def update_pattern(pattern_id: str, payload: PatternUpdateRequest, agent_id: str
         if payload.status is not None:
             row.status = payload.status
             if payload.status == "active" and row.promoted_at is None:
-                row.promoted_at = datetime.now(timezone.utc)
+                row.promoted_at = datetime.now(UTC)
 
         db.commit()
         db.refresh(row)
@@ -183,7 +188,7 @@ def confirm_pattern(pattern_id: str, payload: PatternConfirmRequest, agent_id: s
     try:
         row = _get_owned_pattern(db, pattern_id, agent_id)
         row.confirmation_count += 1
-        row.last_confirmed_at = datetime.now(timezone.utc)
+        row.last_confirmed_at = datetime.now(UTC)
         maybe_promote(row)
         db.commit()
         db.refresh(row)
@@ -264,8 +269,8 @@ def promote_pattern(payload: PatternPromoteRequest, header_agent_id: str = Depen
             applies_to_entity_ids_json=json.dumps(applies_to_entity_ids),
             context_conditions_json=json.dumps({}),
             status="candidate" if confidence < 0.85 else "active",
-            promoted_at=datetime.now(timezone.utc) if confidence >= 0.85 else None,
-            last_confirmed_at=datetime.now(timezone.utc),
+            promoted_at=datetime.now(UTC) if confidence >= 0.85 else None,
+            last_confirmed_at=datetime.now(UTC),
         )
         db.add(pattern)
         db.commit()

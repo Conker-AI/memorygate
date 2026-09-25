@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 
+
 class MemoryWriteRequest(BaseModel):
     agent_id: str | None = None
     text: str

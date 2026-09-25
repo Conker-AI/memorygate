@@ -9,10 +9,11 @@ rule-based stand-in. A group of 3+ becomes (or reinforces) a candidate
 pattern; candidates promote to active at confirmation_count >= 5.
 """
 import json
-from datetime import datetime, timezone
-from sqlalchemy import select
+from datetime import UTC, datetime
+
 from app.models.observation import Observation
 from app.models.pattern import Pattern
+from sqlalchemy import select
 
 MIN_CLUSTER_SIZE = 3
 PROMOTE_AT_CONFIRMATIONS = 5
@@ -40,7 +41,7 @@ def _pattern_name_for(signal_type: str, hypothesis_norm: str) -> str:
 def maybe_promote(pattern: Pattern) -> None:
     if pattern.status == "candidate" and pattern.confirmation_count >= PROMOTE_AT_CONFIRMATIONS:
         pattern.status = "active"
-        pattern.promoted_at = datetime.now(timezone.utc)
+        pattern.promoted_at = datetime.now(UTC)
     if pattern.status == "active" and pattern.contradiction_count >= DEPRECATE_AT_CONTRADICTIONS:
         pattern.status = "deprecated"
 
@@ -85,7 +86,7 @@ def promote_from_observations(db, agent_id: str, signal_type: str | None = None)
                 existing.confirmation_count += 1
             existing.instance_count = new_size
             existing.observation_ids_json = json.dumps(observation_ids)
-            existing.last_confirmed_at = datetime.now(timezone.utc)
+            existing.last_confirmed_at = datetime.now(UTC)
             maybe_promote(existing)
             touched.append(existing)
         else:
@@ -110,7 +111,7 @@ def promote_from_observations(db, agent_id: str, signal_type: str | None = None)
                 applies_to_entity_ids_json=json.dumps(applies_to),
                 context_conditions_json=json.dumps({}),
                 status="candidate",
-                last_confirmed_at=datetime.now(timezone.utc),
+                last_confirmed_at=datetime.now(UTC),
             )
             db.add(pattern)
             touched.append(pattern)

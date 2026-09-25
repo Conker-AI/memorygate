@@ -1,46 +1,46 @@
 import logging
 import os
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from fastapi import FastAPI, Depends
-from fastapi.middleware.cors import CORSMiddleware
+from app.core.auth import require_key
 from app.core.config import CORS_ANY_ORIGIN, CORS_ORIGINS
 from app.core.db import Base, database_health, engine
 from app.core.migrations import run_migrations
-from app.core.auth import require_key
-from app.routes.memory import router as memory_router
-from app.routes.audit import router as audit_router
-from app.routes.entity import router as entity_router
-from app.routes.observation import router as observation_router
-from app.routes.pattern import router as pattern_router
+from app.models import (
+    memory_forget,  # noqa: F401 - registers the table for create_all
+    )
 from app.routes.agent_config import router as agent_config_router
-from app.routes.briefing import router as briefing_router
-from app.routes.transcript import router as transcript_router
+from app.routes.audit import router as audit_router
 from app.routes.auth_settings import router as auth_settings_router
-from app.routes.evidence import router as evidence_router
-from app.routes.lineage import router as lineage_router
-from app.routes.runtime import router as runtime_router
+from app.routes.briefing import router as briefing_router
 from app.routes.conversation import router as conversation_router
 from app.routes.corrections import router as corrections_router
-from app.routes.system import router as system_router
+from app.routes.entity import router as entity_router
+from app.routes.evidence import router as evidence_router
+from app.routes.lineage import router as lineage_router
+from app.routes.memory import router as memory_router
+from app.routes.observation import router as observation_router
+from app.routes.pattern import router as pattern_router
+from app.routes.runtime import router as runtime_router
 from app.routes.skills import context_router as skills_context_router
 from app.routes.skills import router as skills_router
-from app.models import memory, audit, agent_config
-from app.models import memory_forget  # noqa: F401 - registers the table for create_all
-from app.models import auth_setting
-from app.models import evidence_source, evidence_object, analysis_object
-from app.models import episode_object, object_link
-from app.models import processing_job
-from app.models import entity
-from app.models import observation
-from app.models import pattern
-from app.models import session_transcript
-from app.models import ai_runtime_setting
-from app.services.qdrant_store import ensure_qdrant_collection, ensure_observation_collection, ensure_entity_collection, qdrant_health
+from app.routes.system import router as system_router
+from app.routes.transcript import router as transcript_router
+from app.services.auth_settings_service import (
+    assert_admin_key_configured,
+    ensure_bootstrap_agent_access_key,
+)
 from app.services.embeddings import embedding_health
 from app.services.processing_worker import start_worker, stop_worker
-from app.services.auth_settings_service import assert_admin_key_configured, ensure_bootstrap_agent_access_key
+from app.services.qdrant_store import (
+    ensure_entity_collection,
+    ensure_observation_collection,
+    ensure_qdrant_collection,
+    qdrant_health,
+)
+from fastapi import Depends, FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 log = logging.getLogger("memorygate")
 
@@ -70,8 +70,8 @@ _health_cache: dict = {}
 @app.on_event("startup")
 def startup():
     Base.metadata.create_all(bind=engine)
-    from app.services.deletion_recovery import assert_not_held
     from app.core.db import SessionLocal
+    from app.services.deletion_recovery import assert_not_held
     with SessionLocal() as recovery_db:
         assert_not_held(recovery_db)
     run_migrations(engine)
@@ -138,7 +138,7 @@ def health():
         "status": "degraded" if degraded else "ok",
         "degraded": degraded,
         "checks": checks,
-        "checked_at": datetime.now(timezone.utc).isoformat(),
+        "checked_at": datetime.now(UTC).isoformat(),
     }
     _health_cache["result"] = result
     _health_cache["checked_at"] = now

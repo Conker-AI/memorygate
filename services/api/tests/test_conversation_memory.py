@@ -51,8 +51,8 @@ def payload(text):
 
 @pytest.mark.parametrize(
     "text",
-    TEXTS
-    + [
+    [
+        *TEXTS,
         "My preference is training before school",
         "I preferred morning training",
         "Люблю плавать",

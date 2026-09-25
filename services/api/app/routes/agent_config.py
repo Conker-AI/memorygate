@@ -1,7 +1,7 @@
-from fastapi import APIRouter
 from app.core.db import SessionLocal
 from app.schemas.agent_config import AgentConfigUpdateRequest
-from app.services.agent_config_service import get_or_create_config, config_to_dict
+from app.services.agent_config_service import config_to_dict, get_or_create_config
+from fastapi import APIRouter
 
 router = APIRouter(prefix="/config", tags=["config"])
 

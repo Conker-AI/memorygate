@@ -6,11 +6,12 @@ status, scheduled_for, warmth_level) - that's exactly what that column is
 for, so no new columns are added for it.
 """
 import json
-from datetime import datetime, timedelta, timezone
-from sqlalchemy import select
-from app.models.observation import Observation
+from datetime import UTC, datetime, timedelta
+
 from app.models.entity import Entity, EntityEvent
 from app.models.memory import Memory
+from app.models.observation import Observation
+from sqlalchemy import select
 
 RECENT_WINDOW_DAYS = 7
 TASK_TOUCHED_WINDOW_DAYS = 21
@@ -21,7 +22,7 @@ TOKEN_BUDGET = 300
 
 
 def _now():
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _attrs(entity: Entity) -> dict:

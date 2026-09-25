@@ -1,15 +1,16 @@
 """Revision-aware editing and atomic audit on an isolated database."""
 import pytest
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, select, func
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.orm.exc import StaleDataError
 from app.core.db import Base
-from app.models.memory import Memory
 from app.models.audit import MemoryAudit
+from app.models.memory import Memory
 from app.models.memory_revision import MemoryRevision
 from app.routes import memory
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, func, select
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm.exc import StaleDataError
+
 
 @pytest.fixture
 def setup(tmp_path, monkeypatch):

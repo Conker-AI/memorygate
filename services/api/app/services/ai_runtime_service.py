@@ -1,11 +1,11 @@
 """Provider configuration and encrypted credentials for MemoryGate's bounded AI calls."""
+import contextlib
 from pathlib import Path
 from threading import Lock
 
-from cryptography.fernet import Fernet, InvalidToken
-
 from app.core.config import OLLAMA_MODEL, RUNTIME_SECRET_PATH
 from app.models.ai_runtime_setting import AiRuntimeSetting
+from cryptography.fernet import Fernet, InvalidToken
 
 _SINGLETON_ID = "singleton"
 _secret_lock = Lock()
@@ -20,10 +20,8 @@ def _fernet() -> Fernet:
             path.parent.mkdir(parents=True, exist_ok=True)
             key = Fernet.generate_key()
             path.write_bytes(key)
-            try:
+            with contextlib.suppress(OSError):
                 path.chmod(0o600)
-            except OSError:
-                pass
     return Fernet(key)
 
 

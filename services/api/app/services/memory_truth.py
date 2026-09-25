@@ -1,9 +1,10 @@
 import json
-from datetime import datetime, timezone
-from sqlalchemy import select
+from datetime import UTC, datetime
+
 from app.models.memory import Memory
 from app.models.memory_conflict import MemoryConflict
 from app.models.memory_revision import MemoryRevision
+from sqlalchemy import select
 
 
 def snapshot(memory: Memory) -> dict:
@@ -56,5 +57,5 @@ def detect_conflicts(db, memory: Memory) -> list[MemoryConflict]:
 def mark_unsupported(db, memory: Memory, reason: str) -> None:
     if memory.status == "active":
         memory.status = "needs_review"
-        memory.valid_until = datetime.now(timezone.utc)
+        memory.valid_until = datetime.now(UTC)
         add_revision(db, memory, reason, "support_graph")

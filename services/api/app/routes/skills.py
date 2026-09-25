@@ -1,12 +1,13 @@
 import json
-from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from datetime import UTC, datetime
+
 from app.core.agent import get_agent_id, resolve_agent_id
 from app.core.auth import require_read_key
 from app.core.db import SessionLocal
 from app.models.memory import Memory
 from app.schemas.skill import SkillPatchRequest, SkillWriteRequest
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select
 
 router = APIRouter(prefix="/skills", tags=["skills"])
 context_router = APIRouter(prefix="/context", tags=["context"])
@@ -87,7 +88,7 @@ def create_skill(payload: SkillWriteRequest, header_agent_id: str = Depends(get_
             confidence="high",
             tags_json=_skill_tags(payload.linked_tools, payload.version, payload.active),
             status="active" if payload.active else "inactive",
-            valid_from=datetime.now(timezone.utc),
+            valid_from=datetime.now(UTC),
         )
         db.add(row)
         db.commit()

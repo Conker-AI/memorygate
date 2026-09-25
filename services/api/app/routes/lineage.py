@@ -1,7 +1,6 @@
 import json
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import or_, select
+
 from app.core.agent import get_agent_id, resolve_agent_id
 from app.core.db import SessionLocal
 from app.models.analysis_object import AnalysisObject
@@ -14,6 +13,8 @@ from app.models.observation import Observation
 from app.models.pattern import Pattern
 from app.models.session_transcript import SessionTranscript
 from app.schemas.lineage import EpisodeCreateRequest, EpisodeUpdateRequest, ObjectLinkCreateRequest
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import or_, select
 
 router = APIRouter(prefix="/lineage", tags=["lineage"])
 

@@ -9,6 +9,7 @@ An existing database needs these run once at startup to catch up.
 """
 import json
 import uuid
+
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 

@@ -1,14 +1,15 @@
 import json
 import secrets
 from datetime import datetime
-from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy import select
-from app.core.db import SessionLocal
-from app.models.evidence_source import EvidenceSource
-from app.models.evidence_object import EvidenceObject
-from app.models.analysis_object import AnalysisObject
-from app.schemas.evidence import EvidenceObjectCreateRequest, EvidenceSourceUpsertRequest
+
 from app.core.agent import get_agent_id
+from app.core.db import SessionLocal
+from app.models.analysis_object import AnalysisObject
+from app.models.evidence_object import EvidenceObject
+from app.models.evidence_source import EvidenceSource
+from app.schemas.evidence import EvidenceObjectCreateRequest, EvidenceSourceUpsertRequest
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 
 router = APIRouter(prefix="/evidence", tags=["evidence"])
 

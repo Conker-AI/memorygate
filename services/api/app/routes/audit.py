@@ -1,9 +1,9 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter
-from sqlalchemy import select
 from app.core.db import SessionLocal
 from app.models.audit import MemoryAudit
+from fastapi import APIRouter
+from sqlalchemy import select
 
 router = APIRouter(prefix="/audit", tags=["audit"])
 
@@ -35,7 +35,7 @@ def list_audit():
 @router.get("/metrics")
 def audit_metrics(hours: int = 24):
     bounded_hours = max(1, min(int(hours or 24), 168))
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=bounded_hours)
+    cutoff = datetime.now(UTC) - timedelta(hours=bounded_hours)
     db = SessionLocal()
     try:
         rows = db.execute(
