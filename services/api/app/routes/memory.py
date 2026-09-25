@@ -498,10 +498,9 @@ def delete_memory(memory_id: str, agent_id: str = Depends(get_agent_id),
             raise HTTPException(404, "Memory not found")
 
         _check_revision(row, expected_revision)
-        from app.models.deletion_receipt import record
-        record(db, agent_id, "memory", row.id)
-        db.add(MemoryAudit(action="delete", memory_id=row.id, payload_json=json.dumps({"text": row.text})))
-        db.delete(row)
+        from app.services.memory_forgetting import erase
+        # A deleted memory's text must not survive in revisions, conflicts or audit.
+        erase(db, agent_id, row, "delete", {"revision": row.revision})
         db.commit()
 
         try:

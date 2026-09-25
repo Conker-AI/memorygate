@@ -5,7 +5,7 @@ import re
 import secrets
 from typing import Annotated
 
-from app.services import memory_corrections
+from app.services import memory_corrections, memory_forgetting
 from fastapi import APIRouter, Depends, Header, HTTPException, Path
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -78,6 +78,12 @@ class Correction(BaseModel):
         return value
 
 
+class Forget(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    memory_id: str = Field(pattern=MEMORY_ID)
+    expected_revision: int = Field(ge=1, le=2147483646)
+
+
 router = APIRouter(
     prefix="/runtime/corrections",
     tags=["reviewed memory correction"],
@@ -91,6 +97,24 @@ def memory(
     agent_id: str = Depends(require_correction_key),
 ):
     return memory_corrections.read_memory(agent_id, memory_id)
+
+
+@router.put("/forget/{request_id}")
+def forget(
+    request_id: Annotated[str, Path(pattern=REQUEST_ID)],
+    payload: Forget,
+    agent_id: str = Depends(require_correction_key),
+):
+    """Owner-reviewed forget: removes the memory and every stored copy of its text."""
+    return memory_forgetting.forget(agent_id, request_id, payload.model_dump())
+
+
+@router.get("/forget/{request_id}")
+def forget_receipt(
+    request_id: Annotated[str, Path(pattern=REQUEST_ID)],
+    agent_id: str = Depends(require_correction_key),
+):
+    return memory_forgetting.read_receipt(agent_id, request_id)
 
 
 @router.put("/{request_id}")

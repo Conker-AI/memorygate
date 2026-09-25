@@ -27,6 +27,7 @@ from app.routes.system import router as system_router
 from app.routes.skills import context_router as skills_context_router
 from app.routes.skills import router as skills_router
 from app.models import memory, audit, agent_config
+from app.models import memory_forget  # noqa: F401 - registers the table for create_all
 from app.models import auth_setting
 from app.models import evidence_source, evidence_object, analysis_object
 from app.models import episode_object, object_link
