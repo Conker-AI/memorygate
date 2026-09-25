@@ -1,9 +1,9 @@
 import json
 
-from sqlalchemy import select
 from app.models.deletion_receipt import DeletionReceipt
 from app.models.memory import Memory
 from app.services import backup_service
+from sqlalchemy import select
 from test_memory_revisions import setup  # noqa: F401
 
 

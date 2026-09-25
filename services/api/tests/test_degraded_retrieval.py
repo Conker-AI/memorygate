@@ -9,11 +9,6 @@ service actually does in that state.
 import socket
 
 import pytest
-from fastapi import Depends, FastAPI
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
 from app.core import auth
 from app.core import db as core_db
 from app.core.db import Base
@@ -26,6 +21,10 @@ from app.services.auth_settings_service import (
     set_admin_key,
 )
 from app.services.embeddings import EmbeddingUnavailable
+from fastapi import Depends, FastAPI
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 ADMIN_KEY = "Admin-key-123!-long-enough"
 

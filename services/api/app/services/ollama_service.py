@@ -1,4 +1,5 @@
 import json
+
 import httpx
 from app.core.config import OLLAMA_ENABLED, OLLAMA_MODEL, OLLAMA_URL
 from app.core.db import SessionLocal

@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 
+
 class TranscriptCreateRequest(BaseModel):
     agent_id: str | None = None
     session_id: str = ""

@@ -1,8 +1,13 @@
-from fastapi import APIRouter, HTTPException, Request
 from app.core.db import SessionLocal
-from app.schemas.auth_settings import AdminKeyRotateRequest, AdminKeyUpdateRequest, AgentKeyCreateRequest
+from app.models.agent_access_key import AgentAccessKey
+from app.schemas.auth_settings import (
+    AdminKeyRotateRequest,
+    AdminKeyUpdateRequest,
+    AgentKeyCreateRequest,
+)
 from app.services.auth_settings_service import (
     clear_failed_attempts,
+    create_agent_access_key,
     generate_admin_key,
     get_auth_state,
     get_lockout_status,
@@ -10,9 +15,8 @@ from app.services.auth_settings_service import (
     set_admin_key,
     validate_new_admin_key,
     verify_admin_key,
-    create_agent_access_key,
 )
-from app.models.agent_access_key import AgentAccessKey
+from fastapi import APIRouter, HTTPException, Request
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 

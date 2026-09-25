@@ -1,12 +1,13 @@
 import json
 from datetime import datetime
-from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy import select
-from app.core.db import SessionLocal
+
 from app.core.agent import get_agent_id, resolve_agent_id
+from app.core.db import SessionLocal
 from app.models.audit import MemoryAudit
 from app.models.session_transcript import SessionTranscript
 from app.schemas.transcript import TranscriptCreateRequest
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 
 router = APIRouter(prefix="/transcripts", tags=["transcripts"])
 

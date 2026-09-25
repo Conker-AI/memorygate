@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 
+
 class ObservationCreateRequest(BaseModel):
     agent_id: str | None = None
     session_id: str = ""

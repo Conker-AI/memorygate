@@ -1,20 +1,26 @@
+import contextlib
 import json
-from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy import select, or_
-from app.core.db import SessionLocal
+
 from app.core.agent import get_agent_id, resolve_agent_id
+from app.core.db import SessionLocal
 from app.models.entity import Entity, EntityEdge, EntityEvent, EntityHistory
 from app.schemas.entity import (
     EntityCreateRequest,
-    EntityUpdateRequest,
-    EntitySearchRequest,
-    EntityLinkRequest,
     EntityEventCreateRequest,
-    EntityUpdateByIdRequest,
+    EntityLinkRequest,
     EntityMergeRequest,
+    EntitySearchRequest,
+    EntityUpdateByIdRequest,
+    EntityUpdateRequest,
 )
 from app.services.entity_dedup import find_duplicate, merge_entities
-from app.services.qdrant_store import index_after_commit, upsert_entity_embedding, delete_entity_embedding
+from app.services.qdrant_store import (
+    delete_entity_embedding,
+    index_after_commit,
+    upsert_entity_embedding,
+)
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import or_, select
 
 router = APIRouter(prefix="/entity", tags=["entity"])
 
@@ -154,13 +160,11 @@ def delete_entity(entity_id: str, agent_id: str = Depends(get_agent_id)):
         record(db, agent_id, "entity", row.id)
         db.delete(row)
         db.commit()
-        try:
+        # Postgres (the source of truth) already committed the delete -
+        # a stale/malformed Qdrant point shouldn't turn a successful
+        # delete into a 500.
+        with contextlib.suppress(Exception):
             delete_entity_embedding(entity_id)
-        except Exception:
-            # Postgres (the source of truth) already committed the delete -
-            # a stale/malformed Qdrant point shouldn't turn a successful
-            # delete into a 500.
-            pass
         return {"status": "ok"}
     finally:
         db.close()
@@ -256,7 +260,7 @@ def merge_entity(payload: EntityMergeRequest, agent_id: str = Depends(get_agent_
         try:
             keep = merge_entities(db, agent_id, payload.keep_entity_id, payload.merge_entity_id)
         except ValueError as exc:
-            raise HTTPException(404, str(exc))
+            raise HTTPException(404, str(exc)) from None
 
         db.add(EntityHistory(
             entity_id=keep.id,

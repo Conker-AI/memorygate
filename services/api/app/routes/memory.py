@@ -1,29 +1,36 @@
+import contextlib
 import json
-from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, HTTPException, Depends, Query
-from sqlalchemy import select
-from sqlalchemy.orm.exc import StaleDataError
-from app.core.db import SessionLocal
+from datetime import UTC, datetime, timedelta
+
 from app.core.agent import get_agent_id, resolve_agent_id
-from app.models.memory import Memory
+from app.core.db import SessionLocal
 from app.models.audit import MemoryAudit
-from app.models.memory_revision import MemoryRevision
+from app.models.memory import Memory
 from app.models.memory_conflict import MemoryConflict
-from app.schemas.memory import MemoryWriteRequest, MemorySearchRequest, MemoryPatchRequest, ConflictResolveRequest
-from app.services.classifier import classify_memory, normalize_memory_type, CURRENT_MEMORY_TYPES
-from app.services.signal_filter import score_value, novelty_bucket, NOVELTY_DUPLICATE, NOVELTY_LOW
+from app.models.memory_revision import MemoryRevision
+from app.schemas.memory import (
+    ConflictResolveRequest,
+    MemoryPatchRequest,
+    MemorySearchRequest,
+    MemoryWriteRequest,
+)
 from app.services.agent_config_service import get_or_create_config
+from app.services.classifier import CURRENT_MEMORY_TYPES, classify_memory, normalize_memory_type
+from app.services.memory_truth import add_revision, detect_conflicts
 from app.services.qdrant_store import (
     INDEX_UNREACHABLE,
-    index_after_commit,
-    upsert_memory_embedding,
-    search_memory_embeddings,
-    find_near_duplicate,
     delete_memory_embedding,
+    find_near_duplicate,
+    index_after_commit,
+    search_memory_embeddings,
     semantic_status,
+    upsert_memory_embedding,
 )
 from app.services.scoring import memory_rank_bonus, memory_strength
-from app.services.memory_truth import add_revision, detect_conflicts
+from app.services.signal_filter import NOVELTY_DUPLICATE, NOVELTY_LOW, novelty_bucket, score_value
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select
+from sqlalchemy.orm.exc import StaleDataError
 
 router = APIRouter(prefix="/memory", tags=["memory"])
 
@@ -38,7 +45,7 @@ def _default_review_by(memory_type: str, review_by: datetime | None) -> datetime
     if review_by is not None:
         return review_by
     if memory_type == "phase":
-        return datetime.now(timezone.utc) + PHASE_REVIEW_WINDOW
+        return datetime.now(UTC) + PHASE_REVIEW_WINDOW
     return None
 
 def _row_to_dict(row, score=None):
@@ -120,11 +127,11 @@ def resolve_conflict(conflict_id: str, payload: ConflictResolveRequest, agent_id
             add_revision(db, winner, "selected during conflict resolution", "user")
         if loser:
             loser.status = "needs_review"
-            loser.valid_until = datetime.now(timezone.utc)
+            loser.valid_until = datetime.now(UTC)
             add_revision(db, loser, "not selected during conflict resolution", "user")
         conflict.status = "resolved"
         conflict.resolved_by = "user"
-        conflict.resolved_at = datetime.now(timezone.utc)
+        conflict.resolved_at = datetime.now(UTC)
         db.commit()
         return {"status": "ok", "winner_memory_id": payload.winner_memory_id}
     finally:
@@ -285,7 +292,7 @@ def write_memory(payload: MemoryWriteRequest, header_agent_id: str = Depends(get
             do_not_generalize=final_do_not_generalize,
             review_by=final_review_by,
             tags_json=json.dumps(payload.tags),
-            valid_from=datetime.now(timezone.utc),
+            valid_from=datetime.now(UTC),
         )
         db.add(memory)
         db.commit()
@@ -484,7 +491,7 @@ def patch_memory(memory_id: str, payload: MemoryPatchRequest, agent_id: str = De
         return result
     except StaleDataError:
         db.rollback()
-        raise HTTPException(409, {"code": "revision_conflict", "message": "Memory changed; reload before editing."})
+        raise HTTPException(409, {"code": "revision_conflict", "message": "Memory changed; reload before editing."}) from None
     finally:
         db.close()
 
@@ -503,17 +510,15 @@ def delete_memory(memory_id: str, agent_id: str = Depends(get_agent_id),
         erase(db, agent_id, row, "delete", {"revision": row.revision})
         db.commit()
 
-        try:
+        # Postgres (the source of truth) already committed the delete -
+        # a stale/malformed Qdrant point shouldn't turn a successful
+        # delete into a 500.
+        with contextlib.suppress(Exception):
             delete_memory_embedding(memory_id)
-        except Exception:
-            # Postgres (the source of truth) already committed the delete -
-            # a stale/malformed Qdrant point shouldn't turn a successful
-            # delete into a 500.
-            pass
 
         return {"status": "ok"}
     except StaleDataError:
         db.rollback()
-        raise HTTPException(409, {"code": "revision_conflict", "message": "Memory changed; reload before deleting."})
+        raise HTTPException(409, {"code": "revision_conflict", "message": "Memory changed; reload before deleting."}) from None
     finally:
         db.close()

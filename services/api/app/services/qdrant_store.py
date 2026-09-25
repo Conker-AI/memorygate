@@ -2,6 +2,8 @@ from collections.abc import Callable
 from functools import lru_cache
 from typing import Any
 
+from app.core.config import EMBED_DIMENSION, QDRANT_COLLECTION, QDRANT_URL
+from app.services.embeddings import EmbeddingUnavailable, embed_text, embedding_health
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
     Distance,
@@ -11,9 +13,6 @@ from qdrant_client.models import (
     PointStruct,
     VectorParams,
 )
-
-from app.core.config import EMBED_DIMENSION, QDRANT_COLLECTION, QDRANT_URL
-from app.services.embeddings import EmbeddingUnavailable, embed_text, embedding_health
 
 OBSERVATION_COLLECTION = f"{QDRANT_COLLECTION}_observations"
 ENTITY_COLLECTION = f"{QDRANT_COLLECTION}_entities"

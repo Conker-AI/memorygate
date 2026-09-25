@@ -1,7 +1,8 @@
 import uuid
+
+from app.core.db import Base
 from sqlalchemy import DateTime, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
-from app.core.db import Base
 
 
 class MemoryRevision(Base):

@@ -4,10 +4,11 @@ import hmac
 import re
 import secrets
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
 from app.core.config import MEMORYGATE_ADMIN_KEY
-from app.models.auth_setting import AuthSetting
 from app.models.agent_access_key import AgentAccessKey, BootstrapAuthority
+from app.models.auth_setting import AuthSetting
 from sqlalchemy.exc import IntegrityError
 
 _PBKDF2_ROUNDS = 200_000
@@ -193,7 +194,7 @@ def verify_agent_access_key(db, key: str | None, agent_id: str) -> bool:
     rows = db.query(AgentAccessKey).filter(AgentAccessKey.agent_id == agent_id, AgentAccessKey.revoked.is_(False)).all()
     for row in rows:
         if _verify_key(key, row.key_hash):
-            row.last_used_at = datetime.now(timezone.utc)
+            row.last_used_at = datetime.now(UTC)
             db.commit()
             return True
     return False

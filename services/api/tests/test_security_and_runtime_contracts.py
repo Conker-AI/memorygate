@@ -2,10 +2,15 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from app.schemas.runtime import IngestEventRequest
 from app.schemas.memory import MemoryWriteRequest
+from app.schemas.runtime import IngestEventRequest
 from app.services import backup_service
-from app.services.auth_settings_service import _hash_key, _verify_key, ensure_bootstrap_agent_access_key, validate_new_admin_key
+from app.services.auth_settings_service import (
+    _hash_key,
+    _verify_key,
+    ensure_bootstrap_agent_access_key,
+    validate_new_admin_key,
+)
 
 
 class SecurityAndRuntimeContractTests(unittest.TestCase):
@@ -37,9 +42,9 @@ class SecurityAndRuntimeContractTests(unittest.TestCase):
 
     def test_bootstrap_agent_read_key_is_hashed_and_scoped(self):
         from app.core.db import Base
+        from app.services.auth_settings_service import verify_agent_access_key
         from sqlalchemy import create_engine
         from sqlalchemy.orm import sessionmaker
-        from app.services.auth_settings_service import verify_agent_access_key
 
         with tempfile.TemporaryDirectory() as directory:
             engine = create_engine(f"sqlite:///{directory}/memorygate-test.db")

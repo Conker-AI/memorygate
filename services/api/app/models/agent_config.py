@@ -1,6 +1,6 @@
-from sqlalchemy import String, Float, Integer, Boolean, DateTime, func
-from sqlalchemy.orm import Mapped, mapped_column
 from app.core.db import Base
+from sqlalchemy import Boolean, DateTime, Float, Integer, String, func
+from sqlalchemy.orm import Mapped, mapped_column
 
 
 class AgentConfig(Base):

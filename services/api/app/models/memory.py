@@ -1,7 +1,9 @@
-from sqlalchemy import String, Text, DateTime, Boolean, Integer, func
-from sqlalchemy.orm import Mapped, mapped_column
-from app.core.db import Base
 import uuid
+
+from app.core.db import Base
+from sqlalchemy import Boolean, DateTime, Integer, String, Text, func
+from sqlalchemy.orm import Mapped, mapped_column
+
 
 class Memory(Base):
     __tablename__ = "memories"
@@ -9,7 +11,7 @@ class Memory(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     agent_id: Mapped[str] = mapped_column(String, default="default", index=True)
     revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
-    __mapper_args__ = {"version_id_col": revision}
+    __mapper_args__ = {"version_id_col": revision}  # noqa: RUF012 - SQLAlchemy reads this class attribute
 
     text: Mapped[str] = mapped_column(Text)
     summary: Mapped[str] = mapped_column(Text, default="")

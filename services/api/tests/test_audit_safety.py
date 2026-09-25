@@ -2,12 +2,11 @@ import json
 import time
 
 import pytest
-from sqlalchemy import create_engine, select
-from sqlalchemy.orm import sessionmaker
-
 from app.core.db import Base
 from app.models.audit import MemoryAudit
 from app.services import ollama_service
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import sessionmaker
 
 
 @pytest.fixture
@@ -51,6 +50,7 @@ def test_cost_quote_is_recorded_but_does_not_authorize_spending(sessions, monkey
 @pytest.mark.parametrize("mode", ["exception", "unknown_dimension"])
 def test_failed_collection_inspection_is_never_healthy(monkeypatch, mode):
     from types import SimpleNamespace as NS
+
     from app.services import qdrant_store as store
 
     class Client:
@@ -69,9 +69,9 @@ def test_failed_collection_inspection_is_never_healthy(monkeypatch, mode):
 
 
 def test_oversized_ingestion_is_permanent_without_echoing_content(monkeypatch):
+    from app.routes import conversation
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
-    from app.routes import conversation
 
     monkeypatch.setenv("MEMORYGATE_CONVERSATION_KEY", "test-conversation-secret")
     calls = []
@@ -98,8 +98,9 @@ def test_oversized_ingestion_is_permanent_without_echoing_content(monkeypatch):
 def test_cryptography_runtime_and_manifest_cover_both_advisories():
     from importlib.metadata import version
     from pathlib import Path
-    from packaging.version import Version
+
     from cryptography.fernet import Fernet, InvalidToken
+    from packaging.version import Version
 
     requirements = Path(__file__).parents[1] / "requirements.txt"
     pin = next(line.split("==")[1] for line in requirements.read_text().splitlines()

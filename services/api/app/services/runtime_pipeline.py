@@ -1,6 +1,6 @@
 import json
-from datetime import datetime, timedelta, timezone
-from sqlalchemy import select
+from datetime import UTC, datetime, timedelta
+
 from app.models.analysis_object import AnalysisObject
 from app.models.episode_object import EpisodeObject
 from app.models.evidence_object import EvidenceObject
@@ -8,10 +8,11 @@ from app.models.memory import Memory
 from app.models.object_link import ObjectLink
 from app.models.processing_job import ProcessingJob
 from app.services.classifier import classify_memory
-from app.services.signal_filter import score_value
-from app.services.qdrant_store import index_after_commit, upsert_memory_embedding
-from app.services.ollama_service import analyze_evidence
 from app.services.memory_truth import add_revision, detect_conflicts
+from app.services.ollama_service import analyze_evidence
+from app.services.qdrant_store import index_after_commit, upsert_memory_embedding
+from app.services.signal_filter import score_value
+from sqlalchemy import select
 
 
 def _link(db, source_type, source_id, target_type, target_id, relationship, confidence=1.0):
@@ -39,7 +40,7 @@ def process_evidence(db, evidence: EvidenceObject, content: str, job: Processing
     job.stage = "episode"
     db.commit()
     try:
-        cutoff = (evidence.occurred_at or datetime.now(timezone.utc)) - timedelta(minutes=30)
+        cutoff = (evidence.occurred_at or datetime.now(UTC)) - timedelta(minutes=30)
         episode = db.execute(select(EpisodeObject).where(
             EpisodeObject.agent_id == evidence.agent_id,
             EpisodeObject.status == "open",
@@ -96,7 +97,7 @@ def process_evidence(db, evidence: EvidenceObject, content: str, job: Processing
                     agent_id=evidence.agent_id, text=content.strip(), summary=classification["summary"],
                     memory_type=classification["memory_type"], source_type="automatic_listener",
                     confidence=classification["confidence"], tags_json=evidence.tags_json,
-                    valid_from=datetime.now(timezone.utc),
+                    valid_from=datetime.now(UTC),
                 )
                 db.add(memory)
                 db.flush()

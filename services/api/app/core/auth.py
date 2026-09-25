@@ -1,6 +1,12 @@
-from fastapi import Header, HTTPException, Request
 from app.core.db import SessionLocal
-from app.services.auth_settings_service import clear_failed_attempts, get_lockout_status, register_failed_attempt, verify_admin_key, verify_agent_access_key
+from app.services.auth_settings_service import (
+    clear_failed_attempts,
+    get_lockout_status,
+    register_failed_attempt,
+    verify_admin_key,
+    verify_agent_access_key,
+)
+from fastapi import Header, HTTPException, Request
 
 
 def require_key(request: Request, x_memorygate_key: str | None = Header(None, alias="X-MemoryGate-Key")) -> str:

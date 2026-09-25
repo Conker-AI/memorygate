@@ -13,8 +13,8 @@ import hashlib
 import json
 
 from app.core.db import SessionLocal
-from app.models.audit import MemoryAudit
 from app.models import deletion_receipt
+from app.models.audit import MemoryAudit
 from app.models.memory import Memory
 from app.models.memory_conflict import MemoryConflict
 from app.models.memory_forget import MemoryForget

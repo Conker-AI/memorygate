@@ -1,6 +1,6 @@
-from fastapi import APIRouter
 from app.core.db import SessionLocal
 from app.services.briefing import build_briefing
+from fastapi import APIRouter
 
 router = APIRouter(prefix="/briefing", tags=["briefing"])
 

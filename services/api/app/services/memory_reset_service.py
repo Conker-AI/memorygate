@@ -1,4 +1,5 @@
 """Admin-only destructive reset operations for the single MemoryGate workspace."""
+import contextlib
 from datetime import datetime
 
 from app.models.analysis_object import AnalysisObject
@@ -66,10 +67,8 @@ def reset_memory(db, reset_from: datetime | None = None) -> dict:
         for row in rows:
             db.delete(row)
     db.commit()
-    try:
+    # Postgres remains the source of truth. A later reset or startup can repair vector state.
+    with contextlib.suppress(Exception):
         delete_embeddings(memory_ids, observation_ids, entity_ids)
-    except Exception:
-        # Postgres remains the source of truth. A later reset or startup can repair vector state.
-        pass
     removed = {name: len(rows) for name, rows in selected.items()}
     return {"backup": backup, "removed": removed, "reset_from": reset_from.isoformat() if reset_from else None}

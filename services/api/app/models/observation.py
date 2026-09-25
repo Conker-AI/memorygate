@@ -1,7 +1,9 @@
-from sqlalchemy import String, Text, DateTime, Float, Integer, Boolean, func
-from sqlalchemy.orm import Mapped, mapped_column
-from app.core.db import Base
 import uuid
+
+from app.core.db import Base
+from sqlalchemy import Boolean, DateTime, Float, Integer, String, Text, func
+from sqlalchemy.orm import Mapped, mapped_column
+
 
 class Observation(Base):
     __tablename__ = "observations"

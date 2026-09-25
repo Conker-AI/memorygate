@@ -7,12 +7,6 @@ is exercised through a real preflight request.
 import socket
 
 import pytest
-from fastapi import Depends, FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
 from app.core import auth, config
 from app.core import db as core_db
 from app.core.db import Base
@@ -27,6 +21,11 @@ from app.services.auth_settings_service import (
     set_admin_key,
     verify_admin_key,
 )
+from fastapi import Depends, FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 ADMIN_KEY = "Admin-key-123!-long-enough"
 

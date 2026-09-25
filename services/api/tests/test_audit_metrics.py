@@ -1,13 +1,12 @@
-from fastapi import Depends, FastAPI
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
 from app.core import auth
 from app.core.db import Base
 from app.models.memory import Memory
 from app.routes import audit, runtime, transcript
 from app.services.auth_settings_service import create_agent_access_key, set_admin_key
+from fastapi import Depends, FastAPI
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 
 def make_client(tmp_path, monkeypatch):

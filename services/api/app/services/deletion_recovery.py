@@ -2,17 +2,17 @@
 
 import hashlib
 import json
-from datetime import datetime, timezone
-from sqlalchemy import select
+from datetime import UTC, datetime
 
-from app.models.deletion_receipt import DeletionReceipt, RecoveryHold, RecoveryVerification, record
-from app.models.memory import Memory
-from app.models.entity import Entity
-from app.models.observation import Observation
-from app.models.episode_object import EpisodeObject
-from app.models.object_link import ObjectLink
 from app.models.conversation_receipt import ConversationReceipt
+from app.models.deletion_receipt import DeletionReceipt, RecoveryHold, RecoveryVerification, record
+from app.models.entity import Entity
+from app.models.episode_object import EpisodeObject
+from app.models.memory import Memory
+from app.models.object_link import ObjectLink
+from app.models.observation import Observation
 from app.services import conversation_memory
+from sqlalchemy import select
 
 MODELS = {"memory": Memory, "entity": Entity, "observation": Observation,
           "episode": EpisodeObject, "link": ObjectLink}
@@ -67,7 +67,7 @@ def reconcile_indexes(target_sessions, client, collections):
         if row is None:
             row = RecoveryVerification(id="vector-deletions")
             db.add(row)
-        row.evidence_digest, row.verified_at = digest, datetime.now(timezone.utc)
+        row.evidence_digest, row.verified_at = digest, datetime.now(UTC)
         db.commit()
     return {"indexCleanupVerified": True, "evidenceDigest": digest,
             "pointCount": len(indexes), "recoveryHeld": True, "promotesRecovery": False}

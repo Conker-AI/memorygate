@@ -1,35 +1,40 @@
-import json
 import hmac
-from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, Header, Request
-from sqlalchemy import func, or_, select
+import json
+from datetime import UTC, datetime
+
 from app.core.agent import get_agent_id, resolve_agent_id
 from app.core.auth import require_key, require_read_key
-from app.services.auth_settings_service import clear_failed_attempts, get_lockout_status, register_failed_attempt
 from app.core.db import SessionLocal
+from app.models.audit import MemoryAudit
+from app.models.conversation_receipt import ConversationReceipt
 from app.models.entity import Entity
 from app.models.episode_object import EpisodeObject
 from app.models.evidence_object import EvidenceObject
 from app.models.evidence_source import EvidenceSource
-from app.models.audit import MemoryAudit
 from app.models.memory import Memory
-from app.models.conversation_receipt import ConversationReceipt
 from app.models.object_link import ObjectLink
 from app.models.processing_job import ProcessingJob
-from app.schemas.runtime import AgentContextRequest, IngestEventRequest, MemoryQuestionRequest
 from app.schemas.explorer import ExploreRequest, LibraryRequest
+from app.schemas.runtime import AgentContextRequest, IngestEventRequest, MemoryQuestionRequest
+from app.services.auth_settings_service import (
+    clear_failed_attempts,
+    get_lockout_status,
+    register_failed_attempt,
+)
 from app.services.briefing import build_briefing
-from app.services.qdrant_store import INDEX_UNREACHABLE, search_memory_embeddings, semantic_status
-from app.services.ollama_service import answer_with_context, ollama_health
-from app.services.scoring import memory_rank_bonus
-from app.services.memory_truth import mark_unsupported
 from app.services.conversation_memory import citations
+from app.services.memory_truth import mark_unsupported
+from app.services.ollama_service import answer_with_context, ollama_health
+from app.services.qdrant_store import INDEX_UNREACHABLE, search_memory_embeddings, semantic_status
+from app.services.scoring import memory_rank_bonus
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from sqlalchemy import func, or_, select
 
 router = APIRouter(prefix="/runtime", tags=["runtime"])
 
 
 def _parse_dt(value: str | None):
-    return datetime.fromisoformat(value.replace("Z", "+00:00")) if value else datetime.now(timezone.utc)
+    return datetime.fromisoformat(value.replace("Z", "+00:00")) if value else datetime.now(UTC)
 
 
 def _enqueue(db, source: EvidenceSource, payload: IngestEventRequest, agent_id: str) -> dict:
@@ -359,7 +364,7 @@ def invalidate_evidence(evidence_id: str, reason: str, agent_id: str = Depends(g
         evidence = db.get(EvidenceObject, evidence_id)
         if not evidence or evidence.agent_id != agent_id:
             raise HTTPException(404, "Evidence not found")
-        evidence.invalidated_at = datetime.now(timezone.utc)
+        evidence.invalidated_at = datetime.now(UTC)
         evidence.invalidation_reason = reason
         evidence.processing_state = "invalidated"
         links = db.execute(select(ObjectLink).where(ObjectLink.source_type == "evidence", ObjectLink.source_id == evidence_id)).scalars().all()
