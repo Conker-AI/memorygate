@@ -18,6 +18,7 @@ lexical retrieval *and say so*.
 
 import os
 import time
+from threading import Lock
 from typing import Any
 
 import httpx
@@ -33,6 +34,7 @@ _TIMEOUT = float(os.environ.get("EMBEDDINGS_TIMEOUT_SECONDS", "30"))
 # coming back should be noticed without a restart.
 _PROBE_TTL_SECONDS = 30.0
 _provider: dict[str, Any] = {}
+_provider_lock = Lock()
 
 
 class EmbeddingUnavailable(RuntimeError):
@@ -49,26 +51,30 @@ def _headers() -> dict[str, str]:
 
 def _probe() -> dict[str, Any]:
     """Ask the sidecar what it is. Cached, and never raises."""
-    now = time.monotonic()
-    if _provider and now - _provider.get("at", 0.0) < _PROBE_TTL_SECONDS:
-        return _provider
+    # Publish only complete probes and return a snapshot: embedding failures in
+    # another request must not erase the health caller's provider identity.
+    with _provider_lock:
+        now = time.monotonic()
+        if _provider and now - _provider.get("at", 0.0) < _PROBE_TTL_SECONDS:
+            return dict(_provider)
 
-    _provider.clear()
-    _provider["at"] = now
-    if not EMBEDDINGS_KEY:
-        _provider["reason"] = "EMBEDDINGS_KEY is not set, so the embedding sidecar cannot be called"
-        return _provider
-    try:
-        response = httpx.get(f"{EMBEDDINGS_URL}/model", headers=_headers(), timeout=5.0)
-        response.raise_for_status()
-        body = response.json()
-    except Exception as exc:
-        _provider["reason"] = f"embedding sidecar unavailable: {type(exc).__name__}"
-        return _provider
-
-    _provider["model"] = body["model"]
-    _provider["dimension"] = int(body["dimension"])
-    return _provider
+        result: dict[str, Any] = {"at": now}
+        if not EMBEDDINGS_KEY:
+            result["reason"] = "EMBEDDINGS_KEY is not set, so the embedding sidecar cannot be called"
+        else:
+            try:
+                response = httpx.get(f"{EMBEDDINGS_URL}/model", headers=_headers(), timeout=5.0)
+                response.raise_for_status()
+                body = response.json()
+                model, dimension = body["model"], int(body["dimension"])
+                if not isinstance(model, str) or not model or dimension <= 0:
+                    raise ValueError("invalid embedding provider identity")
+                result.update(model=model, dimension=dimension)
+            except Exception as exc:
+                result["reason"] = f"embedding sidecar unavailable: {type(exc).__name__}"
+        _provider.clear()
+        _provider.update(result)
+        return dict(result)
 
 
 def embed_texts(texts: list[str]) -> list[list[float]]:
@@ -90,11 +96,11 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
     except Exception as exc:
         # Forget the cached identity. Whatever is wrong, the next caller should
         # re-probe rather than inherit a stale belief that the sidecar is fine.
-        _provider.clear()
+        reset_provider_cache()
         raise EmbeddingUnavailable(f"embedding request failed: {type(exc).__name__}") from exc
 
     if len(vectors) != len(texts):
-        _provider.clear()
+        reset_provider_cache()
         raise EmbeddingUnavailable("embedding sidecar returned an incomplete batch")
     return vectors
 
@@ -120,4 +126,5 @@ def embedding_health() -> dict:
 
 def reset_provider_cache() -> None:
     """Forget a cached probe, so a test can re-probe after reconfiguring."""
-    _provider.clear()
+    with _provider_lock:
+        _provider.clear()
