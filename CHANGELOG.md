@@ -6,6 +6,13 @@ a decision with visible consequences.
 
 ## Unreleased
 
+## 0.4.0
+
+- Publish the scoped, paginated memory library and progressive typed exploration.
+- Include revision-safe corrections, source-bound complete forgetting, deletion
+  tombstones and isolated recovery verification.
+- Preserve bootstrap revocations and namespace-bound memory authority.
+
 ## 0.3.0
 
 Bilingual admission, honest health and cost, and durable deletion.
