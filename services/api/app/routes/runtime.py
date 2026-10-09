@@ -23,12 +23,13 @@ from app.services.auth_settings_service import (
 )
 from app.services.briefing import build_briefing
 from app.services.conversation_memory import citations
+from app.services.lexical_retrieval import memory_candidates, prepare_query
 from app.services.memory_truth import mark_unsupported
 from app.services.ollama_service import answer_with_context, ollama_health
 from app.services.qdrant_store import INDEX_UNREACHABLE, search_memory_embeddings, semantic_status
 from app.services.scoring import memory_rank_bonus
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, select
 
 router = APIRouter(prefix="/runtime", tags=["runtime"])
 
@@ -179,36 +180,26 @@ def _build_context(db, payload: AgentContextRequest, agent_id: str) -> dict:
             except Exception:
                 retrieval = {"status": "degraded", "component": "vector_index", "reason": INDEX_UNREACHABLE}
                 memories = []
-        if retrieval["status"] != "ok":
-            rows = db.execute(select(Memory).where(Memory.agent_id == agent_id, Memory.status == "active", Memory.text.ilike(f"%{payload.query}%")).limit(payload.max_items)).scalars().all()
-            memories = [{"id": row.id, "text": row.text, "summary": row.summary, "type": row.memory_type,
-                         "confidence": row.confidence, "do_not_generalize": row.do_not_generalize,
-                         "valid_from": row.valid_from.isoformat() if row.valid_from else None,
-                         "score": memory_rank_bonus(row.memory_type, row.confidence), "source_type": row.source_type,
-                         "retrieval_path": "lexical"} for row in rows]
         # Vector similarity is useful but must not hide an exact project/name
-        # match. Add lexical candidates so retrieval is robust during early or
-        # sparse embedding collections too.
-        query_terms = [term.lower().strip(".,?!:;\"'") for term in payload.query.split() if len(term) > 2]
+        # match. Search and rank the scoped corpus before applying a bounded
+        # candidate limit, rather than searching only the latest 200 rows.
+        lexical_query = prepare_query(payload.query)
+        lexical_rows = memory_candidates(db, lexical_query, agent_id)
         known_ids = {item["id"] for item in memories}
-        for row in db.execute(select(Memory).where(Memory.agent_id == agent_id, Memory.status == "active").order_by(Memory.updated_at.desc()).limit(200)).scalars().all():
+        for row, score in lexical_rows:
             if row.id in known_ids:
                 continue
-            text = f"{row.text} {row.summary}".lower()
-            matches = sum(1 for term in query_terms if term in text)
-            if matches:
-                memories.append({"id": row.id, "text": row.text, "summary": row.summary, "type": row.memory_type,
-                                 "confidence": row.confidence, "do_not_generalize": row.do_not_generalize,
-                                 "valid_from": row.valid_from.isoformat() if row.valid_from else None,
-                                 "score": round(memory_rank_bonus(row.memory_type, row.confidence) + matches * 0.3, 4),
-                                 "source_type": row.source_type, "retrieval_path": "lexical"})
-        memories.sort(key=lambda item: item["score"], reverse=True)
+            memories.append({"id": row.id, "text": row.text, "summary": row.summary, "type": row.memory_type,
+                             "confidence": row.confidence, "do_not_generalize": row.do_not_generalize,
+                             "valid_from": row.valid_from.isoformat() if row.valid_from else None,
+                             "score": round(float(score), 4),
+                             "source_type": row.source_type, "retrieval_path": "lexical"})
+        memories.sort(key=lambda item: (-item["score"], item["id"]))
         citations(db, memories, agent_id)
 
-        terms = [term for term in payload.query.split() if len(term) > 2][:8]
-        entity_filter = or_(*[or_(Entity.name.ilike(f"%{term}%"), Entity.description.ilike(f"%{term}%"), Entity.agent_summary.ilike(f"%{term}%")) for term in terms]) if terms else Entity.name.ilike(f"%{payload.query}%")
-        episode_filter = or_(*[or_(EpisodeObject.title.ilike(f"%{term}%"), EpisodeObject.summary.ilike(f"%{term}%")) for term in terms]) if terms else EpisodeObject.title.ilike(f"%{payload.query}%")
-        evidence_filter = or_(*[or_(EvidenceObject.title.ilike(f"%{term}%"), EvidenceObject.summary.ilike(f"%{term}%")) for term in terms]) if terms else EvidenceObject.title.ilike(f"%{payload.query}%")
+        entity_filter = lexical_query.matches(Entity.name, Entity.description, Entity.agent_summary)
+        episode_filter = lexical_query.matches(EpisodeObject.title, EpisodeObject.summary)
+        evidence_filter = lexical_query.matches(EvidenceObject.title, EvidenceObject.summary)
         entities = db.execute(select(Entity).where(Entity.agent_id == agent_id, entity_filter).limit(8)).scalars().all()
         episodes = db.execute(select(EpisodeObject).where(EpisodeObject.agent_id == agent_id, episode_filter).limit(5)).scalars().all()
         evidence = []
@@ -226,6 +217,7 @@ def _build_context(db, payload: AgentContextRequest, agent_id: str) -> dict:
         return {
             "query": payload.query, "agent_id": agent_id, "briefing": build_briefing(db, agent_id),
             "retrieval": {"mode": "hybrid" if retrieval["status"] == "ok" else "lexical", "semantic": retrieval,
+                "lexical": lexical_query.receipt(len(lexical_rows)),
                 "pending_conversation_index": db.scalar(select(func.count()).select_from(ConversationReceipt).where(
                     ConversationReceipt.agent_id == agent_id, ConversationReceipt.index_pending != "none"))},
             "memories": memories[:payload.max_items],
