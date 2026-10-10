@@ -20,6 +20,7 @@ def _view(row):
         "request_id": row.request_id,
         "memory_id": row.memory_id,
         "agent_id": row.agent_id,
+        "payload_hash": row.payload_hash,
         "previous_revision": row.previous_revision,
         "revision": row.revision,
         "status": "applied",

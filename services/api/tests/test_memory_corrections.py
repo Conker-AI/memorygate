@@ -1,5 +1,7 @@
 """Real temporary SQL transactions and HTTP capability boundaries; no network calls."""
 
+import hashlib
+import json
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
@@ -10,7 +12,7 @@ from app.models.memory import Memory
 from app.models.memory_correction import MemoryCorrection
 from app.models.memory_revision import MemoryRevision
 from app.routes import corrections
-from app.services import auth_settings_service
+from app.services import auth_settings_service, conversation_memory
 from app.services import memory_corrections as service
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
@@ -21,6 +23,22 @@ from sqlalchemy.orm import sessionmaker
 KEY = "synthetic-correction-key-for-tests-12345"
 HEADERS = {"X-MemoryGate-Correction-Key": KEY}
 REQUEST = "correction_request_0001"
+
+
+def payload_hash(text, memory_id="one", expected_revision=1):
+    return hashlib.sha256(
+        json.dumps(
+            {
+                "agent_id": "owner",
+                "memory_id": memory_id,
+                "expected_revision": expected_revision,
+                "text": text,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
 
 
 @pytest.fixture
@@ -106,6 +124,7 @@ def test_atomic_edit_preserves_metadata_and_exact_summary(setup):
         "request_id": REQUEST,
         "memory_id": "one",
         "agent_id": "owner",
+        "payload_hash": payload_hash("Corrected"),
         "previous_revision": 1,
         "revision": 2,
         "status": "applied",
@@ -141,6 +160,79 @@ def test_stale_and_conflicting_requests_do_not_mutate(setup):
         assert db.get(Memory, "one").revision == 2
         assert db.get(Memory, "two").revision == 1
         assert db.scalar(select(func.count()).select_from(MemoryCorrection)) == 1
+
+
+@pytest.mark.parametrize(
+    "approved,conflicting",
+    [
+        ("Reviewed fact", "Different fact"),
+        ("Reviewed fact", "Reviewed fact "),
+        ("Café Мира 🐿", "Cafe\u0301 Мира 🐿"),
+    ],
+)
+def test_recovered_receipt_binds_exact_text_even_when_ids_and_revision_collide(
+    setup, approved, conflicting
+):
+    http, sessions, calls, _ = setup
+    first = put(http, text=approved)
+    assert first.status_code == 200
+    assert put(http, text=conflicting).status_code == 409
+    recovered = http.get("/runtime/corrections/" + REQUEST, headers=HEADERS)
+    assert recovered.status_code == 200 and recovered.json() == first.json()
+    assert recovered.json()["payload_hash"] == payload_hash(approved)
+    assert recovered.json()["payload_hash"] != payload_hash(conflicting)
+    assert "text" not in recovered.json()
+    with sessions() as db:
+        row = db.get(MemoryCorrection, ("owner", REQUEST))
+        assert row.payload_hash == recovered.json()["payload_hash"]
+        assert db.get(Memory, "one").text == approved
+    assert len(calls) == 1
+
+
+def test_historical_receipt_hash_survives_later_correction_without_reindexing(setup):
+    http, sessions, calls, _ = setup
+    first = put(http).json()
+    later = put(http, request_id="later_correction_0002", expected_revision=2, text="Latest")
+    assert later.status_code == 200 and later.json()["revision"] == 3
+    assert http.get("/runtime/corrections/" + REQUEST, headers=HEADERS).json() == first
+    assert put(http).json() == first
+    assert first["payload_hash"] == payload_hash("Corrected")
+    with sessions() as db:
+        assert db.get(Memory, "one").text == "Latest"
+        assert db.get(Memory, "one").revision == 3
+    assert len(calls) == 2
+
+
+def test_source_ingestion_replay_and_forget_preserve_bound_correction_receipt(setup, monkeypatch):
+    http, sessions, calls, _ = setup
+    monkeypatch.setattr(conversation_memory, "SessionLocal", sessions)
+    message_id = "synthetic_corrected_source"
+    original = {
+        "session_id": "synthetic_source_session",
+        "content": "Remember that I prefer tea",
+        "created_at": 1770000000.0,
+    }
+    admitted = conversation_memory.ingest("owner", message_id, original)
+    assert admitted["state"] == "admitted"
+    memory_id = admitted["memory_id"]
+    corrected = put(http, memory_id=memory_id, text="Owner-reviewed replacement").json()
+    assert corrected["payload_hash"] == payload_hash("Owner-reviewed replacement", memory_id)
+    assert conversation_memory.ingest("owner", message_id, original) == admitted
+    with sessions() as db:
+        row = db.get(Memory, memory_id)
+        assert row.text == "Owner-reviewed replacement" and row.revision == 2
+        assert (row.source_type, row.confidence, row.do_not_generalize) == (
+            "owner_statement",
+            "medium",
+            True,
+        )
+    assert conversation_memory.forget("owner", message_id)["state"] == "deleted"
+    assert conversation_memory.ingest("owner", message_id, original)["state"] == "deleted"
+    assert http.get("/runtime/corrections/" + REQUEST, headers=HEADERS).json() == corrected
+    assert put(http, memory_id=memory_id, text="Owner-reviewed replacement").json() == corrected
+    with sessions() as db:
+        assert db.get(Memory, memory_id) is None
+    assert len(calls) == 1
 
 
 def test_capability_namespace_and_admin_are_separate(setup):
