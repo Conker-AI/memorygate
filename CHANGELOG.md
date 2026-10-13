@@ -6,6 +6,21 @@ a decision with visible consequences.
 
 ## Unreleased
 
+## 0.4.1
+
+- Keep embedding-provider probes atomic and return stable snapshots so concurrent
+  health, retrieval and failed embedding requests cannot expose partial or cleared
+  cache entries. Invalid provider responses report unavailability instead of HTTP 500.
+- Add regression coverage for concurrent probes, cache invalidation and malformed
+  provider identities; preserve lexical fallback and existing authorization scopes.
+
+## 0.4.0
+
+- Publish the scoped, paginated memory library and progressive typed exploration.
+- Include revision-safe corrections, source-bound complete forgetting, deletion
+  tombstones and isolated recovery verification.
+- Preserve bootstrap revocations and namespace-bound memory authority.
+
 ## 0.3.0
 
 Bilingual admission, honest health and cost, and durable deletion.
