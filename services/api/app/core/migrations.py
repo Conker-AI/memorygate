@@ -10,7 +10,7 @@ An existing database needs these run once at startup to catch up.
 import json
 import uuid
 
-from sqlalchemy import text
+from sqlalchemy import inspect, text
 from sqlalchemy.engine import Engine
 
 _AGENT_ID_TABLES = ["memories", "entities", "observations", "patterns"]
@@ -38,6 +38,7 @@ _CLARIFICATION_STATUS_MAP = {
 
 def run_migrations(engine: Engine) -> None:
     with engine.begin() as conn:
+        migrate_conversation_admission(conn)
         conn.execute(text("ALTER TABLE memories ADD COLUMN IF NOT EXISTS revision INTEGER NOT NULL DEFAULT 1"))
         conn.execute(text(
             "CREATE TABLE IF NOT EXISTS auth_settings ("
@@ -232,6 +233,15 @@ def run_migrations(engine: Engine) -> None:
         _migrate_clarifications(conn)
         _merge_duplicate_entities(conn)
         _backfill_object_links(conn)
+
+
+def migrate_conversation_admission(conn) -> None:
+    """Add only nullable receipt metadata; never reinterpret old admission decisions."""
+    schema = inspect(conn)
+    if schema.has_table("conversation_receipts") and "admission_method" not in {
+        column["name"] for column in schema.get_columns("conversation_receipts")
+    }:
+        conn.execute(text("ALTER TABLE conversation_receipts ADD COLUMN admission_method TEXT"))
 
 
 def _table_exists(conn, name: str) -> bool:

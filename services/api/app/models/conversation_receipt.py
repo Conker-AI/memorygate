@@ -15,6 +15,7 @@ class ConversationReceipt(Base):
     state: Mapped[str] = mapped_column(String, default="new")
     memory_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     value_score: Mapped[float] = mapped_column(Float, default=0.0)
+    admission_method: Mapped[str | None] = mapped_column(String, nullable=True)
     index_pending: Mapped[str] = mapped_column(String, default="none")
     index_next_at: Mapped[float] = mapped_column(Float, default=0.0)
     index_error: Mapped[str] = mapped_column(Text, default="")

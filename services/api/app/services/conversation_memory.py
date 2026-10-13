@@ -20,6 +20,7 @@ from app.models.memory_conflict import MemoryConflict
 from app.models.memory_revision import MemoryRevision
 from app.models.object_link import ObjectLink
 from app.services import qdrant_store
+from app.services.owner_retention import retention_intent
 from app.services.signal_filter import score_value
 from fastapi import HTTPException
 from sqlalchemy import delete, select, text
@@ -65,6 +66,7 @@ def _response(receipt: ConversationReceipt) -> dict:
         "state": receipt.state,
         "memory_id": receipt.memory_id,
         "value_score": receipt.value_score,
+        "admission_method": receipt.admission_method,
         "index_pending": receipt.index_pending,
         "index_error": receipt.index_error,
         "citation": {
@@ -94,10 +96,18 @@ def ingest(agent_id: str, message_id: str, payload: dict) -> dict:
         content = payload["content"]
         occurred = datetime.fromtimestamp(payload["created_at"], UTC)
         score = score_value(content)
+        intent = retention_intent(content)
         receipt.session_id = payload["session_id"]
         receipt.fingerprint = fingerprint
         receipt.value_score = score
-        receipt.state = "admitted" if score >= 0.3 else "filtered"
+        admitted = intent == "requested" or (intent is None and score >= 0.3)
+        receipt.state = "admitted" if admitted else "filtered"
+        receipt.admission_method = (
+            "owner_requested" if intent == "requested" else "signal" if admitted else "filtered"
+        )
+        # Filtering does not erase source evidence. Conversation evidence is
+        # already processed and has no listener ProcessingJob; a declined
+        # retention request cannot be promoted by the background worker.
         evidence = EvidenceObject(
             id=receipt.id,
             agent_id=agent_id,
@@ -123,8 +133,15 @@ def ingest(agent_id: str, message_id: str, payload: dict) -> dict:
                 analysis_type="owner_statement_admission",
                 evidence_ids_json=json.dumps([receipt.id]),
                 input_summary="Quoted owner statement",
-                output_summary=f"Admission value {score:.2f}; no inference or generalization.",
-                steps_json=json.dumps(["unicode_signal_filter", "retain_owner_attribution"]),
+                output_summary=(
+                    f"Admission method {receipt.admission_method}; value {score:.2f}; "
+                    "no inference or generalization."
+                ),
+                steps_json=json.dumps([
+                    "owner_requested_retention" if intent == "requested" else
+                    "owner_declined_retention" if intent == "declined" else "unicode_signal_filter",
+                    "retain_owner_attribution",
+                ]),
                 confidence=0.5,
             )
         )
