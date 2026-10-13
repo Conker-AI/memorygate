@@ -33,7 +33,7 @@ def setup(tmp_path, monkeypatch):
     for module in (memory_corrections, memory_forgetting, memory_routes):
         monkeypatch.setattr(module, "SessionLocal", sessions)
     removed = []
-    monkeypatch.setattr(memory_corrections, "index_after_commit", lambda *a, **k: {"status": "ok"})
+    monkeypatch.setattr(memory_corrections, "_reconcile_index_intent", lambda *a, **k: {"status": "ok"})
     monkeypatch.setattr(memory_forgetting, "delete_memory_embedding", removed.append)
     monkeypatch.setattr(memory_routes, "delete_memory_embedding", removed.append)
     with sessions() as db:

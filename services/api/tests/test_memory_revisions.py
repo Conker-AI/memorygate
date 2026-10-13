@@ -18,7 +18,7 @@ def setup(tmp_path, monkeypatch):
     Base.metadata.create_all(engine)
     sessions = sessionmaker(engine, autoflush=False)
     monkeypatch.setattr(memory, "SessionLocal", sessions)
-    monkeypatch.setattr(memory, "index_after_commit", lambda *a, **kw: {"status": "ok"})
+    monkeypatch.setattr(memory, "_reconcile_index_intent", lambda *a, **kw: {"status": "ok"})
     monkeypatch.setattr(memory, "delete_memory_embedding", lambda *a: None)
     with sessions() as db:
         db.add(Memory(id="one", agent_id="owner", text="Original"))

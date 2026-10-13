@@ -6,7 +6,6 @@ citation and medium confidence, not an inferred fact about the owner.
 
 import hashlib
 import json
-import time
 from datetime import UTC, datetime
 from uuid import NAMESPACE_URL, uuid5
 
@@ -19,9 +18,10 @@ from app.models.memory import Memory
 from app.models.memory_conflict import MemoryConflict
 from app.models.memory_revision import MemoryRevision
 from app.models.object_link import ObjectLink
-from app.services import qdrant_store
+from app.services import qdrant_store  # noqa: F401 - compatibility test seam
 from app.services.owner_retention import retention_intent
 from app.services.signal_filter import score_value
+from app.services.vector_outbox import enqueue_delete, enqueue_upsert, reconcile_pending
 from fastapi import HTTPException
 from sqlalchemy import delete, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -182,6 +182,14 @@ def ingest(agent_id: str, message_id: str, payload: dict) -> dict:
                     created_by="pi-ingest",
                 )
             )
+            enqueue_upsert(
+                db,
+                "memory",
+                memory_id,
+                content,
+                agent_id=agent_id,
+                payload={"agent_id": agent_id, "memory_type": "context"},
+            )
         db.commit()
         return _response(receipt)
 
@@ -225,7 +233,12 @@ def forget(agent_id: str, message_id: str, *, sessions=None) -> dict:
                     )
                 )
                 receipt.index_pending = "delete"
-                receipt.index_next_at = 0.0
+                enqueue_delete(
+                    db,
+                    "memory",
+                    receipt.memory_id,
+                    agent_id=agent_id,
+                )
             owned = [receipt.id, analysis_id, receipt.memory_id]
             db.execute(
                 delete(ObjectLink).where(
@@ -241,52 +254,29 @@ def forget(agent_id: str, message_id: str, *, sessions=None) -> dict:
 
 
 def index_pending(limit: int = 10) -> int:
-    """Retry derived index writes by stable ID; tombstones serialize against upserts."""
+    """Compatibility adapter over the durable vector outbox."""
+    completed = reconcile_pending(limit, sessions=SessionLocal)
+    from app.models.vector_outbox import VectorOutbox
+
     with SessionLocal() as db:
-        ids = list(
-            db.execute(
-                select(ConversationReceipt.id)
-                .where(
-                    ConversationReceipt.index_pending != "none",
-                    ConversationReceipt.index_next_at <= time.time(),
+        receipts = db.execute(
+            select(ConversationReceipt).where(ConversationReceipt.index_pending != "none")
+        ).scalars().all()
+        for receipt in receipts:
+            intent = db.execute(
+                select(VectorOutbox).where(
+                    VectorOutbox.object_kind == "memory",
+                    VectorOutbox.object_id == receipt.memory_id,
                 )
-                .order_by(ConversationReceipt.index_next_at, ConversationReceipt.id)
-                .limit(limit)
-            ).scalars()
-        )
-    completed = 0
-    for receipt_id in ids:
-        with SessionLocal() as db:
-            if db.get_bind().dialect.name == "sqlite":
-                db.execute(text("BEGIN IMMEDIATE"))
-            receipt = db.execute(
-                select(ConversationReceipt)
-                .where(ConversationReceipt.id == receipt_id)
-                .with_for_update()
             ).scalar_one_or_none()
-            if not receipt or receipt.index_pending == "none":
+            if intent is None:
                 continue
-            try:
-                if receipt.index_pending == "delete":
-                    qdrant_store.delete_memory_embedding(receipt.memory_id)
-                else:
-                    memory = db.get(Memory, receipt.memory_id)
-                    if memory is None or memory.status != "active":
-                        receipt.index_pending = "delete"
-                        db.commit()
-                        continue
-                    qdrant_store.upsert_memory_embedding(
-                        memory.id,
-                        memory.text,
-                        payload={"agent_id": receipt.agent_id, "memory_type": memory.memory_type},
-                    )
+            if intent.status == "complete":
                 receipt.index_pending = "none"
                 receipt.index_error = ""
-                completed += 1
-            except Exception as exc:
-                receipt.index_error = type(exc).__name__ + ": vector synchronization pending"
-                receipt.index_next_at = time.time() + 30
-            db.commit()
+            else:
+                receipt.index_error = intent.last_error
+        db.commit()
     return completed
 
 

@@ -6,6 +6,7 @@ from app.core.auth import require_read_key
 from app.core.db import SessionLocal
 from app.models.memory import Memory
 from app.schemas.skill import SkillPatchRequest, SkillWriteRequest
+from app.services.vector_outbox import enqueue_delete, enqueue_upsert
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 
@@ -91,9 +92,28 @@ def create_skill(payload: SkillWriteRequest, header_agent_id: str = Depends(get_
             valid_from=datetime.now(UTC),
         )
         db.add(row)
+        db.flush()
+        enqueue_upsert(
+            db,
+            "memory",
+            row.id,
+            row.text,
+            agent_id=agent_id,
+            payload={
+                "agent_id": agent_id,
+                "memory_type": "skill",
+                "source_type": "skill_editor",
+                "confidence": "high",
+                "tags": json.loads(row.tags_json),
+            },
+        )
         db.commit()
         db.refresh(row)
-        return {"status": "ok", "skill": _row_to_skill(row)}
+        return {
+            "status": "ok",
+            "skill": _row_to_skill(row),
+            "indexing": {"status": "pending"},
+        }
     finally:
         db.close()
 
@@ -125,9 +145,27 @@ def update_skill(skill_id: str, payload: SkillPatchRequest, agent_id: str = Depe
             tags["active"] = payload.active
             row.status = "active" if payload.active else "inactive"
         row.tags_json = _skill_tags(tags.get("linked_tools", []), str(tags.get("version", "1")), bool(tags.get("active", row.status == "active")))
+        enqueue_upsert(
+            db,
+            "memory",
+            row.id,
+            row.text,
+            agent_id=agent_id,
+            payload={
+                "agent_id": agent_id,
+                "memory_type": "skill",
+                "source_type": "skill_editor",
+                "confidence": "high",
+                "tags": json.loads(row.tags_json),
+            },
+        )
         db.commit()
         db.refresh(row)
-        return {"status": "ok", "skill": _row_to_skill(row)}
+        return {
+            "status": "ok",
+            "skill": _row_to_skill(row),
+            "indexing": {"status": "pending"},
+        }
     finally:
         db.close()
 
@@ -139,9 +177,10 @@ def delete_skill(skill_id: str, agent_id: str = Depends(get_agent_id)):
         row = _require_skill(db.get(Memory, skill_id), agent_id)
         from app.models.deletion_receipt import record
         record(db, agent_id, "memory", row.id)
+        enqueue_delete(db, "memory", row.id, agent_id=agent_id)
         db.delete(row)
         db.commit()
-        return {"status": "ok"}
+        return {"status": "ok", "indexing": {"status": "pending"}}
     finally:
         db.close()
 

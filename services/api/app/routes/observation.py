@@ -1,4 +1,3 @@
-import contextlib
 import json
 from datetime import UTC, datetime
 
@@ -17,11 +16,7 @@ from app.schemas.observation import (
 from app.services.agent_config_service import get_or_create_config
 from app.services.observation_lifecycle import apply_session_context, enforce_budget, find_duplicate
 from app.services.pattern_promotion import promote_from_observations
-from app.services.qdrant_store import (
-    delete_observation_embedding,
-    index_after_commit,
-    upsert_observation_embedding,
-)
+from app.services.vector_outbox import enqueue_delete, enqueue_upsert, reconcile_one
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import and_, select
 
@@ -93,15 +88,22 @@ def create_observation(payload: ObservationCreateRequest, header_agent_id: str =
             related_observation_ids_json=json.dumps(payload.related_observation_ids),
         )
         db.add(row)
-        db.commit()
-        db.refresh(row)
-
-        indexing = index_after_commit(
-            upsert_observation_embedding,
+        db.flush()
+        enqueue_upsert(
+            db,
+            "observation",
             row.id,
             row.description,
-            payload={"agent_id": agent_id, "signal_type": row.signal_type, "status": row.status},
+            agent_id=agent_id,
+            payload={
+                "agent_id": agent_id,
+                "signal_type": row.signal_type,
+                "status": row.status,
+            },
         )
+        db.commit()
+        db.refresh(row)
+        indexing = reconcile_one("observation", row.id, sessions=SessionLocal)
 
         promote_from_observations(db, agent_id, signal_type=row.signal_type)
 
@@ -186,14 +188,14 @@ def delete_observation(observation_id: str, agent_id: str = Depends(get_agent_id
         row = _get_owned_observation(db, observation_id, agent_id)
         from app.models.deletion_receipt import record
         record(db, agent_id, "observation", row.id)
+        enqueue_delete(db, "observation", row.id, agent_id=agent_id)
         db.delete(row)
         db.commit()
-        # Postgres (the source of truth) already committed the delete -
-        # a stale/malformed Qdrant point shouldn't turn a successful
-        # delete into a 500.
-        with contextlib.suppress(Exception):
-            delete_observation_embedding(observation_id)
-        return {"status": "ok"}
+        indexing = reconcile_one("observation", observation_id, sessions=SessionLocal)
+        result = {"status": "ok"}
+        if indexing["status"] != "ok":
+            result["indexing"] = indexing
+        return result
     finally:
         db.close()
 

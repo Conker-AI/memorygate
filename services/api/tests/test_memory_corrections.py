@@ -62,7 +62,7 @@ def setup(tmp_path, monkeypatch):
         calls.append((args, kwargs))
         return {"status": "ok"}
 
-    monkeypatch.setattr(service, "index_after_commit", index)
+    monkeypatch.setattr(service, "_reconcile_index_intent", index)
     with sessions() as db:
         db.add_all(
             [
@@ -363,7 +363,7 @@ def test_committed_timeout_replay_and_reopen_never_repeat_effect(setup, monkeypa
     def crash(*args, **kwargs):
         raise Crash()
 
-    monkeypatch.setattr(service, "index_after_commit", crash)
+    monkeypatch.setattr(service, "_reconcile_index_intent", crash)
     payload = {"memory_id": "one", "expected_revision": 1, "text": "Corrected"}
     with pytest.raises(Crash):
         service.apply("owner", REQUEST, payload)
@@ -388,7 +388,7 @@ def test_committed_timeout_replay_and_reopen_never_repeat_effect(setup, monkeypa
 def test_index_failure_is_visible_without_reapplying_text(setup, monkeypatch):
     http, _, _, _ = setup
     monkeypatch.setattr(
-        service, "index_after_commit", lambda *a, **kw: {"status": "degraded"}
+        service, "_reconcile_index_intent", lambda *a, **kw: {"status": "degraded"}
     )
     result = put(http)
     assert result.status_code == 200 and result.json()["indexing"] == "degraded"

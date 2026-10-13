@@ -41,13 +41,14 @@ Owned analysis, memory, revisions and conflicts are removed by forgetting; sourc
 referencing audit payloads are redacted. Independent derivatives and backups
 require separate retention/deletion handling.
 
-The SQL receipt also carries durable `upsert`/`delete` index work. The existing
-worker retries it, locking the receipt across index I/O so a late upsert cannot
-overtake deletion. Failed writes remain pending, retry after 30 seconds, and
-cannot starve later receipts. Retrieval reports `pending_conversation_index`;
-Pi treats a nonzero count as degraded. A stale vector never supplies content
-without an active SQL memory row. Logical backups include receipt tombstones;
-the umbrella's full PostgreSQL dump includes the table automatically.
+The conversation receipt and the shared `vector_outbox` intent commit in the same
+SQL transaction. The worker locks one desired-state row while applying its stable-ID
+Qdrant operation, so a later delete cannot be overtaken by an older upsert. Failed
+writes remain pending with a coarse error and bounded backoff. Retrieval reports
+both the compatibility `pending_conversation_index` count and the shared pending/
+failed vector counts. A stale vector never supplies content without an active SQL
+memory row. Logical backups include receipts and vector intents; the umbrella's
+full PostgreSQL dump includes both tables automatically.
 
 ## Deployment and proof
 

@@ -1,9 +1,7 @@
-from collections.abc import Callable
 from functools import lru_cache
-from typing import Any
 
 from app.core.config import EMBED_DIMENSION, QDRANT_COLLECTION, QDRANT_URL
-from app.services.embeddings import EmbeddingUnavailable, embed_text, embedding_health
+from app.services.embeddings import embed_text, embedding_health
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
     Distance,
@@ -27,7 +25,12 @@ _ensured: set[str] = set()
 
 @lru_cache(maxsize=1)
 def get_qdrant_client() -> QdrantClient:
-    return QdrantClient(url=QDRANT_URL, check_compatibility=False)
+    return QdrantClient(
+        url=QDRANT_URL,
+        check_compatibility=False,
+        trust_env=False,
+        follow_redirects=False,
+    )
 
 
 def _ensure_collection(name: str) -> None:
@@ -119,23 +122,6 @@ def semantic_status() -> dict:
     if index["status"] != "ok":
         return {"status": "degraded", "component": "vector_index", "reason": index["reason"]}
     return {"status": "ok", "component": None, "reason": None}
-
-
-def index_after_commit(upsert: Callable[..., None], *args: Any, **kwargs: Any) -> dict:
-    """Run a vector upsert whose row is already committed to Postgres.
-
-    Postgres is the source of truth and has accepted the write, so an embedding
-    or index failure must degrade search rather than turn a successful write
-    into a 500 with the row already stored. The status is returned instead of
-    swallowed, so the caller can say the row is not vector-searchable yet.
-    """
-    try:
-        upsert(*args, **kwargs)
-        return {"status": "ok"}
-    except EmbeddingUnavailable as exc:
-        return {"status": "degraded", "component": "embeddings", "reason": exc.reason}
-    except Exception:
-        return {"status": "degraded", "component": "vector_index", "reason": INDEX_UNREACHABLE}
 
 
 def _build_filter(agent_id: str | None = None, extra: dict | None = None) -> Filter | None:

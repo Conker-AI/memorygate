@@ -14,6 +14,7 @@ from app.models.evidence_source import EvidenceSource
 from app.models.memory import Memory
 from app.models.object_link import ObjectLink
 from app.models.processing_job import ProcessingJob
+from app.models.vector_outbox import VectorOutbox
 from app.schemas.explorer import ExploreRequest, LibraryRequest
 from app.schemas.runtime import AgentContextRequest, IngestEventRequest, MemoryQuestionRequest
 from app.services.auth_settings_service import (
@@ -219,7 +220,12 @@ def _build_context(db, payload: AgentContextRequest, agent_id: str) -> dict:
             "retrieval": {"mode": "hybrid" if retrieval["status"] == "ok" else "lexical", "semantic": retrieval,
                 "lexical": lexical_query.receipt(len(lexical_rows)),
                 "pending_conversation_index": db.scalar(select(func.count()).select_from(ConversationReceipt).where(
-                    ConversationReceipt.agent_id == agent_id, ConversationReceipt.index_pending != "none"))},
+                    ConversationReceipt.agent_id == agent_id, ConversationReceipt.index_pending != "none")),
+                "pending_vector_index": db.scalar(select(func.count()).select_from(VectorOutbox).where(
+                    VectorOutbox.agent_id == agent_id, VectorOutbox.status == "pending")),
+                "failed_vector_index": db.scalar(select(func.count()).select_from(VectorOutbox).where(
+                    VectorOutbox.agent_id == agent_id, VectorOutbox.status == "pending",
+                    VectorOutbox.last_error != ""))},
             "memories": memories[:payload.max_items],
             "entities": [{"id": r.id, "name": r.name, "type": r.entity_type, "description": r.description, "summary": r.agent_summary, "attributes": json.loads(r.attributes_json)} for r in entities],
             "episodes": [{"id": r.id, "title": r.title, "summary": r.summary, "occurred_start": r.occurred_start.isoformat() if r.occurred_start else None} for r in episodes],
@@ -343,6 +349,8 @@ def retry_job(job_id: str, agent_id: str = Depends(get_agent_id), _: str = Depen
         job.status = "pending"
         job.stage = "retry_queued"
         job.error = ""
+        job.lease_owner = None
+        job.lease_expires_at = None
         db.commit()
         return {"status": "queued", "job_id": job.id}
     finally:

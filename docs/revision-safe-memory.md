@@ -4,6 +4,12 @@ Memory list/get/search responses include a positive integer `revision`. An edito
 
 For existing clients the field remains optional. Such clients do not gain stale-editor detection. SQLAlchemy optimistic version checks still reject races between loading and flushing a memory, including ORM edits made by other service paths. Bulk SQL is outside that guarantee.
 
-Manual content edits, prior snapshots, conflict changes and audit records now commit together. Vector indexing remains post-commit and can report degradation independently; this does not make the external index transactional.
+Manual content edits, prior snapshots, conflict changes, audit records, and the
+latest desired vector operation commit together. Qdrant remains an external
+derived index, but its idempotent operation is never the only record of unfinished
+work: failed or interrupted reconciliation stays pending in PostgreSQL and retries.
 
-The additive PostgreSQL startup migration initializes existing rows to revision 1. It has not been run against user data. Temporary SQLite tests cover stale edit/delete, competing ORM writers/deleters, strict revision validation and rollback on audit/conflict failure. Deployment must still exercise the migration against a backed-up PostgreSQL staging database.
+The additive PostgreSQL startup migration initializes existing rows to revision 1
+and seeds one vector intent for existing source rows and deletion receipts. It is
+idempotent and has been exercised against disposable PostgreSQL 16; deployment
+must still test a backed-up copy of real user data.

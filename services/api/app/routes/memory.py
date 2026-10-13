@@ -1,4 +1,3 @@
-import contextlib
 import json
 from datetime import UTC, datetime, timedelta
 
@@ -21,13 +20,13 @@ from app.services.qdrant_store import (
     INDEX_UNREACHABLE,
     delete_memory_embedding,
     find_near_duplicate,
-    index_after_commit,
     search_memory_embeddings,
     semantic_status,
     upsert_memory_embedding,
 )
 from app.services.scoring import memory_rank_bonus, memory_strength
 from app.services.signal_filter import NOVELTY_DUPLICATE, NOVELTY_LOW, novelty_bucket, score_value
+from app.services.vector_outbox import enqueue_upsert, reconcile_one
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm.exc import StaleDataError
@@ -35,6 +34,16 @@ from sqlalchemy.orm.exc import StaleDataError
 router = APIRouter(prefix="/memory", tags=["memory"])
 
 PHASE_REVIEW_WINDOW = timedelta(days=14)
+
+
+def _reconcile_index_intent(operation, memory_id, *args, **kwargs):
+    """Compatibility seam that now drains an already-durable intent."""
+    return reconcile_one(
+        "memory",
+        memory_id,
+        sessions=SessionLocal,
+        operation_override=operation,
+    )
 
 def _parse_review_by(value: str | None) -> datetime | None:
     if not value:
@@ -172,12 +181,12 @@ def _upgrade_existing_memory(db, row, payload, final_memory_type, final_confiden
                 "tags": merged_tags,
             }),
         ))
-        db.commit()
-
-        indexing = index_after_commit(
-            upsert_memory_embedding,
+        enqueue_upsert(
+            db,
+            "memory",
             row.id,
             row.text,
+            agent_id=row.agent_id,
             payload={
                 "agent_id": row.agent_id,
                 "memory_type": row.memory_type,
@@ -186,6 +195,8 @@ def _upgrade_existing_memory(db, row, payload, final_memory_type, final_confiden
                 "tags": merged_tags,
             },
         )
+        db.commit()
+        indexing = _reconcile_index_intent(upsert_memory_embedding, row.id, row.text)
 
     result = {
         "status": "ok",
@@ -295,16 +306,15 @@ def write_memory(payload: MemoryWriteRequest, header_agent_id: str = Depends(get
             valid_from=datetime.now(UTC),
         )
         db.add(memory)
-        db.commit()
-        db.refresh(memory)
+        db.flush()
         add_revision(db, memory, "memory created", "write")
         detect_conflicts(db, memory)
-        db.commit()
-
-        indexing = index_after_commit(
-            upsert_memory_embedding,
+        enqueue_upsert(
+            db,
+            "memory",
             memory.id,
             memory.text,
+            agent_id=agent_id,
             payload={
                 "agent_id": agent_id,
                 "memory_type": memory.memory_type,
@@ -328,6 +338,8 @@ def write_memory(payload: MemoryWriteRequest, header_agent_id: str = Depends(get
             }),
         ))
         db.commit()
+        db.refresh(memory)
+        indexing = _reconcile_index_intent(upsert_memory_embedding, memory.id, memory.text)
 
         response = {
             "status": "ok",
@@ -469,13 +481,12 @@ def patch_memory(memory_id: str, payload: MemoryPatchRequest, agent_id: str = De
 
         db.add(MemoryAudit(action="edit", memory_id=row.id, payload_json=json.dumps({"text": row.text})))
         detect_conflicts(db, row)
-        db.commit()
-        db.refresh(row)
-
-        indexing = index_after_commit(
-            upsert_memory_embedding,
+        enqueue_upsert(
+            db,
+            "memory",
             row.id,
             row.text,
+            agent_id=row.agent_id,
             payload={
                 "agent_id": row.agent_id,
                 "memory_type": row.memory_type,
@@ -484,6 +495,9 @@ def patch_memory(memory_id: str, payload: MemoryPatchRequest, agent_id: str = De
                 "tags": json.loads(row.tags_json),
             },
         )
+        db.commit()
+        db.refresh(row)
+        indexing = _reconcile_index_intent(upsert_memory_embedding, row.id, row.text)
 
         result = {"status": "ok", "memory": _row_to_dict(row)}
         if indexing["status"] != "ok":
@@ -509,14 +523,11 @@ def delete_memory(memory_id: str, agent_id: str = Depends(get_agent_id),
         # A deleted memory's text must not survive in revisions, conflicts or audit.
         erase(db, agent_id, row, "delete", {"revision": row.revision})
         db.commit()
-
-        # Postgres (the source of truth) already committed the delete -
-        # a stale/malformed Qdrant point shouldn't turn a successful
-        # delete into a 500.
-        with contextlib.suppress(Exception):
-            delete_memory_embedding(memory_id)
-
-        return {"status": "ok"}
+        indexing = _reconcile_index_intent(delete_memory_embedding, memory_id)
+        result = {"status": "ok"}
+        if indexing["status"] != "ok":
+            result["indexing"] = indexing
+        return result
     except StaleDataError:
         db.rollback()
         raise HTTPException(409, {"code": "revision_conflict", "message": "Memory changed; reload before deleting."}) from None

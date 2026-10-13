@@ -129,7 +129,7 @@ def test_mcp_context_and_followup_use_same_operator_scope(db, monkeypatch):
         else:
             result = explore(db, ExploreRequest(**body), "owner")
         return BytesIO(json.dumps(result).encode())
-    monkeypatch.setattr(module, "urlopen", endpoint)
+    monkeypatch.setattr(module._URL_OPENER, "open", endpoint)
     assert module.context({"query": "x"})["objects"][0]["connections"] == {}
     result = module.explore({"object_type": "memory", "object_id": "m", "operation": "content", "field": "text", "characters": 50})
     assert len(result["content"]) == 50

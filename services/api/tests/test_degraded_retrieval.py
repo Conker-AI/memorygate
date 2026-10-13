@@ -16,7 +16,7 @@ from app.models.memory import Memory
 from app.routes import memory as memory_routes
 from app.routes import runtime as runtime_routes
 from app.routes import system as system_routes
-from app.services import auth_settings_service, embeddings, qdrant_store
+from app.services import auth_settings_service, embeddings, qdrant_store, vector_outbox
 from app.services.auth_settings_service import (
     set_admin_key,
 )
@@ -99,21 +99,23 @@ def test_semantic_status_names_the_component_that_is_down(no_semantic_retrieval)
     assert status["reason"]
 
 
-def test_index_writes_report_failure_instead_of_raising(no_semantic_retrieval):
-    # Both the provider and the index are down. The upsert must come back with a
-    # status rather than raising into a caller whose row is already committed.
-    result = qdrant_store.index_after_commit(
-        qdrant_store.upsert_memory_embedding, "some-id", "some text", payload={}
-    )
+def test_index_writes_report_failure_instead_of_raising(session, no_semantic_retrieval):
+    with session() as db:
+        db.add(Memory(id="some-id", agent_id="owner", text="some text"))
+        vector_outbox.enqueue_upsert(
+            db,
+            "memory",
+            "some-id",
+            "some text",
+            agent_id="owner",
+            payload={"agent_id": "owner"},
+        )
+        db.commit()
+
+    result = vector_outbox.reconcile_one("memory", "some-id", sessions=session)
     assert result["status"] == "degraded"
     assert result["component"] in {"embeddings", "vector_index"}
     assert result["reason"]
-
-    # A missing provider is reported as an embedding failure, not as an index
-    # one, so the owner is pointed at the thing that is actually broken.
-    embedding_only = qdrant_store.index_after_commit(lambda: embeddings.embed_text("x"))
-    assert embedding_only["component"] == "embeddings"
-    assert embedding_only["reason"] == embeddings.embedding_health()["reason"]
 
 
 # --- /health runs real probes ------------------------------------------------

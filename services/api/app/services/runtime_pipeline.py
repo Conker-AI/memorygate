@@ -10,8 +10,9 @@ from app.models.processing_job import ProcessingJob
 from app.services.classifier import classify_memory
 from app.services.memory_truth import add_revision, detect_conflicts
 from app.services.ollama_service import analyze_evidence
-from app.services.qdrant_store import index_after_commit, upsert_memory_embedding
+from app.services.processing_lease import LeaseHeartbeat, LeaseLostError, fence_job_lease
 from app.services.signal_filter import score_value
+from app.services.vector_outbox import enqueue_upsert
 from sqlalchemy import select
 
 
@@ -30,15 +31,29 @@ def _link(db, source_type, source_id, target_type, target_id, relationship, conf
     return row
 
 
-def process_evidence(db, evidence: EvidenceObject, content: str, job: ProcessingJob | None = None) -> dict:
+def _commit_job(db, job: ProcessingJob, lease: LeaseHeartbeat | None) -> None:
+    if lease:
+        lease.fence(db)
+    db.commit()
+
+
+def process_evidence(
+    db,
+    evidence: EvidenceObject,
+    content: str,
+    job: ProcessingJob | None = None,
+    *,
+    lease: LeaseHeartbeat | None = None,
+) -> dict:
     if job is None:
         job = ProcessingJob(agent_id=evidence.agent_id, evidence_id=evidence.id, status="pending")
         db.add(job)
         db.flush()
-    job.status = "processing"
-    job.attempts += 1
+    if job.status != "processing":
+        job.status = "processing"
+        job.attempts += 1
     job.stage = "episode"
-    db.commit()
+    _commit_job(db, job, lease)
     try:
         cutoff = (evidence.occurred_at or datetime.now(UTC)) - timedelta(minutes=30)
         episode = db.execute(select(EpisodeObject).where(
@@ -60,6 +75,7 @@ def process_evidence(db, evidence: EvidenceObject, content: str, job: Processing
         _link(db, "evidence", evidence.id, "episode", episode.id, "grouped_into", evidence.integrity_confidence)
 
         job.stage = "analysis"
+        _commit_job(db, job, lease)
         value = score_value(content)
         classification = classify_memory(content, "automatic_listener")
         analysis = AnalysisObject(
@@ -74,6 +90,7 @@ def process_evidence(db, evidence: EvidenceObject, content: str, job: Processing
         _link(db, "episode", episode.id, "analysis", analysis.id, "analyzed_into", analysis.confidence)
 
         job.stage = "local_ai"
+        _commit_job(db, job, lease)
         ai_result = analyze_evidence(content, evidence.source_type)
         ai_analysis = None
         if ai_result:
@@ -103,30 +120,49 @@ def process_evidence(db, evidence: EvidenceObject, content: str, job: Processing
                 db.flush()
                 add_revision(db, memory, "automatic listener promotion", "runtime")
                 detect_conflicts(db, memory)
-                indexing = index_after_commit(upsert_memory_embedding, memory.id, memory.text, payload={"agent_id": evidence.agent_id, "memory_type": memory.memory_type})
+                enqueue_upsert(
+                    db,
+                    "memory",
+                    memory.id,
+                    memory.text,
+                    agent_id=evidence.agent_id,
+                    payload={
+                        "agent_id": evidence.agent_id,
+                        "memory_type": memory.memory_type,
+                    },
+                )
+                indexing = {"status": "pending"}
             _link(db, "analysis", analysis.id, "memory", memory.id, "supports", analysis.confidence)
 
         evidence.processing_state = "processed"
         job.status = "completed"
         job.stage = "complete"
+        job.lease_owner = None
+        job.lease_expires_at = None
         result = {"episode_id": episode.id, "analysis_id": analysis.id, "ai_analysis_id": ai_analysis.id if ai_analysis else None, "memory_id": memory.id if memory else None, "value_score": value}
         if indexing["status"] != "ok":
             # A job that promoted a memory the vector index never received is
             # not a clean success - the owner can see which ones to re-index.
             result["indexing"] = indexing
         job.result_json = json.dumps(result)
-        db.commit()
+        _commit_job(db, job, lease)
         return result
     except Exception as exc:
         db.rollback()
+        if isinstance(exc, LeaseLostError):
+            raise
         evidence = db.get(EvidenceObject, evidence.id)
-        if evidence:
-            evidence.processing_state = "quarantined"
         failed = db.get(ProcessingJob, job.id)
         if not failed:
             failed = ProcessingJob(id=job.id, agent_id=evidence.agent_id if evidence else "default", evidence_id=evidence.id if evidence else "", attempts=1)
             db.add(failed)
+        if lease:
+            fence_job_lease(db, failed.id, lease.lease_owner)
+        if evidence:
+            evidence.processing_state = "quarantined"
         failed.status = "failed"
         failed.error = str(exc)[:2000]
+        failed.lease_owner = None
+        failed.lease_expires_at = None
         db.commit()
         raise

@@ -16,5 +16,7 @@ class ProcessingJob(Base):
     stage: Mapped[str] = mapped_column(String, default="ingest")
     error: Mapped[str] = mapped_column(Text, default="")
     result_json: Mapped[str] = mapped_column(Text, default="{}")
+    lease_owner: Mapped[str | None] = mapped_column(String, nullable=True)
+    lease_expires_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
     created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

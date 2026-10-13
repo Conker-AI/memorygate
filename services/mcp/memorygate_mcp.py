@@ -3,7 +3,15 @@
 import json
 import os
 import sys
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
+
+
+class _NoRedirectHandler(HTTPRedirectHandler):
+    def redirect_request(self, request, file_pointer, code, message, headers, new_url):
+        return None
+
+
+_URL_OPENER = build_opener(ProxyHandler({}), _NoRedirectHandler())
 
 TOOL = {
     "name": "memorygate_context",
@@ -42,7 +50,7 @@ def exchange(path, payload):
     if scope == "conversation":
         payload["session_id"] = os.environ["MEMORYGATE_SESSION_ID"]
     request = Request(f"{base}/runtime/{path}", data=json.dumps(payload).encode(), method="POST", headers={"Content-Type": "application/json", "X-MemoryGate-Key": key, "X-Agent-Id": agent_id})
-    with urlopen(request, timeout=30) as response:
+    with _URL_OPENER.open(request, timeout=30) as response:
         data = response.read(1048577)
         if len(data) > 1048576:
             raise RuntimeError("Memory response exceeded the limit")

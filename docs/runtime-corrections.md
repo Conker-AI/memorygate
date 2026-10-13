@@ -53,15 +53,14 @@ text. Source type, confidence, memory type, status and other classifications rem
 unchanged. No classifier, speculative confidence upgrade, conflict resolution or
 general administrator action is invoked. Inferred evidence remains inferred.
 
-Vector indexing uses the existing post-commit index operation, separately from the
-authoritative edit. SQL text and summary are immediately authoritative. A pending
-receipt means indexing might not have happened; degraded means indexing failed or
-this revision was already superseded. Reconciliation/replay never reindexes. An
-operator can use the existing index maintenance path; there is no hidden retry
-worker. The indexing phase briefly locks the target SQL row, checks the committed
-revision and performs the derived update before releasing it, preventing older
-concurrent corrections from overwriting newer correction vectors. Index status
-describes that attempt, not a guarantee about future memory changes.
+The correction transaction also upserts the object's desired `vector_outbox` state.
+SQL text and summary are immediately authoritative. Reconciliation locks that
+desired-state row through the idempotent Qdrant operation; a concurrent correction
+waits and then records a newer generation, so an older vector write cannot finish
+after and erase the newer intent. A crash after Qdrant but before SQL acknowledgement
+replays the same stable point ID. `pending` and `degraded` remain durable and the
+background worker retries them; `indexed` means the latest recorded generation was
+acknowledged.
 
 The additive `memory_corrections` table is registered by the router import and
 created through normal `Base.metadata.create_all` startup. No existing table or

@@ -35,5 +35,6 @@ OLLAMA_URL = os.getenv("OLLAMA_URL", "http://memorygate-ollama:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3:4b")
 OLLAMA_ENABLED = os.getenv("OLLAMA_ENABLED", "true").lower() in {"1", "true", "yes"}
 PROCESSING_POLL_SECONDS = float(os.getenv("PROCESSING_POLL_SECONDS", "2"))
+PROCESSING_LEASE_SECONDS = max(120, int(os.getenv("PROCESSING_LEASE_SECONDS", "300")))
 BACKUP_DIR = os.getenv("BACKUP_DIR", "/data/backups")
 RUNTIME_SECRET_PATH = os.getenv("RUNTIME_SECRET_PATH", "/data/runtime-fernet.key")

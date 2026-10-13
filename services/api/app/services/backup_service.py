@@ -20,12 +20,13 @@ from app.models.observation import Observation
 from app.models.pattern import Pattern
 from app.models.processing_job import ProcessingJob
 from app.models.session_transcript import SessionTranscript
+from app.models.vector_outbox import VectorOutbox
 from sqlalchemy import select
 
 _MODELS = (Memory, Entity, EntityEdge, EntityEvent, EntityHistory, Observation, Pattern,
            SessionTranscript, EvidenceSource, EvidenceObject, EpisodeObject, AnalysisObject,
            ObjectLink, ProcessingJob, MemoryRevision, MemoryConflict, ConversationReceipt,
-           DeletionReceipt, RecoveryHold)
+           DeletionReceipt, RecoveryHold, VectorOutbox)
 
 
 def _value(value):

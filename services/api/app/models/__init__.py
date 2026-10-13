@@ -13,3 +13,4 @@ from .memory_conflict import MemoryConflict
 from .memory_revision import MemoryRevision
 from .object_link import ObjectLink
 from .processing_job import ProcessingJob
+from .vector_outbox import VectorOutbox
