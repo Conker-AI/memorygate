@@ -55,6 +55,10 @@ jobs:
           fi
           echo "all tracked text files are LF"
 
+      - name: File sizes
+        # 600 lines per source file; files that were already larger may only shrink.
+        run: python scripts/check_file_sizes.py
+
       - name: Tests
         # Run from services/api: the tests import `app.*`, which resolves only
         # with that directory as the root - the same layout the image uses.
