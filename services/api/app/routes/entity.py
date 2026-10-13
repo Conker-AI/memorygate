@@ -1,4 +1,3 @@
-import contextlib
 import json
 
 from app.core.agent import get_agent_id, resolve_agent_id
@@ -14,11 +13,7 @@ from app.schemas.entity import (
     EntityUpdateRequest,
 )
 from app.services.entity_dedup import find_duplicate, merge_entities
-from app.services.qdrant_store import (
-    delete_entity_embedding,
-    index_after_commit,
-    upsert_entity_embedding,
-)
+from app.services.vector_outbox import enqueue_delete, enqueue_upsert, reconcile_one
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import or_, select
 
@@ -127,10 +122,15 @@ def create_entity(payload: EntityCreateRequest, header_agent_id: str = Depends(g
             importance_level=payload.importance_level,
         )
         db.add(entity)
-        db.commit()
-        db.refresh(entity)
-
-        indexing = index_after_commit(upsert_entity_embedding, entity.id, entity.name, payload={"agent_id": agent_id, "entity_type": entity.entity_type})
+        db.flush()
+        enqueue_upsert(
+            db,
+            "entity",
+            entity.id,
+            entity.name,
+            agent_id=agent_id,
+            payload={"agent_id": agent_id, "entity_type": entity.entity_type},
+        )
 
         db.add(EntityHistory(
             entity_id=entity.id,
@@ -141,6 +141,8 @@ def create_entity(payload: EntityCreateRequest, header_agent_id: str = Depends(g
             triggered_by="system",
         ))
         db.commit()
+        db.refresh(entity)
+        indexing = reconcile_one("entity", entity.id, sessions=SessionLocal)
 
         result = {"status": "ok", "entity": _entity_to_dict(entity)}
         if indexing["status"] != "ok":
@@ -158,14 +160,14 @@ def delete_entity(entity_id: str, agent_id: str = Depends(get_agent_id)):
         row = _get_owned_entity(db, entity_id, agent_id)
         from app.models.deletion_receipt import record
         record(db, agent_id, "entity", row.id)
+        enqueue_delete(db, "entity", row.id, agent_id=agent_id)
         db.delete(row)
         db.commit()
-        # Postgres (the source of truth) already committed the delete -
-        # a stale/malformed Qdrant point shouldn't turn a successful
-        # delete into a 500.
-        with contextlib.suppress(Exception):
-            delete_entity_embedding(entity_id)
-        return {"status": "ok"}
+        indexing = reconcile_one("entity", entity_id, sessions=SessionLocal)
+        result = {"status": "ok"}
+        if indexing["status"] != "ok":
+            result["indexing"] = indexing
+        return result
     finally:
         db.close()
 
@@ -224,12 +226,17 @@ def update_entity(entity_id: str, payload: EntityUpdateRequest, agent_id: str = 
         if payload.importance_level is not None:
             row.importance_level = payload.importance_level
 
-        db.commit()
-        db.refresh(row)
-
+        db.flush()
         indexing = {"status": "ok"}
         if name_changed:
-            indexing = index_after_commit(upsert_entity_embedding, row.id, row.name, payload={"agent_id": row.agent_id, "entity_type": row.entity_type})
+            enqueue_upsert(
+                db,
+                "entity",
+                row.id,
+                row.name,
+                agent_id=row.agent_id,
+                payload={"agent_id": row.agent_id, "entity_type": row.entity_type},
+            )
 
         after = _entity_to_dict(row)
 
@@ -242,6 +249,9 @@ def update_entity(entity_id: str, payload: EntityUpdateRequest, agent_id: str = 
             triggered_by=payload.triggered_by,
         ))
         db.commit()
+        db.refresh(row)
+        if name_changed:
+            indexing = reconcile_one("entity", row.id, sessions=SessionLocal)
 
         result = {"status": "ok", "entity": after}
         if indexing["status"] != "ok":
@@ -455,12 +465,17 @@ def update_entity_by_id(payload: EntityUpdateByIdRequest, agent_id: str = Depend
         if payload.importance_level is not None:
             row.importance_level = payload.importance_level
 
-        db.commit()
-        db.refresh(row)
-
+        db.flush()
         indexing = {"status": "ok"}
         if name_changed:
-            indexing = index_after_commit(upsert_entity_embedding, row.id, row.name, payload={"agent_id": row.agent_id, "entity_type": row.entity_type})
+            enqueue_upsert(
+                db,
+                "entity",
+                row.id,
+                row.name,
+                agent_id=row.agent_id,
+                payload={"agent_id": row.agent_id, "entity_type": row.entity_type},
+            )
 
         after = _entity_to_dict(row)
 
@@ -473,6 +488,9 @@ def update_entity_by_id(payload: EntityUpdateByIdRequest, agent_id: str = Depend
             triggered_by=payload.triggered_by,
         ))
         db.commit()
+        db.refresh(row)
+        if name_changed:
+            indexing = reconcile_one("entity", row.id, sessions=SessionLocal)
 
         result = {"status": "ok", "entity": after}
         if indexing["status"] != "ok":

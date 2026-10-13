@@ -5,7 +5,15 @@ import json
 import os
 import sys
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
+
+
+class _NoRedirectHandler(HTTPRedirectHandler):
+    def redirect_request(self, request, file_pointer, code, message, headers, new_url):
+        return None
+
+
+_URL_OPENER = build_opener(ProxyHandler({}), _NoRedirectHandler())
 
 
 def request(method: str, path: str, payload: dict | None = None) -> dict:
@@ -15,7 +23,7 @@ def request(method: str, path: str, payload: dict | None = None) -> dict:
     if not key:
         raise RuntimeError("MEMORYGATE_KEY is required")
     request = Request(f"{base}{path}", data=json.dumps(payload).encode() if payload is not None else None, method=method, headers={"Content-Type": "application/json", "X-MemoryGate-Key": key, "X-Agent-Id": agent_id})
-    with urlopen(request, timeout=30) as response:
+    with _URL_OPENER.open(request, timeout=30) as response:
         return json.loads(response.read())
 
 

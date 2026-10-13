@@ -56,7 +56,10 @@ names are never hidden by similarity ranking.
 
 If Embeddings is unavailable, search falls back to word matching and says so. `/health` reports
 `degraded` and names `embeddings`, and every result carries the `retrieval_path` that produced it.
-Writes still succeed, and report when they could not be indexed.
+Writes still succeed when the derived index is unavailable. The same PostgreSQL
+transaction records the latest desired Qdrant operation; a worker retries it by
+stable object ID, and responses report pending or degraded indexing instead of
+claiming the write is fully searchable.
 
 ![MemoryGate command center](docs/screenshots/overview.png)
 

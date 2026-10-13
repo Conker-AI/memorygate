@@ -1,16 +1,15 @@
 """Dedup check for entity creation - exact name match first, then embedding
 similarity, scoped to (agent_id, entity_type) so e.g. a person and a project
 that happen to share a name never collide."""
-import contextlib
 import json
 
 from app.models.entity import Entity
 from app.services.qdrant_store import (
     INDEX_UNREACHABLE,
-    delete_entity_embedding,
     find_similar_entities,
     semantic_status,
 )
+from app.services.vector_outbox import enqueue_delete
 from sqlalchemy import func, select, text
 
 DEDUP_SIMILARITY_THRESHOLD = 0.9
@@ -101,11 +100,9 @@ def merge_entities(db, agent_id: str, keep_id: str, merge_id: str) -> Entity:
                     new_ids.append(mapped)
             db.execute(text(f"UPDATE {table} SET {column} = :v WHERE id = :id"), {"v": json.dumps(new_ids), "id": row.id})
 
+    enqueue_delete(db, "entity", merge_id, agent_id=agent_id)
     db.delete(merge)
     db.commit()
     db.refresh(keep)
-
-    with contextlib.suppress(Exception):
-        delete_entity_embedding(merge_id)
 
     return keep

@@ -1,5 +1,4 @@
 """Admin-only destructive reset operations for the single MemoryGate workspace."""
-import contextlib
 from datetime import datetime
 
 from app.models.analysis_object import AnalysisObject
@@ -16,7 +15,7 @@ from app.models.pattern import Pattern
 from app.models.processing_job import ProcessingJob
 from app.models.session_transcript import SessionTranscript
 from app.services.backup_service import create_backup
-from app.services.qdrant_store import delete_embeddings
+from app.services.vector_outbox import enqueue_delete
 
 
 def _rows_for_reset(db, model, reset_from: datetime | None):
@@ -49,6 +48,13 @@ def reset_memory(db, reset_from: datetime | None = None) -> dict:
     memory_ids = [row.id for row in selected["memories"]]
     entity_ids = [row.id for row in selected["entities"]]
     observation_ids = [row.id for row in selected["observations"]]
+    for kind, rows in (
+        ("memory", selected["memories"]),
+        ("entity", selected["entities"]),
+        ("observation", selected["observations"]),
+    ):
+        for row in rows:
+            enqueue_delete(db, kind, row.id, agent_id=row.agent_id)
     all_selected_ids = set(memory_ids + entity_ids + observation_ids)
     all_selected_ids.update(row.id for rows in selected.values() for row in rows if hasattr(row, "id"))
 
@@ -67,8 +73,10 @@ def reset_memory(db, reset_from: datetime | None = None) -> dict:
         for row in rows:
             db.delete(row)
     db.commit()
-    # Postgres remains the source of truth. A later reset or startup can repair vector state.
-    with contextlib.suppress(Exception):
-        delete_embeddings(memory_ids, observation_ids, entity_ids)
     removed = {name: len(rows) for name, rows in selected.items()}
-    return {"backup": backup, "removed": removed, "reset_from": reset_from.isoformat() if reset_from else None}
+    return {
+        "backup": backup,
+        "removed": removed,
+        "reset_from": reset_from.isoformat() if reset_from else None,
+        "indexing": {"status": "pending", "operations": len(memory_ids) + len(entity_ids) + len(observation_ids)},
+    }

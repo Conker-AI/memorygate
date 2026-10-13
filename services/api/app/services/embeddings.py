@@ -63,7 +63,13 @@ def _probe() -> dict[str, Any]:
             result["reason"] = "EMBEDDINGS_KEY is not set, so the embedding sidecar cannot be called"
         else:
             try:
-                response = httpx.get(f"{EMBEDDINGS_URL}/model", headers=_headers(), timeout=5.0)
+                response = httpx.get(
+                    f"{EMBEDDINGS_URL}/model",
+                    headers=_headers(),
+                    timeout=5.0,
+                    trust_env=False,
+                    follow_redirects=False,
+                )
                 response.raise_for_status()
                 body = response.json()
                 model, dimension = body["model"], int(body["dimension"])
@@ -90,6 +96,8 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
             json={"texts": texts},
             headers=_headers(),
             timeout=_TIMEOUT,
+            trust_env=False,
+            follow_redirects=False,
         )
         response.raise_for_status()
         vectors = response.json()["vectors"]

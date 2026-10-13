@@ -19,10 +19,21 @@ from app.models.memory import Memory
 from app.models.memory_conflict import MemoryConflict
 from app.models.memory_forget import MemoryForget
 from app.models.memory_revision import MemoryRevision
-from app.services.qdrant_store import delete_memory_embedding, index_after_commit
+from app.services.qdrant_store import delete_memory_embedding
+from app.services.vector_outbox import enqueue_delete, reconcile_one
 from fastapi import HTTPException
 from sqlalchemy import delete, or_, select, text, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+
+
+def _reconcile_index_intent(operation, memory_id):
+    """Compatibility seam that now drains an already-durable intent."""
+    return reconcile_one(
+        "memory",
+        memory_id,
+        sessions=SessionLocal,
+        operation_override=operation,
+    )
 
 
 def erase(db, agent_id: str, memory: Memory, action: str, detail: dict) -> None:
@@ -42,6 +53,7 @@ def erase(db, agent_id: str, memory: Memory, action: str, detail: dict) -> None:
         .values(payload_json=json.dumps({"redacted": action}))
     )
     deletion_receipt.record(db, agent_id, "memory", memory.id)
+    enqueue_delete(db, "memory", memory.id, agent_id=agent_id)
     db.add(MemoryAudit(action=action, memory_id=memory.id, payload_json=json.dumps(detail)))
     db.delete(memory)
 
@@ -122,7 +134,7 @@ def forget(agent_id, request_id, payload):
                 return _view(prior)
         raise HTTPException(409, "Memory or forget request changed") from None
 
-    removal = index_after_commit(delete_memory_embedding, payload["memory_id"])
+    removal = _reconcile_index_intent(delete_memory_embedding, payload["memory_id"])
     state = "removed" if removal.get("status") == "ok" else "degraded"
     try:
         with SessionLocal() as db:

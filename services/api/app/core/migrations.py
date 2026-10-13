@@ -167,12 +167,32 @@ def run_migrations(engine: Engine) -> None:
             "id TEXT PRIMARY KEY, agent_id TEXT NOT NULL, evidence_id TEXT NOT NULL, "
             "status TEXT NOT NULL DEFAULT 'pending', attempts INTEGER NOT NULL DEFAULT 0, "
             "stage TEXT NOT NULL DEFAULT 'ingest', error TEXT NOT NULL DEFAULT '', "
-            "result_json TEXT NOT NULL DEFAULT '{}', created_at TIMESTAMPTZ NOT NULL DEFAULT now(), "
+            "result_json TEXT NOT NULL DEFAULT '{}', lease_owner TEXT NULL, "
+            "lease_expires_at TIMESTAMPTZ NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), "
             "updated_at TIMESTAMPTZ NOT NULL DEFAULT now())"
         ))
+        conn.execute(text("ALTER TABLE processing_jobs ADD COLUMN IF NOT EXISTS lease_owner TEXT"))
+        conn.execute(text("ALTER TABLE processing_jobs ADD COLUMN IF NOT EXISTS lease_expires_at TIMESTAMPTZ"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_processing_jobs_agent_id ON processing_jobs (agent_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_processing_jobs_evidence_id ON processing_jobs (evidence_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_processing_jobs_status ON processing_jobs (status)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_processing_jobs_lease_expires_at ON processing_jobs (lease_expires_at)"))
+        conn.execute(text(
+            "CREATE TABLE IF NOT EXISTS vector_outbox ("
+            "id TEXT PRIMARY KEY, agent_id TEXT NOT NULL DEFAULT 'default', "
+            "object_kind TEXT NOT NULL, object_id TEXT NOT NULL, operation TEXT NOT NULL, "
+            "document_text TEXT NULL, payload_json TEXT NOT NULL DEFAULT '{}', "
+            "generation INTEGER NOT NULL DEFAULT 1, status TEXT NOT NULL DEFAULT 'pending', "
+            "attempts INTEGER NOT NULL DEFAULT 0, next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT now(), "
+            "last_error TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT now(), "
+            "updated_at TIMESTAMPTZ NOT NULL DEFAULT now(), "
+            "CONSTRAINT uq_vector_outbox_object UNIQUE (object_kind, object_id))"
+        ))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_vector_outbox_agent_id ON vector_outbox (agent_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_vector_outbox_object_kind ON vector_outbox (object_kind)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_vector_outbox_object_id ON vector_outbox (object_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_vector_outbox_status ON vector_outbox (status)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_vector_outbox_next_attempt_at ON vector_outbox (next_attempt_at)"))
         conn.execute(text(
             "CREATE TABLE IF NOT EXISTS agent_access_keys ("
             "id TEXT PRIMARY KEY, label TEXT NOT NULL UNIQUE, agent_id TEXT NOT NULL, key_hash TEXT NOT NULL, "
@@ -233,6 +253,7 @@ def run_migrations(engine: Engine) -> None:
         _migrate_clarifications(conn)
         _merge_duplicate_entities(conn)
         _backfill_object_links(conn)
+        _backfill_vector_outbox(conn)
 
 
 def migrate_conversation_admission(conn) -> None:
@@ -248,6 +269,52 @@ def _table_exists(conn, name: str) -> bool:
     return conn.execute(text(
         "SELECT 1 FROM information_schema.tables WHERE table_name = :t"
     ), {"t": name}).first() is not None
+
+
+def _backfill_vector_outbox(conn) -> None:
+    """Give every pre-outbox object a one-time desired vector state."""
+    sources = (
+        (
+            "memory",
+            "memories",
+            "text",
+            (
+                "json_build_object('agent_id', agent_id, 'memory_type', memory_type, "
+                "'source_type', source_type, 'confidence', confidence, "
+                "'tags', tags_json)"
+            ),
+        ),
+        (
+            "observation",
+            "observations",
+            "description",
+            "json_build_object('agent_id', agent_id, 'signal_type', signal_type, 'status', status)",
+        ),
+        (
+            "entity",
+            "entities",
+            "name",
+            "json_build_object('agent_id', agent_id, 'entity_type', entity_type)",
+        ),
+    )
+    for kind, table, document_column, payload_expression in sources:
+        conn.execute(text(
+            f"INSERT INTO vector_outbox (id, agent_id, object_kind, object_id, operation, "
+            f"document_text, payload_json, generation, status, attempts, next_attempt_at, last_error) "
+            f"SELECT md5('memorygate-vector:{kind}:' || id), agent_id, '{kind}', id, 'upsert', "
+            f"{document_column}, ({payload_expression})::text, 1, 'pending', 0, now(), '' FROM {table} "
+            "ON CONFLICT (object_kind, object_id) DO NOTHING"
+        ))
+
+    if _table_exists(conn, "deletion_receipts"):
+        conn.execute(text(
+            "INSERT INTO vector_outbox (id, agent_id, object_kind, object_id, operation, "
+            "document_text, payload_json, generation, status, attempts, next_attempt_at, last_error) "
+            "SELECT md5('memorygate-vector:' || object_kind || ':' || object_id), agent_id, "
+            "object_kind, object_id, 'delete', NULL, '{}', 1, 'pending', 0, now(), '' "
+            "FROM deletion_receipts WHERE object_kind IN ('memory', 'observation', 'entity') "
+            "ON CONFLICT (object_kind, object_id) DO NOTHING"
+        ))
 
 
 def _migrate_memory_types(conn) -> None:

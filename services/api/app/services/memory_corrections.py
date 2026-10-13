@@ -8,11 +8,22 @@ from app.models.audit import MemoryAudit
 from app.models.memory import Memory
 from app.models.memory_correction import MemoryCorrection
 from app.services.memory_truth import add_revision
-from app.services.qdrant_store import index_after_commit, upsert_memory_embedding
+from app.services.qdrant_store import upsert_memory_embedding
+from app.services.vector_outbox import enqueue_upsert, reconcile_one
 from fastapi import HTTPException
 from sqlalchemy import select, text, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm.exc import StaleDataError
+
+
+def _reconcile_index_intent(operation, memory_id, *args, **kwargs):
+    """Compatibility seam that now drains an already-durable intent."""
+    return reconcile_one(
+        "memory",
+        memory_id,
+        sessions=SessionLocal,
+        operation_override=operation,
+    )
 
 
 def _view(row):
@@ -134,6 +145,14 @@ def apply(agent_id, request_id, payload):
                 "confidence": memory.confidence,
                 "tags": json.loads(memory.tags_json),
             }
+            enqueue_upsert(
+                db,
+                "memory",
+                memory.id,
+                memory.text,
+                agent_id=agent_id,
+                payload=index_payload,
+            )
             db.commit()
             result = _view(receipt)
     except (IntegrityError, StaleDataError):
@@ -150,24 +169,22 @@ def apply(agent_id, request_id, payload):
     # A crash here leaves a visible pending receipt, while the authoritative correction is durable.
     try:
         with SessionLocal() as db:
-            if db.get_bind().dialect.name == "sqlite":
-                db.execute(text("BEGIN IMMEDIATE"))
             current = db.execute(
                 select(Memory)
                 .where(Memory.id == payload["memory_id"], Memory.agent_id == agent_id)
-                .with_for_update()
             ).scalar_one_or_none()
-            # Serialize correction indexing with subsequent SQL edits so a late older
-            # correction cannot overwrite the latest correction's vector.
-            state = "degraded"
-            if current is not None and current.revision == result["revision"]:
-                indexed = index_after_commit(
-                    upsert_memory_embedding,
-                    payload["memory_id"],
-                    payload["text"],
-                    payload=index_payload,
-                )
-                state = "indexed" if indexed.get("status") == "ok" else "degraded"
+            current_revision = current.revision if current is not None else None
+            db.rollback()
+        state = "degraded"
+        if current_revision == result["revision"]:
+            indexed = _reconcile_index_intent(
+                upsert_memory_embedding,
+                payload["memory_id"],
+                payload["text"],
+                payload=index_payload,
+            )
+            state = "indexed" if indexed.get("status") == "ok" else "degraded"
+        with SessionLocal() as db:
             db.execute(
                 update(MemoryCorrection)
                 .where(

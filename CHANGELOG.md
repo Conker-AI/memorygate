@@ -6,6 +6,15 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- Outbound HTTP clients now ignore ambient proxy environment variables and
+  refuse redirects, with live hostile-proxy and static policy regression tests.
+- Processing jobs now use durable, renewable leases. Restarted workers reclaim
+  abandoned and expired jobs, concurrent workers cannot own the same claim, and
+  database fencing prevents a stale worker from committing after lease takeover.
+- Memory, observation, entity, and skill vector changes now use a transactional
+  PostgreSQL outbox. Stable-ID Qdrant operations replay after outages or crashes,
+  deletes supersede unapplied upserts, and pending failures remain observable.
+
 ## 0.4.1
 
 - Keep embedding-provider probes atomic and return stable snapshots so concurrent

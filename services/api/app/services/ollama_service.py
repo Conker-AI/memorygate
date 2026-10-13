@@ -24,7 +24,7 @@ def _generate(system: str, prompt: str, max_tokens: int) -> str | None:
     try:
         if not OLLAMA_ENABLED:
             return None
-        with httpx.Client(timeout=75) as client:
+        with httpx.Client(timeout=75, trust_env=False, follow_redirects=False) as client:
             response = client.post(f"{OLLAMA_URL}/api/chat", json={
                 "model": config["model"], "stream": False, "format": "json", "think": False,
                 "options": {"temperature": 0.1, "num_predict": max_tokens},
@@ -77,7 +77,7 @@ def answer_with_context(question: str, context: dict) -> str | None:
 
 def ollama_health() -> dict:
     try:
-        with httpx.Client(timeout=3) as client:
+        with httpx.Client(timeout=3, trust_env=False, follow_redirects=False) as client:
             response = client.get(f"{OLLAMA_URL}/api/tags")
             response.raise_for_status()
         models = [item.get("name") for item in response.json().get("models", [])]
