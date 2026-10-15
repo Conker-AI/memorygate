@@ -17,12 +17,13 @@ from app.services import conversation_memory, embeddings, qdrant_store
 from app.services.auth_settings_service import create_agent_access_key
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from pi import forgetting, memory_store
-from pi.loop import Loop
-from pi.memory import Memory, MemoryClient
-from pi.providers import Completion
-from pi.routing import Router
-from pi.store import Store
+from pi.conversation import forgetting
+from pi.conversation.store import Store
+from pi.memory import store as memory_store
+from pi.memory.service import Memory, MemoryClient
+from pi.models.providers import Completion
+from pi.models.routing import Router
+from pi.turns.loop import Loop
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
 
