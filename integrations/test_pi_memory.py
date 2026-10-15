@@ -120,8 +120,12 @@ def test_remembers_after_restart_then_forgets_source_and_cached_context(
         assert found["retrieval_path"] == "semantic"
         assert package["memories"][0]["id"] == found["id"]
     assert found["citations"][0]["message_id"] == message_id
-    assert statement in provider.messages[0].content
-    assert json.dumps(package, ensure_ascii=False) in provider.messages[0].content
+    # Recalled memory reaches the model as its own system message, after the agent's instructions.
+    evidence = [
+        m.content for m in provider.messages if m.role == "system" and statement in m.content
+    ]
+    assert len(evidence) == 1
+    assert json.dumps(package, ensure_ascii=False) in evidence[0]
     assert recalled["memory"]["retrieval"]["status"] == ("ok" if semantic else "degraded")
     memory.close()
     store.close()
