@@ -17,12 +17,13 @@ from app.services import conversation_memory, embeddings, qdrant_store
 from app.services.auth_settings_service import create_agent_access_key
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from pi import forgetting, memory_store
-from pi.loop import Loop
-from pi.memory import Memory, MemoryClient
-from pi.providers import Completion
-from pi.routing import Router
-from pi.store import Store
+from pi.conversation import forgetting
+from pi.conversation.store import Store
+from pi.memory import store as memory_store
+from pi.memory.service import Memory, MemoryClient
+from pi.models.providers import Completion
+from pi.models.routing import Router
+from pi.turns.loop import Loop
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
 
@@ -119,8 +120,12 @@ def test_remembers_after_restart_then_forgets_source_and_cached_context(
         assert found["retrieval_path"] == "semantic"
         assert package["memories"][0]["id"] == found["id"]
     assert found["citations"][0]["message_id"] == message_id
-    assert statement in provider.messages[0].content
-    assert json.dumps(package, ensure_ascii=False) in provider.messages[0].content
+    # Recalled memory reaches the model as its own system message, after the agent's instructions.
+    evidence = [
+        m.content for m in provider.messages if m.role == "system" and statement in m.content
+    ]
+    assert len(evidence) == 1
+    assert json.dumps(package, ensure_ascii=False) in evidence[0]
     assert recalled["memory"]["retrieval"]["status"] == ("ok" if semantic else "degraded")
     memory.close()
     store.close()
