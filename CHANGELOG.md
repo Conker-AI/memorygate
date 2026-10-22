@@ -6,6 +6,18 @@ a decision with visible consequences.
 
 ## Unreleased
 
+## 0.5.0
+
+- Honor a message from the owner that starts "remember that ..." or "don't remember ..."
+  (English or Russian) in their own attributable conversation; listener and other sources
+  never carry one. A declined item is filtered without erasing its source evidence and cannot be
+  promoted later by the background worker. Receipts gain one nullable field; earlier
+  admission decisions are never reinterpreted.
+- Literal recall searches and ranks the whole authorized corpus in SQL before applying its
+  bounded limit, so older relevant memories are no longer crowded out by newer rows that
+  merely share a common word. LIKE syntax in queries is matched literally.
+- Correction receipts are bound to the exact payload the owner approved.
+- Update anyio to 4.14.2.
 - Update certifi to 2026.10.19 for a published advisory, and the dashboard's build
   tooling and React Router for published advisories.
 - A weekly security check (`.github/workflows/security.yml`) audits every dependency this
