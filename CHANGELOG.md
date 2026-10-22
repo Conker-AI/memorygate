@@ -6,6 +6,11 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- Update certifi to 2026.10.19 for a published advisory, and the dashboard's build
+  tooling and React Router for published advisories.
+- A weekly security check (`.github/workflows/security.yml`) audits every dependency this
+  repository ships against the public advisory databases each Monday and whenever they
+  change, and fails loudly.
 - Outbound HTTP clients now ignore ambient proxy environment variables and
   refuse redirects, with live hostile-proxy and static policy regression tests.
 - Processing jobs now use durable, renewable leases. Restarted workers reclaim
