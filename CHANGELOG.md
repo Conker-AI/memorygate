@@ -6,6 +6,13 @@ a decision with visible consequences.
 
 ## Unreleased
 
+## 0.5.1
+
+- The image no longer carries the base image's setuptools and wheel. The service never
+  imports them, and their vendored copies had published advisories (wheel 0.45.1,
+  jaraco.context 5.3.0) that the new image scan found. CI now checks that the built image
+  still imports its app.
+
 ## 0.5.0
 
 - Honor a message from the owner that starts "remember that ..." or "don't remember ..."
