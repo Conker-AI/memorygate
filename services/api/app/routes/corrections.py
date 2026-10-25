@@ -5,7 +5,7 @@ import re
 import secrets
 from typing import Annotated
 
-from app.services import memory_corrections, memory_forgetting
+from app.services import memory_corrections, memory_forgetting, memory_statements
 from fastapi import APIRouter, Depends, Header, HTTPException, Path
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -78,6 +78,18 @@ class Correction(BaseModel):
         return value
 
 
+class Statement(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    text: str = Field(min_length=1, max_length=2000)
+
+    @field_validator("text")
+    @classmethod
+    def nonblank(cls, value):
+        if not value.strip() or "\x00" in value:
+            raise ValueError("Provide nonblank text without NUL")
+        return value
+
+
 class Forget(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     memory_id: str = Field(pattern=MEMORY_ID)
@@ -115,6 +127,16 @@ def forget_receipt(
     agent_id: str = Depends(require_correction_key),
 ):
     return memory_forgetting.read_receipt(agent_id, request_id)
+
+
+@router.put("/remember/{request_id}")
+def remember(
+    request_id: Annotated[str, Path(pattern=REQUEST_ID)],
+    payload: Statement,
+    agent_id: str = Depends(require_correction_key),
+):
+    """Owner-approved statement: stores the exact text as a new memory, once per request."""
+    return memory_statements.remember(agent_id, request_id, payload.text)
 
 
 @router.put("/{request_id}")

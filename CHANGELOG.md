@@ -6,6 +6,10 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- Owner-approved statements: `PUT /runtime/corrections/remember/{request_id}` stores one
+  approved fact word for word under the correction capability, once per request, with a
+  receipt. Pi uses it when the owner approves a memory Conker asked to save.
+
 ## 0.5.1
 
 - The image no longer carries the base image's setuptools and wheel. The service never
