@@ -6,6 +6,9 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- The API container runs with a read-only root filesystem, every Linux capability dropped except
+  DAC_OVERRIDE (needed to write backups into an owner-owned host folder) and no-new-privileges;
+  `/data` is a volume, `/tmp` a small tmpfs. CI's contract job runs it that way.
 - Owner-approved statements: `PUT /runtime/corrections/remember/{request_id}` stores one
   approved fact word for word under the correction capability, once per request, with a
   receipt. Pi uses it when the owner approves a memory Conker asked to save.

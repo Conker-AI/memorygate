@@ -59,7 +59,17 @@ services:
         required: false
     ports:
       - "127.0.0.1:8020:8020"
+    # The same lockdown as Conker's deployment: a read-only root, no capabilities except
+    # DAC_OVERRIDE (Conker binds the backup folder from the owner's host directory, and root
+    # without it cannot write there), no privilege gain. Writable: /data, its backups, /tmp.
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [DAC_OVERRIDE]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=64m
     volumes:
+      - memorygate_data:/data
       - memorygate_backups:/data/backups
     depends_on:
       - postgres
@@ -70,6 +80,7 @@ services:
           - memorygate-api
 
 volumes:
+  memorygate_data:
   postgres_data:
   qdrant_data:
   ollama_data:
