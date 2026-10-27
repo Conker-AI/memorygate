@@ -6,6 +6,8 @@ a decision with visible consequences.
 
 ## Unreleased
 
+## 0.6.0
+
 - The API container runs with a read-only root filesystem, every Linux capability dropped except
   DAC_OVERRIDE (needed to write backups into an owner-owned host folder) and no-new-privileges;
   `/data` is a volume, `/tmp` a small tmpfs. CI's contract job runs it that way.
