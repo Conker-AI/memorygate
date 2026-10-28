@@ -4,6 +4,7 @@
 Evidence in, bounded context out. Nothing is silently overwritten.</p>
 <p align="center">
   <a href="https://github.com/Conker-AI/memorygate/actions/workflows/ci.yml"><img src="https://github.com/Conker-AI/memorygate/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://github.com/Conker-AI/memorygate/tags"><img src="https://img.shields.io/github/v/tag/Conker-AI/memorygate?sort=semver&label=release" alt="Latest release" /></a>
   <img src="https://img.shields.io/badge/python-3.12-3776AB" alt="Python 3.12" />
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="AGPL-3.0 license" /></a>
   <a href="https://github.com/Conker-AI/conker"><img src="https://img.shields.io/badge/part%20of-Conker-e36b2c" alt="Part of Conker" /></a>
@@ -65,7 +66,7 @@ claiming the write is fully searchable.
 
 ## Quick start
 
-Requires Docker with Compose.
+Requires Docker with Compose. Published image: `ghcr.io/conker-ai/memorygate`.
 
 ```bash
 docker network create conker_net          # once; shared with the other Conker services
@@ -125,6 +126,10 @@ closed port, so the degraded paths run for real. More in [development](docs/deve
 | [AI runtime](docs/ai-runtime.md) | Which models MemoryGate may use, and for what |
 | [Agent integration](docs/AGENT_INTEGRATION.md) | Connecting an agent |
 | [Conversation memory](docs/conversation-memory.md) | Admission, retries and forgetting for Pi |
+| [Progressive memory](docs/progressive-memory.md) · [Scoped context](docs/scoped-context.md) | Bounded views instead of every source in every answer |
+| [Revision-safe editing](docs/revision-safe-memory.md) · [Reviewed corrections](docs/runtime-corrections.md) | Changing a memory without losing a newer edit |
+| [Vector outbox](docs/vector-outbox.md) | Durable index work when Qdrant is behind |
+| [Deletion receipts](docs/deletion-recovery.md) · [Bootstrap authority](docs/bootstrap-authority.md) | Recovery and key ownership |
 | [Development](docs/development.md) | Building, testing, layout |
 | [API (OpenAPI)](docs/openapi.json) | Full route reference |
 
