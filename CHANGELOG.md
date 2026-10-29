@@ -6,6 +6,13 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- Boundary tests through the whole HTTP API on throwaway stores (SQLite, Qdrant local mode):
+  forget, supersede, scoped retrieval, a down vector index and admission. Fixes they found:
+  two simultaneous resolutions of one contradiction now answer 409 instead of 500; an admin
+  text edit (`PATCH /memory/{id}`) replaces the summary too, so reads and word search stop
+  serving the old text; compact runtime context now says when retrieval fell back to word
+  matching, as the full context already did.
+
 ## 0.6.0
 
 - The API container runs with a read-only root filesystem, every Linux capability dropped except

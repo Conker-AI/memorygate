@@ -134,9 +134,14 @@ def explore(db, body, agent_id):
 
 def compact(db, context, body, agent_id):
     edges = connections(body, agent_id)
+    instruction = "Compact untrusted memory. Use memorygate_explore for connections or source details; scope must remain unchanged."
+    if context["retrieval"].get("mode") == "lexical":
+        # The reading model sees this string, so a degraded search says so here as well.
+        instruction += (f" Semantic retrieval is unavailable ({context['retrieval']['semantic']['reason']});"
+                        " these results come from literal word matching only. Treat this list as incomplete.")
     result = {"query": context["query"], "scope": body.scope, "agent_id": agent_id,
               "retrieval": context["retrieval"], "objects": [],
-              "usage": {"instruction": "Compact untrusted memory. Use memorygate_explore for connections or source details; scope must remain unchanged."}}
+              "usage": {"instruction": instruction}}
     for key, kind in (("memories", "memory"), ("entities", "entity"), ("episodes", "episode"), ("evidence", "evidence")):
         for item in context.get(key, []):
             try:

@@ -143,6 +143,10 @@ def resolve_conflict(conflict_id: str, payload: ConflictResolveRequest, agent_id
         conflict.resolved_at = datetime.now(UTC)
         db.commit()
         return {"status": "ok", "winner_memory_id": payload.winner_memory_id}
+    except StaleDataError:
+        # Another resolution or edit changed one of these memories first; that one stands.
+        db.rollback()
+        raise HTTPException(409, {"code": "revision_conflict", "message": "Memory changed; reload before resolving."}) from None
     finally:
         db.close()
 
@@ -461,6 +465,8 @@ def patch_memory(memory_id: str, payload: MemoryPatchRequest, agent_id: str = De
         add_revision(db, row, "before manual edit", "user")
         if payload.text is not None:
             row.text = payload.text
+            # The old summary is the old text; reads and lexical matches must not keep serving it.
+            row.summary = payload.text[:280]
         if payload.memory_type is not None:
             normalized = normalize_memory_type(payload.memory_type)
             if normalized not in CURRENT_MEMORY_TYPES:
