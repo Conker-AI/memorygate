@@ -6,6 +6,15 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- With `MEMORYGATE_PI_URL` and `MEMORYGATE_PI_SERVICE_KEY` set, every model call (evidence
+  analysis, Memory Lab answers) goes to Pi `POST /inference`, role `memory-sorting`, so the
+  owner picks the model in Conker: Settings, Models, Memory sorting. MemoryGate's own model
+  setting then reads "Chosen in Conker: Settings, Models, Memory sorting": `GET
+  /system/ai-runtime` gains `managed_by`, `editable` and `chosen_in`, `PUT` answers 409, and
+  `GET /runtime/health` gains `model_choice`. When Pi has no answer, MemoryGate falls back
+  exactly as when its local model is unavailable. Without the two settings nothing changes;
+  the stored setting is kept.
+
 ## 0.6.0
 
 - The API container runs with a read-only root filesystem, every Linux capability dropped except

@@ -5,6 +5,7 @@ from threading import Lock
 
 from app.core.config import OLLAMA_MODEL, RUNTIME_SECRET_PATH
 from app.models.ai_runtime_setting import AiRuntimeSetting
+from app.services.pi_inference import model_choice
 from cryptography.fernet import Fernet, InvalidToken
 
 _SINGLETON_ID = "singleton"
@@ -43,8 +44,13 @@ def get_runtime_config(db) -> dict:
 
 
 def get_runtime_status(db) -> dict:
+    choice = model_choice()
+    if not choice["editable"]:
+        # Pi chooses the model. The stored setting is kept, unread, for MemoryGate without Pi.
+        return {**choice, "provider": "pi", "generation_status": "pi"}
     config = get_runtime_config(db)
     return {
+        **choice,
         "provider": config["provider"],
         "model": config["model"],
         "api_key_configured": bool(config["api_key"]),
