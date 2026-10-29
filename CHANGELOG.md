@@ -20,6 +20,15 @@ a decision with visible consequences.
   text edit (`PATCH /memory/{id}`) replaces the summary too, so reads and word search stop
   serving the old text; compact runtime context now says when retrieval fell back to word
   matching, as the full context already did.
+- `PUT /runtime/corrections/remember/{request_id}` takes an optional `origin`: `owner`
+  (the default, unchanged: `source_type` `user`, confidence `high`, audit
+  `owner_stated_memory`) or `conker` for text Conker wrote itself, stored as `source_type`
+  `assistant`, confidence `medium`, history note "Conker-written statement", audit
+  `conker_stated_memory`. Compact context, library and explore cards now carry each
+  memory's `source_type` too. A `/memory/write` refused as low value no longer keeps its
+  text in the audit log (only its length, score and reason). `/memory/search` now also
+  finds memories still queued for the vector index by their words (`retrieval_path`
+  `lexical`, mode `hybrid` beside semantic hits) and reports `pending_vector_index`.
 
 ## 0.6.0
 

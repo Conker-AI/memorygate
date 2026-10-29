@@ -7,6 +7,7 @@ from app.models.audit import MemoryAudit
 from app.models.memory import Memory
 from app.models.memory_conflict import MemoryConflict
 from app.models.memory_revision import MemoryRevision
+from app.models.vector_outbox import VectorOutbox
 from app.schemas.memory import (
     ConflictResolveRequest,
     MemoryPatchRequest,
@@ -15,6 +16,7 @@ from app.schemas.memory import (
 )
 from app.services.agent_config_service import get_or_create_config
 from app.services.classifier import CURRENT_MEMORY_TYPES, classify_memory, normalize_memory_type
+from app.services.lexical_retrieval import memory_candidates, prepare_query
 from app.services.memory_truth import add_revision, detect_conflicts
 from app.services.qdrant_store import (
     INDEX_UNREACHABLE,
@@ -28,7 +30,7 @@ from app.services.scoring import memory_rank_bonus, memory_strength
 from app.services.signal_filter import NOVELTY_DUPLICATE, NOVELTY_LOW, novelty_bucket, score_value
 from app.services.vector_outbox import enqueue_upsert, reconcile_one
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm.exc import StaleDataError
 
 router = APIRouter(prefix="/memory", tags=["memory"])
@@ -224,10 +226,11 @@ def write_memory(payload: MemoryWriteRequest, header_agent_id: str = Depends(get
         if config.signal_filter_enabled:
             value_score = score_value(payload.text)
             if value_score < config.value_threshold:
+                # Refused text is not kept: no memory exists for a forget to remove it with.
                 db.add(MemoryAudit(
                     action="filtered",
                     memory_id=None,
-                    payload_json=json.dumps({"agent_id": agent_id, "text": payload.text, "reason": "low_value", "value_score": value_score}),
+                    payload_json=json.dumps({"agent_id": agent_id, "text_length": len(payload.text), "reason": "low_value", "value_score": value_score}),
                 ))
                 db.commit()
                 return {"status": "filtered", "reason": "low value"}
@@ -421,7 +424,20 @@ def search_memory(payload: MemorySearchRequest, header_agent_id: str = Depends(g
             item = _row_to_dict(row, scores.get(row.id))
             item["retrieval_path"] = path
             results.append(item)
-        return {"results": results, "retrieval": {"mode": path, "semantic": retrieval}}
+        summary = {"mode": path, "semantic": retrieval}
+        if retrieval["status"] == "ok":
+            # A memory still queued for the index has no vector yet, so only its words can
+            # find it until the queue drains.
+            pending = select(VectorOutbox.object_id).where(
+                VectorOutbox.agent_id == agent_id, VectorOutbox.object_kind == "memory",
+                VectorOutbox.status == "pending")
+            summary["pending_vector_index"] = db.scalar(select(func.count()).select_from(pending.subquery()))
+            known = {item["id"] for item in results}
+            for row, _score in memory_candidates(db, prepare_query(payload.query), agent_id, within=pending)[:20]:
+                if row.id not in known:
+                    results.append({**_row_to_dict(row), "retrieval_path": "lexical"})
+                    summary["mode"] = "hybrid" if path == "semantic" else path
+        return {"results": results, "retrieval": summary}
     finally:
         db.close()
 

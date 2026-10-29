@@ -1,4 +1,9 @@
-"""Owner-stated memories: one approved fact, stored word for word, with a durable receipt."""
+"""Stated memories: one fact, stored word for word, with a durable receipt.
+
+The owner's own words (typed, or approved as exact text) are a high-confidence user memory.
+Words Conker wrote itself are kept as a medium-confidence assistant memory, so a reader
+can always tell the two apart.
+"""
 
 import hashlib
 import json
@@ -17,6 +22,11 @@ from sqlalchemy import select, text, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 PHASE_REVIEW_WINDOW = timedelta(days=14)
+# origin -> (source type, confidence, revision note, revision author, audit action)
+ORIGINS = {
+    "owner": ("user", "high", "owner-approved statement", "owner_review", "owner_stated_memory"),
+    "conker": ("assistant", "medium", "Conker-written statement", "conker", "conker_stated_memory"),
+}
 
 
 def _reconcile_index_intent(operation, memory_id, *args, **kwargs):
@@ -42,12 +52,16 @@ def _prior(db, agent_id, request_id, digest):
     return row
 
 
-def remember(agent_id, request_id, statement):
-    """Store the text exactly as the owner approved it. An exact copy of an active memory is
-    not stored twice; the receipt then names the existing memory."""
+def remember(agent_id, request_id, statement, origin="owner"):
+    """Store the text exactly as written, marked with who wrote it. An exact copy of an active
+    memory is not stored twice; the receipt then names the existing memory."""
+    source_type, confidence, reason, changed_by, action = ORIGINS[origin]
+    request = {"agent_id": agent_id, "kind": "remember", "text": statement}
+    if origin != "owner":
+        request["origin"] = origin  # owner digests stay as before, so old receipts still replay
     digest = hashlib.sha256(
         json.dumps(
-            {"agent_id": agent_id, "kind": "remember", "text": statement},
+            request,
             sort_keys=True,
             ensure_ascii=False,
             separators=(",", ":"),
@@ -84,22 +98,22 @@ def remember(agent_id, request_id, statement):
                 db.add(receipt)
                 db.commit()
                 return _view(receipt, False)
-            # The classifier only picks the type; the owner's words stay the text and the summary.
-            kind = classify_memory(statement, "user")["memory_type"]
+            # The classifier only picks the type; the stated words stay the text and the summary.
+            kind = classify_memory(statement, source_type)["memory_type"]
             memory = Memory(
                 agent_id=agent_id,
                 text=statement,
                 summary=statement,
                 memory_type=kind,
-                source_type="user",
-                confidence="high",
+                source_type=source_type,
+                confidence=confidence,
                 review_by=datetime.now(UTC) + PHASE_REVIEW_WINDOW if kind == "phase" else None,
                 tags_json="[]",
                 valid_from=datetime.now(UTC),
             )
             db.add(memory)
             db.flush()
-            add_revision(db, memory, "owner-approved statement", "owner_review")
+            add_revision(db, memory, reason, changed_by)
             detect_conflicts(db, memory)
             receipt = MemoryCorrection(
                 agent_id=agent_id,
@@ -113,7 +127,7 @@ def remember(agent_id, request_id, statement):
             db.add(receipt)
             db.add(
                 MemoryAudit(
-                    action="owner_stated_memory",
+                    action=action,
                     memory_id=memory.id,
                     payload_json=json.dumps({"request_id": request_id}),
                 )
@@ -121,8 +135,8 @@ def remember(agent_id, request_id, statement):
             index_payload = {
                 "agent_id": agent_id,
                 "memory_type": kind,
-                "source_type": "user",
-                "confidence": "high",
+                "source_type": source_type,
+                "confidence": confidence,
                 "tags": [],
             }
             enqueue_upsert(

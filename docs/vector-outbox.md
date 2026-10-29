@@ -15,6 +15,10 @@ The startup migration is additive and idempotent. It seeds missing upsert intent
 from existing source rows and delete intents from durable deletion receipts without
 overwriting a newer outbox generation. Runtime context exposes `pending_vector_index`
 and `failed_vector_index`; a nonzero value means semantic retrieval may be incomplete.
+Runtime context always adds word matches. `POST /memory/search` does so for memories
+still pending here: when the index answered, matching pending memories are appended
+with `retrieval_path: "lexical"` (mode `hybrid` beside semantic hits), and the
+`retrieval` block reports `pending_vector_index`.
 
 This is an at-least-once bridge, not a distributed transaction. PostgreSQL and
 Qdrant cannot commit atomically. Correctness comes from durable desired state,
