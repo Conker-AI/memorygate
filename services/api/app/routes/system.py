@@ -12,6 +12,7 @@ from app.services.auth_settings_service import (
 from app.services.backup_service import create_backup, list_backups, resolve_backup
 from app.services.memory_reset_service import reset_memory
 from app.services.ollama_service import ollama_health
+from app.services.pi_inference import CHOSEN_IN, pi_configured
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 
@@ -69,13 +70,18 @@ def _confirm_admin(db, current_key: str, request: Request, action: str) -> None:
 def ai_runtime():
     db = SessionLocal()
     try:
-        return {**get_runtime_status(db), "ollama": ollama_health()}
+        status = get_runtime_status(db)
+        # With Pi choosing, MemoryGate's own Ollama runs nothing, so it is not probed.
+        return {**status, "ollama": ollama_health() if status["editable"] else None}
     finally:
         db.close()
 
 
 @router.put("/ai-runtime")
 def update_ai_runtime(payload: AiRuntimeUpdateRequest, request: Request):
+    if pi_configured():
+        # One model choice, in Pi. A second one here would decide nothing.
+        raise HTTPException(409, CHOSEN_IN)
     db = SessionLocal()
     try:
         _confirm_admin(db, payload.current_key, request, "ai-runtime")

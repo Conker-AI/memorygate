@@ -27,6 +27,7 @@ from app.services.conversation_memory import citations
 from app.services.lexical_retrieval import memory_candidates, prepare_query
 from app.services.memory_truth import mark_unsupported
 from app.services.ollama_service import answer_with_context, ollama_health
+from app.services.pi_inference import CHOSEN_IN, model_choice, pi_configured
 from app.services.qdrant_store import INDEX_UNREACHABLE, search_memory_embeddings, semantic_status
 from app.services.scoring import memory_rank_bonus
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
@@ -296,6 +297,8 @@ def ask_memorygate(payload: MemoryQuestionRequest, header_agent_id: str = Depend
         context = _build_context(db, AgentContextRequest(query=payload.question, max_items=8, include_evidence=payload.include_evidence), agent_id)
         answer = answer_with_context(payload.question, context)
         if not answer:
+            if pi_configured():
+                raise HTTPException(503, f"The memory sorting model is unavailable. {CHOSEN_IN}.")
             raise HTTPException(503, "Local Ollama answer service is unavailable")
         db.add(MemoryAudit(
             action="runtime_ask",
@@ -333,7 +336,7 @@ def list_jobs(agent_id: str = Depends(get_agent_id), status: str | None = None, 
 
 @router.get("/health")
 def runtime_health(_: str = Depends(require_key)):
-    return {"ollama": ollama_health()}
+    return {"ollama": ollama_health(), "model_choice": model_choice()}
 
 
 @router.post("/jobs/{job_id}/retry")

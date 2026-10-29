@@ -34,6 +34,13 @@ CORS_ORIGINS = [
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://memorygate-ollama:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3:4b")
 OLLAMA_ENABLED = os.getenv("OLLAMA_ENABLED", "true").lower() in {"1", "true", "yes"}
+
+# Pi's model roles. With both set, every model call goes to Pi's `memory-sorting` role, so the
+# owner picks the model in Conker's Settings; with either missing, MemoryGate uses its own
+# runtime setting and Ollama as before. The key is a secret: never log or return it.
+PI_URL = os.getenv("MEMORYGATE_PI_URL", "").strip().rstrip("/")
+PI_SERVICE_KEY = os.getenv("MEMORYGATE_PI_SERVICE_KEY", "").strip()
+
 PROCESSING_POLL_SECONDS = float(os.getenv("PROCESSING_POLL_SECONDS", "2"))
 PROCESSING_LEASE_SECONDS = max(120, int(os.getenv("PROCESSING_LEASE_SECONDS", "300")))
 BACKUP_DIR = os.getenv("BACKUP_DIR", "/data/backups")

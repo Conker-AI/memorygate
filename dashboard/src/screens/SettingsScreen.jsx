@@ -280,6 +280,8 @@ export default function SettingsScreen() {
   const [backups, setBackups] = useState([]);
   const [backupBusy, setBackupBusy] = useState(false);
   const [runtime, setRuntime] = useState(null);
+  // With Pi configured, MemoryGate's model is chosen in Conker; this screen only says where.
+  const piChooses = runtime?.managed_by === 'pi';
 
   async function loadStatus() {
     const res = await api.get('/auth/settings');
@@ -405,8 +407,8 @@ export default function SettingsScreen() {
         {backups.slice(0, 5).map((backup, index) => <div key={backup.filename} className={`flex items-center gap-3 px-4 py-3 ${index ? 'border-t border-border' : ''}`}><div className="min-w-0 flex-1"><p className="truncate font-mono text-xs text-text">{backup.filename}</p><p className="mt-1 text-xs text-muted">{new Date(backup.created_at).toLocaleString()} · {Math.max(1, Math.round(backup.size / 1024))} KB</p></div><Button variant="secondary" className="!py-1.5 text-xs" onClick={() => downloadBackup(backup.filename)}>Download</Button></div>)}
       </Section>
 
-      <Section title="AI Runtime" note="Choose the bounded-analysis model. Semantic retrieval remains local and unchanged.">
-        <div className="flex flex-wrap items-center gap-3 px-4 py-3"><BrainCircuit size={16} className="text-accent" /><div className="min-w-0 flex-1"><p className="text-sm text-text">{runtime ? `${runtime.provider === 'openai' ? 'OpenAI API' : 'Local Ollama'} · ${runtime.model}` : 'Loading runtime...'}</p><p className="mt-1 text-xs text-muted">{runtime?.provider === 'openai' ? (runtime.api_key_configured ? 'API key configured and encrypted on the server.' : 'An API key is required before OpenAI can run.') : runtime?.ollama?.available ? `${runtime.ollama.models.length} local model${runtime.ollama.models.length === 1 ? '' : 's'} detected.` : 'Local Ollama is unavailable.'}</p></div><Button variant="secondary" className="!py-1.5 text-xs" onClick={() => setModal('ai-runtime')}><Save size={13} /> Configure</Button></div>
+      <Section title="AI Runtime" note={piChooses ? 'Conker picks this model in one place for every module. Semantic retrieval remains local and unchanged.' : 'Choose the bounded-analysis model. Semantic retrieval remains local and unchanged.'}>
+        {piChooses ? <div className="flex flex-wrap items-center gap-3 px-4 py-3"><BrainCircuit size={16} className="text-accent" /><div className="min-w-0 flex-1"><p className="text-sm text-text">{runtime.chosen_in}</p><p className="mt-1 text-xs text-muted">MemoryGate asks Conker's memory sorting role, so the model is changed there, not here.</p></div></div> : <div className="flex flex-wrap items-center gap-3 px-4 py-3"><BrainCircuit size={16} className="text-accent" /><div className="min-w-0 flex-1"><p className="text-sm text-text">{runtime ? `${runtime.provider === 'openai' ? 'OpenAI API' : 'Local Ollama'} · ${runtime.model}` : 'Loading runtime...'}</p><p className="mt-1 text-xs text-muted">{runtime?.provider === 'openai' ? (runtime.api_key_configured ? 'API key configured and encrypted on the server.' : 'An API key is required before OpenAI can run.') : runtime?.ollama?.available ? `${runtime.ollama.models.length} local model${runtime.ollama.models.length === 1 ? '' : 's'} detected.` : 'Local Ollama is unavailable.'}</p></div><Button variant="secondary" className="!py-1.5 text-xs" onClick={() => setModal('ai-runtime')}><Save size={13} /> Configure</Button></div>}
       </Section>
 
       <Section title="Session behavior" note="Same low-friction UX, still keeping the key out of persistent browser storage.">
@@ -432,7 +434,7 @@ export default function SettingsScreen() {
       {modal === 'change' && <ChangeKeyModal onClose={() => setModal(null)} onDone={showSuccess} />}
       {modal === 'rotate' && <RotateKeyModal onClose={() => setModal(null)} onDone={showSuccess} />}
       {modal === 'agent-key' && <AgentKeyModal onClose={() => setModal(null)} onCreated={() => loadStatus()} />}
-      {modal === 'ai-runtime' && <AiRuntimeModal runtime={runtime} onClose={() => setModal(null)} onSaved={showSuccess} />}
+      {modal === 'ai-runtime' && !piChooses && <AiRuntimeModal runtime={runtime} onClose={() => setModal(null)} onSaved={showSuccess} />}
       {modal === 'reset-all' && <ResetMemoryModal mode="all" onClose={() => setModal(null)} onReset={showSuccess} />}
       {modal === 'reset-date' && <ResetMemoryModal mode="date" onClose={() => setModal(null)} onReset={showSuccess} />}
     </div>
