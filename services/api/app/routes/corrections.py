@@ -3,7 +3,7 @@
 import os
 import re
 import secrets
-from typing import Annotated
+from typing import Annotated, Literal
 
 from app.services import memory_corrections, memory_forgetting, memory_statements
 from fastapi import APIRouter, Depends, Header, HTTPException, Path
@@ -81,6 +81,8 @@ class Correction(BaseModel):
 class Statement(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     text: str = Field(min_length=1, max_length=2000)
+    # Who wrote the words: the owner (typed or approved this exact text) or Conker (its own).
+    origin: Literal["owner", "conker"] = "owner"
 
     @field_validator("text")
     @classmethod
@@ -135,8 +137,8 @@ def remember(
     payload: Statement,
     agent_id: str = Depends(require_correction_key),
 ):
-    """Owner-approved statement: stores the exact text as a new memory, once per request."""
-    return memory_statements.remember(agent_id, request_id, payload.text)
+    """Stores the exact text as a new memory, once per request, marked with who wrote it."""
+    return memory_statements.remember(agent_id, request_id, payload.text, payload.origin)
 
 
 @router.put("/{request_id}")

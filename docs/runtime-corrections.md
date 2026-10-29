@@ -78,15 +78,26 @@ $env:DATABASE_URL='sqlite:///:memory:'
 PostgreSQL row locks use the same service code but are not exercised by the local
 SQLite suite.
 
-## Owner-approved statements
+## Stated memories
 
-`PUT /runtime/corrections/remember/{request_id}` accepts exactly `{"text": "..."}`:
-nonblank, no NUL, at most 2000 characters. Pi calls it only after the owner
-approved the exact text (a Conker request in the Inbox). The text is stored word
-for word as a new memory with `source_type: "user"`, `confidence: "high"` and an
-exact-text summary; the deterministic classifier picks only the memory type, and
-the usual lexical conflict check runs. An active memory with the same text is not
-stored twice: the receipt then names it with `status: "already_remembered"`.
+`PUT /runtime/corrections/remember/{request_id}` accepts exactly
+`{"text": "...", "origin": "owner" | "conker"}`: text nonblank, no NUL, at most
+2000 characters; `origin` optional, default `owner`. The origin says who wrote the
+words, and readers see it as the memory's `source_type`:
+
+| `origin` | Who wrote the text | `source_type` | `confidence` | History note | Audit action |
+|---|---|---|---|---|---|
+| `owner` | The owner typed it or approved this exact text | `user` | `high` | `owner-approved statement` | `owner_stated_memory` |
+| `conker` | Conker wrote it (for example a Keep result of `conker.remember`) | `assistant` | `medium` | `Conker-written statement` | `conker_stated_memory` |
+
+Pi must send `conker` for any text the model wrote, even when the owner allowed the
+action, unless the owner approved those exact words. The text is stored word for
+word as a new memory with an exact-text summary; the deterministic classifier picks
+only the memory type, and the usual lexical conflict check runs. `source_type` is in
+every recall view (`/runtime/context` memories, compact objects, library and explore
+cards, `/memory/search`). An active memory with the same text is not stored twice:
+the receipt then names it with `status: "already_remembered"`, whoever wrote the
+existing one.
 
 The memory, its first history entry, a metadata-only audit and the receipt commit
 in one transaction. The receipt (in the correction receipt table, so
@@ -94,4 +105,5 @@ in one transaction. The receipt (in the correction receipt table, so
 `memory_id`, `agent_id`, `payload_hash`, `revision`, `status: "remembered" |
 "already_remembered"` and `indexing`. Exact replay returns the same receipt without
 another memory, audit or indexing attempt; reusing the request ID for other text
-returns 409.
+or another origin returns 409. Owner requests hash exactly as before, so
+receipts from earlier versions still replay.

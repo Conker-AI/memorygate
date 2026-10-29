@@ -85,7 +85,8 @@ def card(row, kind):
             "status": getattr(row, "status", None), "confidence": getattr(row, "confidence", None),
             "available_fields": list(FIELDS[kind])}
     if kind == "memory":
-        result.update(memory_type=row.memory_type, do_not_generalize=row.do_not_generalize,
+        result.update(memory_type=row.memory_type, source_type=row.source_type,
+                      do_not_generalize=row.do_not_generalize,
                       valid_from=row.valid_from.isoformat() if row.valid_from else None,
                       valid_until=row.valid_until.isoformat() if row.valid_until else None)
     if kind == "observation":

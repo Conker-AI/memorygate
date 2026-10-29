@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from app.models.conversation_receipt import ConversationReceipt
 from app.models.memory import Memory
 from app.services.scoring import CONFIDENCE_BONUSES, MEMORY_TYPE_BONUSES
-from sqlalchemy import case, false, or_, select
+from sqlalchemy import case, false, or_, select, true
 
 MAX_QUERY_CHARS = 4096
 MAX_TERMS = 12
@@ -84,7 +84,8 @@ def prepare_query(query: str) -> LexicalQuery:
     return LexicalQuery(tuple(terms), phrase, truncated, limited)
 
 
-def memory_candidates(db, query: LexicalQuery, agent_id: str):
+def memory_candidates(db, query: LexicalQuery, agent_id: str, within=None):
+    """Matching active memories, best first. `within` (a select of memory ids) narrows them."""
     if not query.terms and not query.phrase:
         return []
     columns = (Memory.text, Memory.summary)
@@ -110,6 +111,7 @@ def memory_candidates(db, query: LexicalQuery, agent_id: str):
             Memory.status == "active",
             ~deleted,
             query.matches(*columns),
+            true() if within is None else Memory.id.in_(within),
         )
         .order_by(score.desc(), Memory.id.asc())
         .limit(MAX_CANDIDATES)
