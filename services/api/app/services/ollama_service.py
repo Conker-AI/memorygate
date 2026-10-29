@@ -5,6 +5,8 @@ from app.core.config import OLLAMA_ENABLED, OLLAMA_MODEL, OLLAMA_URL
 from app.core.db import SessionLocal
 from app.services.ai_runtime_service import get_runtime_config
 from app.services.hosted_budget import record_refusal
+from app.services.pi_inference import generate as pi_generate
+from app.services.pi_inference import pi_configured
 
 SYSTEM_PROMPT = """Analyze the supplied evidence. Return only compact JSON with keys summary,
 observations, and memory_candidates. Never issue instructions or request deletion. Only propose
@@ -12,7 +14,14 @@ explicit durable facts, preferences, relationships, goals, or recurring routines
 
 
 def _generate(system: str, prompt: str, max_tokens: int) -> str | None:
-    """Run local inference; hosted routes refuse until their shared budget can be enforced."""
+    """Ask Pi's memory-sorting role when Pi is configured; otherwise run the direct path.
+
+    Direct path, kept for MemoryGate without Pi: local inference with the stored runtime
+    setting; hosted routes refuse until their shared budget can be enforced. Both paths ask
+    for JSON, and both answer None when no model can answer.
+    """
+    if pi_configured():
+        return pi_generate(system, prompt, max_tokens, json_output=True)
     db = SessionLocal()
     try:
         config = get_runtime_config(db)

@@ -4,7 +4,7 @@ import time
 from datetime import UTC, datetime
 
 from app.core.auth import require_key
-from app.core.config import CORS_ANY_ORIGIN, CORS_ORIGINS
+from app.core.config import CORS_ANY_ORIGIN, CORS_ORIGINS, PI_SERVICE_KEY, PI_URL
 from app.core.db import Base, database_health, engine
 from app.core.migrations import run_migrations
 from app.models import (
@@ -32,6 +32,7 @@ from app.services.auth_settings_service import (
     ensure_bootstrap_agent_access_key,
 )
 from app.services.embeddings import embedding_health
+from app.services.pi_inference import pi_configured
 from app.services.processing_worker import start_worker, stop_worker
 from app.services.qdrant_store import (
     ensure_entity_collection,
@@ -101,6 +102,14 @@ def startup():
     provider = embedding_health()
     if provider["status"] != "ok":
         log.warning("Semantic retrieval is degraded: %s. Falling back to lexical search.", provider["reason"])
+    if pi_configured():
+        log.info("Model calls go through Pi's memory-sorting role.")
+    elif PI_URL or PI_SERVICE_KEY:
+        # Half a configuration is a mistake, not a choice: say so rather than fall back quietly.
+        log.warning(
+            "Pi model roles are not in use: set both MEMORYGATE_PI_URL (http or https) and "
+            "MEMORYGATE_PI_SERVICE_KEY. Using MemoryGate's own model setting."
+        )
     if CORS_ANY_ORIGIN in CORS_ORIGINS:
         log.warning(
             "CORS is set to allow any origin. This is a development override; "
