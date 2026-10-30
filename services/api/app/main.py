@@ -45,7 +45,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 log = logging.getLogger("memorygate")
 
-SERVICE_VERSION = "0.6.0"
+SERVICE_VERSION = "0.7.0"
 
 app = FastAPI(title="MemoryGate", version=SERVICE_VERSION)
 
