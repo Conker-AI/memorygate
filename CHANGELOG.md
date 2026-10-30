@@ -35,6 +35,10 @@ a decision with visible consequences.
   (`scripts/memory_mutation_drill.py`) used to leave every run in `.test-runs/` in the checkout; it
   now uses the OS temp directory. `test_skills.py` no longer points `DATABASE_URL` at a SQLite file
   in the working directory.
+- The mutation drill runs in CI. Five of its mutants no longer matched the code they were meant to
+  break; they now break the same rules where those rules live today (the bootstrap key binding,
+  the vector outbox retry, the backup table list). The drill checks every anchor before it runs
+  anything and stops, naming each mutant whose anchor moved, so none is ever skipped.
 
 ## 0.6.0
 
