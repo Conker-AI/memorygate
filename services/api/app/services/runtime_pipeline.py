@@ -100,6 +100,7 @@ def process_evidence(
                 output_summary=ai_result["summary"],
                 steps_json=json.dumps({"observations": ai_result["observations"], "memory_candidates": ai_result["memory_candidates"]}),
                 confidence=min(evidence.integrity_confidence, 0.7),
+                model=ai_result.get("model"), provider=ai_result.get("provider"),
             )
             db.add(ai_analysis)
             db.flush()

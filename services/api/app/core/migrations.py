@@ -121,6 +121,7 @@ def run_migrations(engine: Engine) -> None:
             "CREATE INDEX IF NOT EXISTS ix_analysis_objects_analysis_type ON analysis_objects (analysis_type)"
         ))
         conn.execute(text("ALTER TABLE analysis_objects ADD COLUMN IF NOT EXISTS agent_id TEXT NOT NULL DEFAULT 'default'"))
+        conn.execute(text("ALTER TABLE analysis_objects ADD COLUMN IF NOT EXISTS model TEXT, ADD COLUMN IF NOT EXISTS provider TEXT"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_analysis_objects_agent_id ON analysis_objects (agent_id)"))
         conn.execute(text(
             "CREATE TABLE IF NOT EXISTS episode_objects ("

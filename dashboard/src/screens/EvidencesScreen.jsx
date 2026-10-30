@@ -6,6 +6,7 @@ import Button from '../components/Button';
 import Modal from '../components/Modal';
 import TextField, { TextArea } from '../components/TextField';
 import { timeAgo } from '../lib/timeAgo';
+import { analysisLabel, answeredBy } from '../lib/modelChoice';
 
 const SOURCE_TYPES = ['transcript', 'bank', 'browser', 'social', 'location', 'manual', 'device', 'other'];
 
@@ -311,8 +312,9 @@ export default function EvidencesScreen() {
             <div key={item.id} className={`px-4 py-3 ${index > 0 ? 'border-t border-border' : ''}`}>
               <div className="flex items-center gap-2">
                 <ReceiptText size={14} className="text-muted" />
-                <span className="text-sm text-text">{item.analysis_type}</span>
+                <span className="text-sm text-text">{analysisLabel(item.analysis_type)}</span>
                 <span className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted">{Math.round(item.confidence * 100)}%</span>
+                {answeredBy(item.model, item.provider) && <span className="truncate text-[11px] text-muted">by {answeredBy(item.model, item.provider)}</span>}
                 <span className="ml-auto text-[11px] text-muted">{timeAgo(item.created_at)}</span>
               </div>
               <p className="mt-1 text-sm text-text/85">{item.output_summary || item.input_summary || 'No summary yet.'}</p>
