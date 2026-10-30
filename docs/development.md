@@ -30,6 +30,11 @@ On Windows, drop `uvloop` from the install: it has no Windows build. The suite n
 services - it uses a real SQLite database and points its dependency probes at a closed port so the
 degraded paths are exercised for real rather than mocked.
 
+Tests keep their files in pytest's `tmp_path`, never in the checkout. `services/api/tests/conftest.py`
+(and `integrations/conftest.py`) fail any test that writes into the repository, naming the path, and
+refuse a `--basetemp` or temporary directory inside it. The guard lives in
+`services/api/tests/repository_guard.py`. The mutation drill keeps its copies in the OS temp directory.
+
 ### Verification
 
 ```powershell

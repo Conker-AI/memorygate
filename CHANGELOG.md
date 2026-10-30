@@ -29,6 +29,12 @@ a decision with visible consequences.
   text in the audit log (only its length, score and reason). `/memory/search` now also
   finds memories still queued for the vector index by their words (`retrieval_path`
   `lexical`, mode `hybrid` beside semantic hits) and reports `pending_vector_index`.
+- Tests keep their files in pytest's `tmp_path` only. `services/api/tests/conftest.py` and
+  `integrations/conftest.py` stop and fail any test that writes into the repository, and refuse a
+  `--basetemp` or temporary directory inside it. The mutation drill
+  (`scripts/memory_mutation_drill.py`) used to leave every run in `.test-runs/` in the checkout; it
+  now uses the OS temp directory. `test_skills.py` no longer points `DATABASE_URL` at a SQLite file
+  in the working directory.
 
 ## 0.6.0
 

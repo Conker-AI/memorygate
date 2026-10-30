@@ -1,7 +1,6 @@
-import tempfile
 import unittest
-from pathlib import Path
 
+import pytest
 from app.schemas.memory import MemoryWriteRequest
 from app.schemas.runtime import IngestEventRequest
 from app.services import backup_service
@@ -14,6 +13,10 @@ from app.services.auth_settings_service import (
 
 
 class SecurityAndRuntimeContractTests(unittest.TestCase):
+    @pytest.fixture(autouse=True)
+    def _use_tmp_path(self, tmp_path):  # pytest's temporary directory
+        self.tmp_path = tmp_path
+
     def test_admin_key_policy_rejects_weak_values(self):
         self.assertEqual(validate_new_admin_key("short"), "New key must be at least 14 characters long.")
         self.assertIsNotNone(validate_new_admin_key("longpasswordwithoutdigits!"))
@@ -46,34 +49,28 @@ class SecurityAndRuntimeContractTests(unittest.TestCase):
         from sqlalchemy import create_engine
         from sqlalchemy.orm import sessionmaker
 
-        with tempfile.TemporaryDirectory() as directory:
-            engine = create_engine(f"sqlite:///{directory}/memorygate-test.db")
-            Base.metadata.create_all(bind=engine)
-            Session = sessionmaker(bind=engine)
-            db = Session()
-            try:
-                row = ensure_bootstrap_agent_access_key(db, "mg_read_test_bootstrap_key_123", "agent_pi_operator")
-                self.assertEqual(row.agent_id, "agent_pi_operator")
-                self.assertNotIn("mg_read_test_bootstrap_key_123", row.key_hash)
-                self.assertTrue(verify_agent_access_key(db, "mg_read_test_bootstrap_key_123", "agent_pi_operator"))
-                self.assertFalse(verify_agent_access_key(db, "mg_read_test_bootstrap_key_123", "other_agent"))
-            finally:
-                db.close()
-                # Windows cannot remove the temporary directory while the SQLite
-                # file handle is still open.
-                engine.dispose()
+        engine = create_engine(f"sqlite:///{self.tmp_path / 'memorygate-test.db'}")
+        Base.metadata.create_all(bind=engine)
+        Session = sessionmaker(bind=engine)
+        db = Session()
+        try:
+            row = ensure_bootstrap_agent_access_key(db, "mg_read_test_bootstrap_key_123", "agent_pi_operator")
+            self.assertEqual(row.agent_id, "agent_pi_operator")
+            self.assertNotIn("mg_read_test_bootstrap_key_123", row.key_hash)
+            self.assertTrue(verify_agent_access_key(db, "mg_read_test_bootstrap_key_123", "agent_pi_operator"))
+            self.assertFalse(verify_agent_access_key(db, "mg_read_test_bootstrap_key_123", "other_agent"))
+        finally:
+            db.close()
+            engine.dispose()
 
     def test_backup_path_cannot_escape_backup_directory(self):
         previous = backup_service.BACKUP_DIR
-        with tempfile.TemporaryDirectory() as directory:
-            backup_service.BACKUP_DIR = directory
-            path = Path(directory) / "memorygate-valid.json"
+        backup_service.BACKUP_DIR = str(self.tmp_path)
+        try:
+            path = self.tmp_path / "memorygate-valid.json"
             path.write_text("{}", encoding="utf-8")
             self.assertEqual(backup_service.resolve_backup(path.name), path)
             with self.assertRaises(FileNotFoundError):
                 backup_service.resolve_backup("../../outside.json")
-        backup_service.BACKUP_DIR = previous
-
-
-if __name__ == "__main__":
-    unittest.main()
+        finally:
+            backup_service.BACKUP_DIR = previous

@@ -113,14 +113,14 @@ CASES.extend([
 SAFETY_TEST = "services/api/tests/test_audit_safety.py"
 TEST = "services/api/tests/test_conversation_memory.py"
 BOOTSTRAP_TEST = "services/api/tests/test_bootstrap_revocation.py"
+# The repository-write guard, so the copied tests run exactly as they do in the suite.
+GUARD = ["services/api/tests/conftest.py", "services/api/tests/repository_guard.py"]
 IMPORT = "services/api"
-SCRATCH = ".test-runs"
 
 
 def main():
-    scratch = ROOT / SCRATCH
-    scratch.mkdir(exist_ok=True)
-    run = Path(tempfile.mkdtemp(prefix="memory-mutations-", dir=scratch))
+    # In the OS temp directory, never the checkout: the tests refuse a run inside the repository.
+    run = Path(tempfile.mkdtemp(prefix="memory-mutations-"))
     for name, filename, old, new in [("baseline", None, None, None), *CASES]:
         target = run / name
         shutil.copytree(
@@ -130,6 +130,8 @@ def main():
         shutil.copyfile(ROOT / TEST, target / TEST)
         shutil.copyfile(ROOT / BOOTSTRAP_TEST, target / BOOTSTRAP_TEST)
         shutil.copyfile(ROOT / SAFETY_TEST, target / SAFETY_TEST)
+        for guard in GUARD:
+            shutil.copyfile(ROOT / guard, target / guard)
         shutil.copyfile(ROOT / "services/api/requirements.txt", target / "services/api/requirements.txt")
         if filename:
             file = target / filename
@@ -153,8 +155,8 @@ def main():
                 "-q",
                 "-p",
                 "no:cacheprovider",
-                "--basetemp",
-                str(target / "temp"),
+                "--basetemp",  # beside the copy, not inside it: the copied guard refuses that
+                str(run / f"{name}-temp"),
                 "--junitxml",
                 str(report),
             ],

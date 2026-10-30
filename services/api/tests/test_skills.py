@@ -1,7 +1,3 @@
-import os
-
-os.environ.setdefault("DATABASE_URL", "sqlite:///./test_skills_import.db")
-
 from app.core import auth
 from app.core.db import Base
 from app.routes import skills
