@@ -6,6 +6,8 @@ a decision with visible consequences.
 
 ## Unreleased
 
+## 0.7.0
+
 - With `MEMORYGATE_PI_URL` and `MEMORYGATE_PI_SERVICE_KEY` set, every model call (evidence
   analysis, Memory Lab answers) goes to Pi `POST /inference`, role `memory-sorting`, so the
   owner picks the model in Conker: Settings, Models, Memory sorting. MemoryGate's own model
