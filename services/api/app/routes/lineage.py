@@ -3,31 +3,14 @@ from datetime import datetime
 
 from app.core.agent import get_agent_id, resolve_agent_id
 from app.core.db import SessionLocal
-from app.models.analysis_object import AnalysisObject
-from app.models.entity import Entity
 from app.models.episode_object import EpisodeObject
-from app.models.evidence_object import EvidenceObject
-from app.models.memory import Memory
 from app.models.object_link import ObjectLink
-from app.models.observation import Observation
-from app.models.pattern import Pattern
-from app.models.session_transcript import SessionTranscript
+from app.models.object_types import OBJECT_MODELS
 from app.schemas.lineage import EpisodeCreateRequest, EpisodeUpdateRequest, ObjectLinkCreateRequest
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import or_, select
 
 router = APIRouter(prefix="/lineage", tags=["lineage"])
-
-OBJECT_MODELS = {
-    "evidence": EvidenceObject,
-    "episode": EpisodeObject,
-    "analysis": AnalysisObject,
-    "memory": Memory,
-    "entity": Entity,
-    "observation": Observation,
-    "pattern": Pattern,
-    "transcript": SessionTranscript,
-}
 
 
 def _parse_dt(value: str | None):
