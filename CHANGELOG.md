@@ -35,6 +35,14 @@ a decision with visible consequences.
   (`scripts/memory_mutation_drill.py`) used to leave every run in `.test-runs/` in the checkout; it
   now uses the OS temp directory. `test_skills.py` no longer points `DATABASE_URL` at a SQLite file
   in the working directory.
+- Through Pi, each AI proposal now records which `model` and `provider` answered (new nullable
+  `analysis_objects` columns, added at startup; older rows stay empty), shown by `GET
+  /evidence/analysis` and the Evidence and Pipeline screens. `POST /runtime/ask` answers carry
+  `model` and `provider` too, and `GET /runtime/health` gains `model_choice.last_answer` when
+  Pi chooses. The dashboard's Memory Lab and Runtime screens say the model is chosen in Conker
+  (Settings, Models, Memory sorting) and which model answered last; they say "Ollama" only on
+  the direct path. Stored names (`local_ai_proposal`, stage `local_ai`) are unchanged; the
+  screens label them "AI proposal".
 - The mutation drill runs in CI. Five of its mutants no longer matched the code they were meant to
   break; they now break the same rules where those rules live today (the bootstrap key binding,
   the vector outbox retry, the backup table list). The drill checks every anchor before it runs

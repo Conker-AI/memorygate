@@ -3,6 +3,7 @@ import { Activity, Bot, BrainCircuit, CalendarRange, CheckCircle2, ChevronRight,
 import { api } from '../lib/api';
 import { useAgent } from '../context/AgentContext';
 import { scopeAgentIds } from '../lib/agentScope';
+import { analysisLabel, answeredBy } from '../lib/modelChoice';
 
 const STAGE_META = {
   input: { label: 'Input', icon: FileInput, color: '#22d3ee' },
@@ -53,7 +54,10 @@ export default function PipelineScreen() {
       group.memories.forEach((v) => next.push(event('knowledge', v, v.text, `${v.memory_type} · ${v.confidence} confidence`, v.updated_at || v.created_at, group.id)));
     });
     evidence.forEach((v) => next.push(event('evidence', v, v.title, `${v.source_type} · integrity ${Math.round(v.integrity_confidence * 100)}%`, v.created_at || v.occurred_at)));
-    analyses.forEach((v) => next.push(event('analysis', v, v.output_summary || v.analysis_type, `${v.evidence_ids.length} evidence inputs · ${Math.round(v.confidence * 100)}%`, v.created_at)));
+    analyses.forEach((v) => {
+      const by = answeredBy(v.model, v.provider);
+      next.push(event('analysis', v, v.output_summary || analysisLabel(v.analysis_type), `${v.evidence_ids.length} evidence inputs · ${Math.round(v.confidence * 100)}%${by ? ` · by ${by}` : ''}`, v.created_at));
+    });
     audit.filter((v) => {
       if (agentId === 'all') return true;
       try { return JSON.parse(v.payload_json || '{}').agent_id === agentId; } catch { return false; }

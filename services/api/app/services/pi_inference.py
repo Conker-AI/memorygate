@@ -4,11 +4,12 @@ Configured by MEMORYGATE_PI_URL and MEMORYGATE_PI_SERVICE_KEY. Every call asks P
 `memory-sorting` role (`POST /inference`); Pi decides which model answers. Any failure - 503,
 timeout, refusal, a malformed answer - returns None, the same "no model answer" every caller
 already handles, so nothing is ever made up. The key goes only in the request header: it is
-never logged, stored or returned.
+never logged, stored or returned. An answer also carries the model and provider Pi says wrote it.
 """
 
 import logging
 import uuid
+from datetime import UTC, datetime
 
 import httpx
 from app.core.config import PI_SERVICE_KEY, PI_URL
@@ -20,6 +21,22 @@ CHOSEN_IN = "Chosen in Conker: Settings, Models, Memory sorting"
 TIMEOUT = httpx.Timeout(90.0, connect=5.0)
 
 log = logging.getLogger("memorygate")
+
+# The model and provider of Pi's last answer since MemoryGate started; None until Pi names one.
+_last_answer: dict | None = None
+
+
+class PiText(str):
+    """Pi's answer text, a plain string to every caller, plus the model and provider that wrote it.
+
+    `model` and `provider` are None when Pi's answer did not name them in a usable shape.
+    """
+
+    def __new__(cls, text: str, model: str | None = None, provider: str | None = None):
+        answer = super().__new__(cls, text)
+        answer.model = model
+        answer.provider = provider
+        return answer
 
 
 def pi_configured() -> bool:
@@ -34,7 +51,12 @@ def model_choice() -> dict:
     return {"managed_by": "memorygate", "editable": True}
 
 
-def generate(system: str, prompt: str, max_tokens: int, *, json_output: bool) -> str | None:
+def last_answer() -> dict | None:
+    """`{"model", "provider", "at"}` of Pi's last named answer since start, or None."""
+    return dict(_last_answer) if _last_answer else None
+
+
+def generate(system: str, prompt: str, max_tokens: int, *, json_output: bool) -> PiText | None:
     """One answer from Pi's memory-sorting role, or None when Pi has no usable answer."""
     body = {
         "role": ROLE,
@@ -67,13 +89,28 @@ def generate(system: str, prompt: str, max_tokens: int, *, json_output: bool) ->
         )
         return None
     try:
-        text = response.json().get("text")
+        answer = response.json()
+        text = answer.get("text")
     except (ValueError, AttributeError):
-        text = None
+        answer, text = {}, None
     if not isinstance(text, str):
         log.warning("Pi inference returned no text; continuing without a model answer.")
         return None
-    return text.strip() or None
+    if not text.strip():
+        return None
+    model, provider = _name(answer.get("model")), _name(answer.get("provider"))
+    if model:
+        global _last_answer
+        _last_answer = {"model": model, "provider": provider, "at": datetime.now(UTC).isoformat()}
+    return PiText(text.strip(), model, provider)
+
+
+def _name(value) -> str | None:
+    """A model or provider name fit to store and show: short printable text, else None."""
+    if not isinstance(value, str):
+        return None
+    value = value.strip()
+    return value if 0 < len(value) <= 200 and value.isprintable() else None
 
 
 def _refusal_code(response: httpx.Response) -> str:

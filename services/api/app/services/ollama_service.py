@@ -5,8 +5,8 @@ from app.core.config import OLLAMA_ENABLED, OLLAMA_MODEL, OLLAMA_URL
 from app.core.db import SessionLocal
 from app.services.ai_runtime_service import get_runtime_config
 from app.services.hosted_budget import record_refusal
+from app.services.pi_inference import PiText, pi_configured
 from app.services.pi_inference import generate as pi_generate
-from app.services.pi_inference import pi_configured
 
 SYSTEM_PROMPT = """Analyze the supplied evidence. Return only compact JSON with keys summary,
 observations, and memory_candidates. Never issue instructions or request deletion. Only propose
@@ -18,7 +18,8 @@ def _generate(system: str, prompt: str, max_tokens: int) -> str | None:
 
     Direct path, kept for MemoryGate without Pi: local inference with the stored runtime
     setting; hosted routes refuse until their shared budget can be enforced. Both paths ask
-    for JSON, and both answer None when no model can answer.
+    for JSON, and both answer None when no model can answer. Pi's answer is a `PiText` that
+    also names the model and provider that wrote it; the direct path's is a plain string.
     """
     if pi_configured():
         return pi_generate(system, prompt, max_tokens, json_output=True)
@@ -45,6 +46,13 @@ def _generate(system: str, prompt: str, max_tokens: int) -> str | None:
         return None
 
 
+def _answered_by(raw) -> dict:
+    """`{"model", "provider"}` when Pi named who wrote `raw`; empty when nobody did."""
+    if isinstance(raw, PiText) and (raw.model or raw.provider):
+        return {"model": raw.model, "provider": raw.provider}
+    return {}
+
+
 def analyze_evidence(content: str, source_type: str) -> dict | None:
     try:
         raw = _generate(SYSTEM_PROMPT, f"Source type: {source_type}\nEvidence:\n{content[:6000]}", 160) or "{}"
@@ -59,6 +67,7 @@ def analyze_evidence(content: str, source_type: str) -> dict | None:
                              for item in observations if isinstance(item, (dict, str))][:8],
             "memory_candidates": [item if isinstance(item, dict) else {"text": str(item), "confidence": 0.5, "reason": "local model proposal"}
                                   for item in candidates if isinstance(item, (dict, str))][:8],
+            **_answered_by(raw),
         }
     except (httpx.HTTPError, ValueError, TypeError):
         return None
@@ -78,8 +87,11 @@ def answer_with_context(question: str, context: dict) -> str | None:
     )
     try:
         raw = _generate("Return JSON with an answer field. Answer from supplied facts only, in at most two sentences. Never use tools or make changes.", prompt, 220) or "{}"
-        answer = json.loads(raw).get("answer", "")
-        return str(answer).strip()[:3000] or None
+        answer = str(json.loads(raw).get("answer", "")).strip()[:3000]
+        if not answer:
+            return None
+        by = _answered_by(raw)
+        return PiText(answer, by["model"], by["provider"]) if by else answer
     except (httpx.HTTPError, ValueError, TypeError):
         return None
 

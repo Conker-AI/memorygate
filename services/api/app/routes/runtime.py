@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from app.core.agent import get_agent_id, resolve_agent_id
 from app.core.auth import require_key, require_read_key
 from app.core.db import SessionLocal
+from app.models.analysis_object import AnalysisObject
 from app.models.audit import MemoryAudit
 from app.models.conversation_receipt import ConversationReceipt
 from app.models.entity import Entity
@@ -27,7 +28,7 @@ from app.services.conversation_memory import citations
 from app.services.lexical_retrieval import memory_candidates, prepare_query
 from app.services.memory_truth import mark_unsupported
 from app.services.ollama_service import answer_with_context, ollama_health
-from app.services.pi_inference import CHOSEN_IN, model_choice, pi_configured
+from app.services.pi_inference import CHOSEN_IN, last_answer, model_choice, pi_configured
 from app.services.qdrant_store import INDEX_UNREACHABLE, search_memory_embeddings, semantic_status
 from app.services.scoring import memory_rank_bonus
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
@@ -316,7 +317,11 @@ def ask_memorygate(payload: MemoryQuestionRequest, header_agent_id: str = Depend
             }),
         ))
         db.commit()
-        return {"question": payload.question, "answer": answer, "context": context}
+        return {
+            "question": payload.question, "answer": answer, "context": context,
+            # Who wrote the answer, when Pi named them; None on the direct path.
+            "model": getattr(answer, "model", None), "provider": getattr(answer, "provider", None),
+        }
     finally:
         db.close()
 
@@ -336,7 +341,23 @@ def list_jobs(agent_id: str = Depends(get_agent_id), status: str | None = None, 
 
 @router.get("/health")
 def runtime_health(_: str = Depends(require_key)):
-    return {"ollama": ollama_health(), "model_choice": model_choice()}
+    choice = model_choice()
+    if choice["managed_by"] == "pi":
+        choice["last_answer"] = last_answer() or _last_stored_answer()
+    return {"ollama": ollama_health(), "model_choice": choice}
+
+
+def _last_stored_answer() -> dict | None:
+    """After a restart: the newest stored AI proposal that names its model, or None."""
+    with SessionLocal() as db:
+        row = db.execute(
+            select(AnalysisObject).where(AnalysisObject.model.is_not(None))
+            .order_by(AnalysisObject.created_at.desc()).limit(1)
+        ).scalar_one_or_none()
+    if row is None:
+        return None
+    at = row.created_at.isoformat() if row.created_at else None
+    return {"model": row.model, "provider": row.provider, "at": at}
 
 
 @router.post("/jobs/{job_id}/retry")
