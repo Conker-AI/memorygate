@@ -63,6 +63,10 @@ jobs:
         # 600 lines per source file; files that were already larger may only shrink.
         run: python scripts/check_file_sizes.py
 
+      - name: Package boundaries
+        # One package per type; cross-package imports are listed and may only be removed.
+        run: python scripts/check_package_boundaries.py
+
       - name: Tests
         # Run from services/api: the tests import `app.*`, which resolves only
         # with that directory as the root - the same layout the image uses.

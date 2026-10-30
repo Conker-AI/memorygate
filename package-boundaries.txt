@@ -1,0 +1,16 @@
+# Cross-package imports in MemoryGate's app, checked by scripts/check_package_boundaries.py.
+# These existed when the check arrived (2026-10-31). Delete an edge once it is gone;
+# add one only on purpose, with the reason in the commit.
+# core -> services: app/core/auth.py reads the owner's auth settings through their service.
+core -> services
+main -> core
+main -> models
+main -> routes
+main -> services
+models -> core
+routes -> core
+routes -> models
+routes -> schemas
+routes -> services
+services -> core
+services -> models
