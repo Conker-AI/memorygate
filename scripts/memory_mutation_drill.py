@@ -10,23 +10,31 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = [
+    # A restart finds the key through its bootstrap binding and must hand it back untouched.
     (
         "bootstrap-reactivates-revoked-key",
         "services/api/app/services/auth_settings_service.py",
-        "    if row is not None:\n        return row",
-        "    if row is not None:\n        row.revoked = False\n        db.commit()\n        return row",
+        "        return row\n    existing = db.query(AgentAccessKey).all()",
+        (
+            "        row.revoked = False\n        db.commit()\n"
+            "        return row\n    existing = db.query(AgentAccessKey).all()"
+        ),
     ),
     (
         "bootstrap-overwrites-owner-rotation",
         "services/api/app/services/auth_settings_service.py",
-        "    if row is not None:\n        return row",
-        "    if row is not None:\n        row.key_hash = _hash_key(raw_key)\n        db.commit()\n        return row",
+        "        return row\n    existing = db.query(AgentAccessKey).all()",
+        (
+            "        row.key_hash = _hash_key(raw_key)\n        db.commit()\n"
+            "        return row\n    existing = db.query(AgentAccessKey).all()"
+        ),
     ),
+    # A key renamed and rotated before bindings existed must stop startup, not get a copy.
     (
         "bootstrap-duplicates-renamed-key",
         "services/api/app/services/auth_settings_service.py",
-        "if _verify_key(raw_key, candidate.key_hash):",
-        "if False:",
+        "    if row is None and existing:",
+        "    if False:",
     ),
     (
         "russian-discarded",
@@ -58,11 +66,16 @@ CASES = [
         "db.add(evidence)",
         "db.add(evidence); db.commit()",
     ),
+    # A failed vector write stays pending in the outbox and is retried later.
     (
         "lost-index-retry",
-        "services/api/app/services/conversation_memory.py",
-        "receipt.index_next_at = time.time() + 30",
-        'receipt.index_pending = "none"',
+        "services/api/app/services/vector_outbox.py",
+        (
+            "                row.next_attempt_at = datetime.now(UTC) + timedelta(\n"
+            "                    seconds=min(300, 2 ** min(row.attempts, 8))\n"
+            "                )"
+        ),
+        '                row.status = "complete"',
     ),
     (
         "unscoped-ingestion",
@@ -73,8 +86,8 @@ CASES = [
     (
         "backup-loses-tombstones",
         "services/api/app/services/backup_service.py",
-        "MemoryRevision, MemoryConflict, ConversationReceipt)",
-        "MemoryRevision, MemoryConflict)",
+        "MemoryRevision, MemoryConflict, ConversationReceipt,",
+        "MemoryRevision, MemoryConflict,",
     ),
     (
         "invalid-source-still-recalled",
@@ -118,7 +131,23 @@ GUARD = ["services/api/tests/conftest.py", "services/api/tests/repository_guard.
 IMPORT = "services/api"
 
 
+def stale_anchors() -> list[str]:
+    """Every mutant whose anchor no longer marks exactly one place in the code."""
+    stale = []
+    for name, filename, old, _new in CASES:
+        path = ROOT / filename
+        count = path.read_text(encoding="utf-8").count(old) if path.is_file() else 0
+        if count != 1:
+            stale.append(f"{name} ({filename}: anchor found {count}x, expected 1)")
+    return stale
+
+
 def main():
+    # Checked before any run: a mutant that cannot be applied proves nothing, so none is skipped.
+    if stale := stale_anchors():
+        print("Mutation anchors changed; re-anchor these on the code that keeps the same rule:")
+        print("\n".join(f"  {line}" for line in stale))
+        return 1
     # In the OS temp directory, never the checkout: the tests refuse a run inside the repository.
     run = Path(tempfile.mkdtemp(prefix="memory-mutations-"))
     for name, filename, old, new in [("baseline", None, None, None), *CASES]:

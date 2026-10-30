@@ -69,6 +69,13 @@ jobs:
         working-directory: services/api
         run: python -m pytest tests/ --ignore=tests/test_module_contract.py -q
 
+      - name: Memory safety mutation drill
+        # Proves the tests still catch broken key, deletion, retry and spending rules.
+        # It ran only by hand until 2026-10-30, when five of its anchors had gone stale;
+        # a moved anchor now fails here before anything runs.
+        timeout-minutes: 20
+        run: python scripts/memory_mutation_drill.py
+
   contract:
     # The health contract is an HTTP contract, so it is asserted against a
     # running container rather than an in-process app object - the thing that

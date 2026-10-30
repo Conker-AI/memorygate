@@ -43,6 +43,10 @@ a decision with visible consequences.
   (Settings, Models, Memory sorting) and which model answered last; they say "Ollama" only on
   the direct path. Stored names (`local_ai_proposal`, stage `local_ai`) are unchanged; the
   screens label them "AI proposal".
+- The mutation drill runs in CI. Five of its mutants no longer matched the code they were meant to
+  break; they now break the same rules where those rules live today (the bootstrap key binding,
+  the vector outbox retry, the backup table list). The drill checks every anchor before it runs
+  anything and stops, naming each mutant whose anchor moved, so none is ever skipped.
 
 ## 0.6.0
 
