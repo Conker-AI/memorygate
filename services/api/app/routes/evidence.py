@@ -185,6 +185,8 @@ def list_analysis(limit: int = 100, agent_id: str = Depends(get_agent_id)):
                     "output_summary": row.output_summary,
                     "steps": json.loads(row.steps_json or "[]"),
                     "confidence": row.confidence,
+                    "model": row.model,
+                    "provider": row.provider,
                     "created_at": row.created_at.isoformat() if row.created_at else None,
                 }
                 for row in rows

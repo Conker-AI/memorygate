@@ -29,6 +29,14 @@ a decision with visible consequences.
   text in the audit log (only its length, score and reason). `/memory/search` now also
   finds memories still queued for the vector index by their words (`retrieval_path`
   `lexical`, mode `hybrid` beside semantic hits) and reports `pending_vector_index`.
+- Through Pi, each AI proposal now records which `model` and `provider` answered (new nullable
+  `analysis_objects` columns, added at startup; older rows stay empty), shown by `GET
+  /evidence/analysis` and the Evidence and Pipeline screens. `POST /runtime/ask` answers carry
+  `model` and `provider` too, and `GET /runtime/health` gains `model_choice.last_answer` when
+  Pi chooses. The dashboard's Memory Lab and Runtime screens say the model is chosen in Conker
+  (Settings, Models, Memory sorting) and which model answered last; they say "Ollama" only on
+  the direct path. Stored names (`local_ai_proposal`, stage `local_ai`) are unchanged; the
+  screens label them "AI proposal".
 
 ## 0.6.0
 

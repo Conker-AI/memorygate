@@ -42,6 +42,15 @@ dashboard's AI Runtime section shows the sentence instead of a Configure button;
 `GET /runtime/health` reports the same under `model_choice`. The stored setting and its
 encrypted key are kept, unread, for running MemoryGate without Pi.
 
+Pi's answer names the `model` and `provider` that wrote it. MemoryGate keeps both (short
+printable text, else nothing) on each AI proposal (`analysis_type` `local_ai_proposal`, nullable
+`model` and `provider` columns, listed by `GET /evidence/analysis`) and returns them with each
+`POST /runtime/ask` answer. `GET /runtime/health` adds `model_choice.last_answer`
+(`{"model", "provider", "at"}` of the last answer since start, else the newest stored proposal
+that names one, else null). Older records, the direct path and analyses no model wrote keep
+both empty. The dashboard's Memory Lab and Runtime screens then say the model is chosen in
+Conker and which model answered last; they mention Ollama only on the direct path.
+
 When Pi has no answer (503 `no_model` or `unavailable`, a timeout after 90 seconds, a refusal,
 or no reply), MemoryGate does exactly what it does when its local model is unavailable:
 evidence processing finishes with the keyword classification only and an empty model proposal,

@@ -4,6 +4,8 @@ import { Bot, Loader2, Play, RefreshCw, RotateCcw, Search, ShieldAlert } from 'l
 import { api } from '../lib/api';
 import { useAgent } from '../context/AgentContext';
 import Button from '../components/Button';
+import ModelChoiceNote from '../components/ModelChoiceNote';
+import { stageLabel, useModelChoice } from '../lib/modelChoice';
 
 export default function RuntimeScreen() {
   const { agentId } = useAgent();
@@ -11,6 +13,7 @@ export default function RuntimeScreen() {
   const [query, setQuery] = useState('');
   const [context, setContext] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [choice] = useModelChoice();
 
   const load = () => api.get('/runtime/jobs', { limit: 100 }, agentId).then((r) => setJobs(r.results));
   useEffect(() => { setJobs(null); load(); }, [agentId]);
@@ -28,9 +31,9 @@ export default function RuntimeScreen() {
     <section className="mb-8"><h2 className="mb-1 text-sm font-medium text-text">Context query</h2><p className="mb-3 text-xs text-muted">This calls the same bounded retrieval endpoint intended for Hermes or ToolGate.</p><form onSubmit={search} className="flex rounded-lg border border-border bg-surface p-1.5"><Search size={16} className="mx-2 self-center text-muted" /><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="What should the agent remember right now?" className="min-w-0 flex-1 bg-transparent px-1 text-sm text-text outline-none" /><Button type="submit" variant="primary" disabled={busy || !query.trim()}>{busy ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />} Run</Button></form>
       {context && <div className="mt-3 grid gap-3 lg:grid-cols-3"><Result title="Memories" rows={context.memories} render={(row) => row.text} /><Result title="Entities" rows={context.entities} render={(row) => `${row.name} · ${row.summary || row.description}`} /><Result title="Episodes & evidence" rows={[...context.episodes, ...context.evidence]} render={(row) => row.title || row.summary} /></div>}
     </section>
-    <section className="mb-8 rounded-lg border border-border bg-surface p-4"><h2 className="mb-1 text-sm font-medium text-text">Ask about your memory</h2><p className="mb-3 text-xs text-muted">Use Memory Lab for saved, independent read-only questions. It does not create a chat history or give Ollama any write, delete, or tool access.</p><Link to="/lab" className="icon-action inline-flex">Open Memory Lab</Link></section>
+    <section className="mb-8 rounded-lg border border-border bg-surface p-4"><h2 className="mb-1 text-sm font-medium text-text">Ask about your memory</h2><p className="mb-3 text-xs text-muted">Use Memory Lab for saved, independent read-only questions. It does not create a chat history or give {choice?.managed_by === 'memorygate' ? 'Ollama' : 'the model'} any write, delete, or tool access.</p><ModelChoiceNote choice={choice} className="mb-3" /><Link to="/lab" className="icon-action inline-flex">Open Memory Lab</Link></section>
     <section><div className="mb-3 flex items-end justify-between"><div><h2 className="text-sm font-medium text-text">Processing jobs</h2><p className="mt-1 text-xs text-muted">Every automatically processed evidence object receives a durable job record.</p></div><span className={`text-xs ${failed.length ? 'text-red-400' : 'text-muted'}`}>{failed.length} quarantined</span></div>
-      <div className="overflow-hidden rounded-lg border border-border bg-surface">{jobs === null ? <div className="table-empty"><Loader2 size={14} className="animate-spin" /> Loading jobs...</div> : jobs.length === 0 ? <div className="table-empty">No automatic ingestion jobs yet.</div> : jobs.map((job, index) => <div key={job.id} className={`flex items-center gap-3 px-4 py-3 ${index ? 'border-t border-border' : ''}`}><span className={`rounded-md p-2 ${job.status === 'failed' ? 'bg-red-500/10 text-red-400' : 'bg-emerald-500/10 text-emerald-400'}`}>{job.status === 'failed' ? <ShieldAlert size={14} /> : <Bot size={14} />}</span><div className="min-w-0 flex-1"><p className="text-sm text-text">{job.stage} · {job.status}</p><p className="truncate text-xs text-muted">Evidence {job.evidence_id}{job.error ? ` · ${job.error}` : ''}</p></div><span className="text-xs text-muted">attempt {job.attempts}</span>{job.status === 'failed' && <Button variant="secondary" onClick={() => retry(job.id)}><RotateCcw size={13} /> Retry</Button>}</div>)}</div>
+      <div className="overflow-hidden rounded-lg border border-border bg-surface">{jobs === null ? <div className="table-empty"><Loader2 size={14} className="animate-spin" /> Loading jobs...</div> : jobs.length === 0 ? <div className="table-empty">No automatic ingestion jobs yet.</div> : jobs.map((job, index) => <div key={job.id} className={`flex items-center gap-3 px-4 py-3 ${index ? 'border-t border-border' : ''}`}><span className={`rounded-md p-2 ${job.status === 'failed' ? 'bg-red-500/10 text-red-400' : 'bg-emerald-500/10 text-emerald-400'}`}>{job.status === 'failed' ? <ShieldAlert size={14} /> : <Bot size={14} />}</span><div className="min-w-0 flex-1"><p className="text-sm text-text">{stageLabel(job.stage)} · {job.status}</p><p className="truncate text-xs text-muted">Evidence {job.evidence_id}{job.error ? ` · ${job.error}` : ''}</p></div><span className="text-xs text-muted">attempt {job.attempts}</span>{job.status === 'failed' && <Button variant="secondary" onClick={() => retry(job.id)}><RotateCcw size={13} /> Retry</Button>}</div>)}</div>
     </section>
   </div>;
 }
