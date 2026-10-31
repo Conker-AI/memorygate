@@ -13,6 +13,7 @@ from app.schemas.entity import (
     EntityUpdateRequest,
 )
 from app.services.entity_dedup import find_duplicate, merge_entities
+from app.services.lexical_retrieval import escape_like
 from app.services.vector_outbox import enqueue_delete, enqueue_upsert, reconcile_one
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import or_, select
@@ -185,13 +186,14 @@ def search_entities(payload: EntitySearchRequest, header_agent_id: str = Depends
     agent_id = resolve_agent_id(header_agent_id, payload.agent_id)
     db = SessionLocal()
     try:
+        pattern = f"%{escape_like(payload.query)}%"
         stmt = select(Entity).where(
             Entity.agent_id == agent_id,
             or_(
-                Entity.name.ilike(f"%{payload.query}%"),
-                Entity.description.ilike(f"%{payload.query}%"),
-                Entity.agent_summary.ilike(f"%{payload.query}%"),
-                Entity.agent_notes.ilike(f"%{payload.query}%"),
+                Entity.name.ilike(pattern, escape="/"),
+                Entity.description.ilike(pattern, escape="/"),
+                Entity.agent_summary.ilike(pattern, escape="/"),
+                Entity.agent_notes.ilike(pattern, escape="/"),
             )
         )
         if payload.entity_type:
