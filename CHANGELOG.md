@@ -6,6 +6,11 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- A read key's failed attempts are counted per known agent, and every agent id with no key
+  shares one count per client address. The count used to be per `X-Agent-Id` header, which
+  the caller writes: a new made-up id on each try earned five fresh attempts and added an entry
+  to the in-memory lockout table, so guessing never locked out and the table grew without
+  bound. Now the fifth wrong key from one address answers 429 whatever id it sends.
 - Stored session transcripts are for the admin key only. `/runtime/explore`, `/runtime/library`
   and the compact `/runtime/context` view used to list, search and page verbatim transcript text for
   an agent read key under scope `all`; for a read key they now act as if no transcript exists (404,

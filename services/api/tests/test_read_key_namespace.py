@@ -63,3 +63,23 @@ def test_own_namespace_returns_only_own_memories(api):
     response = context(api, "specialist", {"agent_id": "specialist"})
     assert response.status_code == 200, response.text
     assert "Own memory" in response.text and "Foreign memory" not in response.text
+
+
+def test_a_new_agent_id_per_try_earns_no_fresh_attempts(api):
+    """X-Agent-Id is the caller's text; unknown ids share the host's lockout bucket."""
+    for attempt in range(4):
+        wrong = api.post(
+            "/runtime/context",
+            headers={"X-MemoryGate-Key": "wrong", "X-Agent-Id": f"made-up-{attempt}"},
+            json={"query": "memory"},
+        )
+        assert wrong.status_code == 401
+    fifth = api.post(
+        "/runtime/context",
+        headers={"X-MemoryGate-Key": "wrong", "X-Agent-Id": "made-up-4"},
+        json={"query": "memory"},
+    )
+    assert fifth.status_code == 429
+    assert len(keys._attempt_state) == 1
+    # The agent that does hold a key keeps its own bucket.
+    assert context(api, "specialist", {}).status_code == 200
