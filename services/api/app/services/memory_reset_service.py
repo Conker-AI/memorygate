@@ -3,6 +3,7 @@ from datetime import datetime
 
 from app.models.analysis_object import AnalysisObject
 from app.models.audit import MemoryAudit
+from app.models.conversation_receipt import ConversationReceipt
 from app.models.entity import Entity, EntityEdge, EntityEvent, EntityHistory
 from app.models.episode_object import EpisodeObject
 from app.models.evidence_object import EvidenceObject
@@ -16,6 +17,7 @@ from app.models.processing_job import ProcessingJob
 from app.models.session_transcript import SessionTranscript
 from app.services.backup_service import create_backup
 from app.services.vector_outbox import enqueue_delete
+from sqlalchemy import select
 
 
 def _rows_for_reset(db, model, reset_from: datetime | None):
@@ -57,6 +59,15 @@ def reset_memory(db, reset_from: datetime | None = None) -> dict:
             enqueue_delete(db, kind, row.id, agent_id=row.agent_id)
     all_selected_ids = set(memory_ids + entity_ids + observation_ids)
     all_selected_ids.update(row.id for rows in selected.values() for row in rows if hasattr(row, "id"))
+
+    # A conversation receipt is the evidence's identity (same id) and names its memory. Once the
+    # reset removes either, a surviving receipt would answer a redelivered message with a memory
+    # that no longer exists. Forgetting tombstones stay: a forgotten message must never return.
+    removed_ids = {row.id for row in selected["evidence"]} | set(memory_ids)
+    selected["receipts"] = [
+        row for row in db.scalars(select(ConversationReceipt).where(ConversationReceipt.state != "deleted"))
+        if row.id in removed_ids or row.memory_id in removed_ids
+    ]
 
     # Linked history must not survive as orphaned records after a reset.
     for model, field in ((MemoryRevision, "memory_id"), (MemoryConflict, "memory_id"), (MemoryConflict, "conflicting_memory_id"),

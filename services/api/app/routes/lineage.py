@@ -1,8 +1,8 @@
 import json
-from datetime import datetime
 
 from app.core.agent import get_agent_id, resolve_agent_id
 from app.core.db import SessionLocal
+from app.core.timestamps import parse_timestamp
 from app.models.episode_object import EpisodeObject
 from app.models.object_link import ObjectLink
 from app.models.object_types import OBJECT_MODELS
@@ -11,12 +11,6 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import or_, select
 
 router = APIRouter(prefix="/lineage", tags=["lineage"])
-
-
-def _parse_dt(value: str | None):
-    if not value:
-        return None
-    return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
 def _episode_to_dict(row: EpisodeObject) -> dict:
@@ -111,8 +105,8 @@ def create_episode(payload: EpisodeCreateRequest, header_agent_id: str = Depends
             status=payload.status.strip().lower(),
             confidence=payload.confidence,
             tags_json=json.dumps(payload.tags),
-            occurred_start=_parse_dt(payload.occurred_start),
-            occurred_end=_parse_dt(payload.occurred_end),
+            occurred_start=parse_timestamp(payload.occurred_start, "occurred_start"),
+            occurred_end=parse_timestamp(payload.occurred_end, "occurred_end"),
         )
         db.add(row)
         db.flush()
@@ -143,9 +137,9 @@ def update_episode(episode_id: str, payload: EpisodeUpdateRequest, agent_id: str
         if payload.tags is not None:
             row.tags_json = json.dumps(payload.tags)
         if payload.occurred_start is not None:
-            row.occurred_start = _parse_dt(payload.occurred_start)
+            row.occurred_start = parse_timestamp(payload.occurred_start, "occurred_start")
         if payload.occurred_end is not None:
-            row.occurred_end = _parse_dt(payload.occurred_end)
+            row.occurred_end = parse_timestamp(payload.occurred_end, "occurred_end")
         db.commit()
         db.refresh(row)
         return {"status": "ok", "episode": _episode_to_dict(row)}
