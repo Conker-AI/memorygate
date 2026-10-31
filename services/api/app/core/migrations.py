@@ -7,9 +7,6 @@ tables that don't exist yet — it never alters an existing table. A fresh
 database gets the new columns for free straight from the model definitions.
 An existing database needs these run once at startup to catch up.
 """
-from sqlalchemy import inspect, text
-from sqlalchemy.engine import Engine
-
 from app.core.data_migrations import (
     _backfill_object_links,
     _merge_duplicate_entities,
@@ -17,6 +14,8 @@ from app.core.data_migrations import (
     _migrate_memory_types,
     _table_exists,
 )
+from sqlalchemy import inspect, text
+from sqlalchemy.engine import Engine
 
 _AGENT_ID_TABLES = ["memories", "entities", "observations", "patterns"]
 
