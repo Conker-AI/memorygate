@@ -6,6 +6,12 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- A job whose stored evidence payload cannot be read - not JSON, or JSON that is not an object -
+  used to raise inside the worker loop, leaving the job `processing` with its lease; when the
+  lease ran out the next poll claimed it again and failed the same way, forever, one wasted claim
+  per lease. The payload is now parsed in `run_job`, which fails the job once ("evidence payload
+  is not readable") and quarantines the evidence, the same outcome `process_evidence` already
+  gives a job whose processing raises.
 - A malformed time in a request field (`occurred_at`, `session_start`/`session_end`,
   `occurred_start`/`occurred_end`, `review_by`) answers 422 naming the bad field instead of a
   500. Each route module had its own parse helper that let the `ValueError` from

@@ -6,7 +6,7 @@ import pytest
 from app.core.db import Base
 from app.models.evidence_object import EvidenceObject
 from app.models.processing_job import ProcessingJob
-from app.services import runtime_pipeline
+from app.services import processing_worker, runtime_pipeline
 from app.services.processing_lease import LeaseHeartbeat, LeaseLostError
 from app.services.processing_worker import claim_next_job
 from sqlalchemy import create_engine, select
@@ -312,5 +312,41 @@ def test_stale_owner_cannot_commit_failure(tmp_path, monkeypatch):
             assert job.lease_owner == "worker-b"
             assert job.error == ""
             assert evidence.processing_state != "quarantined"
+    finally:
+        engine.dispose()
+
+
+@pytest.mark.parametrize("payload", ["not json", "[1, 2]"], ids=["not-json", "json-list"])
+def test_an_unreadable_payload_fails_the_job_once(tmp_path, payload):
+    engine, sessions = _database(tmp_path)
+    try:
+        started_at = datetime.now(UTC)
+        with sessions() as db:
+            evidence = EvidenceObject(
+                agent_id="owner", source_id="source-1", source_key="listener",
+                source_type="listener", summary="A bounded event",
+                normalized_payload_json=payload,
+            )
+            db.add(evidence)
+            db.flush()
+            job = ProcessingJob(agent_id="owner", evidence_id=evidence.id, stage="queued")
+            db.add(job)
+            db.commit()
+            evidence_id = evidence.id
+
+        with sessions() as db:
+            claimed = claim_next_job(db, "worker-a", now=started_at, lease_seconds=60)
+            processing_worker.run_job(db, claimed)
+
+        with sessions() as db:
+            job = db.get(ProcessingJob, claimed.id)
+            evidence = db.get(EvidenceObject, evidence_id)
+            assert job.status == "failed"
+            assert job.error == "evidence payload is not readable"
+            assert job.lease_owner is None
+            assert evidence.processing_state == "quarantined"
+            assert claim_next_job(
+                db, "worker-b", now=started_at + timedelta(seconds=61), lease_seconds=60
+            ) is None
     finally:
         engine.dispose()
