@@ -6,6 +6,10 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- Stored session transcripts are for the admin key only. `/runtime/explore`, `/runtime/library`
+  and the compact `/runtime/context` view used to list, search and page verbatim transcript text for
+  an agent read key under scope `all`; for a read key they now act as if no transcript exists (404,
+  no cards, no search hits, no link counts). The admin key still reads them.
 - A key or typed confirmation with a character outside ASCII is refused like any wrong one
   (401, or 400 for the memory-reset phrase) instead of a 500. The admin key from the
   environment, the conversation key, a listener's ingest key and the reset confirmation were
