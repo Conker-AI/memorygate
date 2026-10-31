@@ -6,6 +6,12 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- Search and listener dedupe passed query text into SQL `LIKE` unescaped, so `%` and `_` acted as
+  wildcards: searching for `%` matched every memory and entity, and a listener event "100% done"
+  deduplicated against a stored "100 is done" (linking its evidence to the wrong memory, and two
+  stored memories with the same text failed the job outright). Query text is now matched literally,
+  and the dedupe picks the first of several equal texts instead of failing.
+
 ## 0.7.0
 
 - With `MEMORYGATE_PI_URL` and `MEMORYGATE_PI_SERVICE_KEY` set, every model call (evidence

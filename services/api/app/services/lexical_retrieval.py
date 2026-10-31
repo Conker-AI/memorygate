@@ -28,9 +28,13 @@ _STOP_WORDS = frozenset(
 )
 
 
-def _pattern(text: str) -> str:
+def escape_like(text: str) -> str:
     # Escape LIKE syntax as literal text; parameters still carry every value.
-    return "%" + text.replace("/", "//").replace("%", "/%").replace("_", "/_") + "%"
+    return text.replace("/", "//").replace("%", "/%").replace("_", "/_")
+
+
+def _pattern(text: str) -> str:
+    return "%" + escape_like(text) + "%"
 
 
 def _matches(columns, text):
