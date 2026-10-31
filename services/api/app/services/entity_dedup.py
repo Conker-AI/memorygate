@@ -53,7 +53,7 @@ def find_duplicate(db, agent_id: str, entity_type: str, name: str) -> tuple[Enti
 def merge_entities(db, agent_id: str, keep_id: str, merge_id: str) -> Entity:
     """Manual merge for the graph's 'select two nodes -> merge' action -
     same repointing logic as the startup dedup migration
-    (core/migrations.py:_merge_duplicate_entities), just against a live ORM
+    (core/data_migrations.py:_merge_duplicate_entities), just against a live ORM
     session instead of a bare connection, and for a single caller-chosen pair
     instead of every duplicate group at once."""
     if keep_id == merge_id:
