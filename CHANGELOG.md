@@ -10,6 +10,10 @@ a decision with visible consequences.
   `occurred_start`/`occurred_end`, `review_by`) answers 422 naming the bad field instead of a
   500. Each route module had its own parse helper that let the `ValueError` from
   `fromisoformat` escape; they share `app.core.timestamps.parse_timestamp` now.
+- A memory reset also removes the conversation receipts of the evidence and memories it removes.
+  Before, a message Pi delivered again after a reset was answered as admitted with a memory that no
+  longer existed, so it could never be learned again. Forgetting tombstones survive the reset: a
+  forgotten message still never comes back.
 - Search and listener dedupe passed query text into SQL `LIKE` unescaped, so `%` and `_` acted as
   wildcards: searching for `%` matched every memory and entity, and a listener event "100% done"
   deduplicated against a stored "100 is done" (linking its evidence to the wrong memory, and two
