@@ -6,6 +6,10 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- A malformed time in a request field (`occurred_at`, `session_start`/`session_end`,
+  `occurred_start`/`occurred_end`, `review_by`) answers 422 naming the bad field instead of a
+  500. Each route module had its own parse helper that let the `ValueError` from
+  `fromisoformat` escape; they share `app.core.timestamps.parse_timestamp` now.
 - A key or typed confirmation with a character outside ASCII is refused like any wrong one
   (401, or 400 for the memory-reset phrase) instead of a 500. The admin key from the
   environment, the conversation key, a listener's ingest key and the reset confirmation were

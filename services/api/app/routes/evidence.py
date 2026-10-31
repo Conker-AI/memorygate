@@ -4,6 +4,7 @@ from datetime import datetime
 
 from app.core.agent import get_agent_id
 from app.core.db import SessionLocal
+from app.core.timestamps import parse_timestamp
 from app.models.analysis_object import AnalysisObject
 from app.models.evidence_object import EvidenceObject
 from app.models.evidence_source import EvidenceSource
@@ -12,12 +13,6 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 
 router = APIRouter(prefix="/evidence", tags=["evidence"])
-
-
-def _parse_dt(value: str | None):
-    if not value:
-        return None
-    return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
 def _source_to_dict(row: EvidenceSource) -> dict:
@@ -144,7 +139,7 @@ def create_evidence(payload: EvidenceObjectCreateRequest, agent_id: str = Depend
         source = db.execute(select(EvidenceSource).where(EvidenceSource.source_key == source_key)).scalar_one_or_none()
         if source is None:
             raise HTTPException(404, f"Evidence source '{source_key}' not found")
-        occurred_at = _parse_dt(payload.occurred_at)
+        occurred_at = parse_timestamp(payload.occurred_at, "occurred_at")
         row = EvidenceObject(
             agent_id=agent_id,
             source_id=source.id,

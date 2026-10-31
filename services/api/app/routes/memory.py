@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 
 from app.core.agent import get_agent_id, resolve_agent_id
 from app.core.db import SessionLocal
+from app.core.timestamps import parse_timestamp
 from app.models.audit import MemoryAudit
 from app.models.memory import Memory
 from app.models.memory_conflict import MemoryConflict
@@ -46,11 +47,6 @@ def _reconcile_index_intent(operation, memory_id, *args, **kwargs):
         sessions=SessionLocal,
         operation_override=operation,
     )
-
-def _parse_review_by(value: str | None) -> datetime | None:
-    if not value:
-        return None
-    return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 def _default_review_by(memory_type: str, review_by: datetime | None) -> datetime | None:
     if review_by is not None:
@@ -247,7 +243,7 @@ def write_memory(payload: MemoryWriteRequest, header_agent_id: str = Depends(get
         final_confidence = payload.confidence or classified["confidence"]
         final_summary = classified["summary"]
         final_do_not_generalize = payload.do_not_generalize if payload.do_not_generalize is not None else False
-        final_review_by = _default_review_by(final_memory_type, _parse_review_by(payload.review_by))
+        final_review_by = _default_review_by(final_memory_type, parse_timestamp(payload.review_by, "review_by"))
 
         normalized_text = payload.text.strip().lower()
         existing = db.execute(
@@ -497,7 +493,7 @@ def patch_memory(memory_id: str, payload: MemoryPatchRequest, agent_id: str = De
         if payload.do_not_generalize is not None:
             row.do_not_generalize = payload.do_not_generalize
         if payload.review_by is not None:
-            row.review_by = _parse_review_by(payload.review_by)
+            row.review_by = parse_timestamp(payload.review_by, "review_by")
         if payload.tags is not None:
             row.tags_json = json.dumps(payload.tags)
 

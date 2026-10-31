@@ -1,8 +1,8 @@
 import json
-from datetime import datetime
 
 from app.core.agent import get_agent_id, resolve_agent_id
 from app.core.db import SessionLocal
+from app.core.timestamps import parse_timestamp
 from app.models.audit import MemoryAudit
 from app.models.session_transcript import SessionTranscript
 from app.schemas.transcript import TranscriptCreateRequest
@@ -10,11 +10,6 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 
 router = APIRouter(prefix="/transcripts", tags=["transcripts"])
-
-def _parse_dt(value: str | None) -> datetime | None:
-    if not value:
-        return None
-    return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 def _summary_dict(row: SessionTranscript) -> dict:
     """Metadata only - no transcript text, which can be arbitrarily large."""
@@ -44,8 +39,8 @@ def create_transcript(payload: TranscriptCreateRequest, header_agent_id: str = D
             agent_id=agent_id,
             session_id=payload.session_id,
             transcript=payload.transcript,
-            session_start=_parse_dt(payload.session_start),
-            session_end=_parse_dt(payload.session_end),
+            session_start=parse_timestamp(payload.session_start, "session_start"),
+            session_end=parse_timestamp(payload.session_end, "session_end"),
             word_count=payload.word_count if payload.word_count is not None else len(payload.transcript.split()),
         )
         db.add(row)
