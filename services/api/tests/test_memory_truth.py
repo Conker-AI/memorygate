@@ -117,12 +117,16 @@ def test_no_conflict_for_same_polarity_other_agent_or_single_shared_word(db):
 
 def test_detecting_twice_does_not_duplicate_the_open_conflict(db):
     memory = add_memory(db, "new", "Owners prefer quasar scheduling.")
-    add_memory(db, "old", "Owners no longer prefer quasar scheduling.")
+    other = add_memory(db, "old", "Owners no longer prefer quasar scheduling.")
     db.flush()
     memory_truth.detect_conflicts(db, memory)
+    db.flush()
+    # The old memory is trusted again while the conflict is still open, so the
+    # second pass reaches it and must find the conflict it already recorded.
+    other.status = "active"
     db.flush()
 
-    memory_truth.detect_conflicts(db, memory)
+    assert memory_truth.detect_conflicts(db, memory) == []
     db.flush()
 
     conflicts = db.execute(select(MemoryConflict).where(MemoryConflict.status == "open")).scalars().all()
