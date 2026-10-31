@@ -6,6 +6,10 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- A malformed time in a request field (`occurred_at`, `session_start`/`session_end`,
+  `occurred_start`/`occurred_end`, `review_by`) answers 422 naming the bad field instead of a
+  500. Each route module had its own parse helper that let the `ValueError` from
+  `fromisoformat` escape; they share `app.core.timestamps.parse_timestamp` now.
 - A memory reset also removes the conversation receipts of the evidence and memories it removes.
   Before, a message Pi delivered again after a reset was answered as admitted with a memory that no
   longer existed, so it could never be learned again. Forgetting tombstones survive the reset: a

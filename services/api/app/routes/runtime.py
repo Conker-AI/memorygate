@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from app.core.agent import get_agent_id, resolve_agent_id
 from app.core.auth import require_key, require_read_key
 from app.core.db import SessionLocal
+from app.core.timestamps import parse_timestamp
 from app.models.analysis_object import AnalysisObject
 from app.models.audit import MemoryAudit
 from app.models.conversation_receipt import ConversationReceipt
@@ -37,10 +38,6 @@ from sqlalchemy import func, select
 router = APIRouter(prefix="/runtime", tags=["runtime"])
 
 
-def _parse_dt(value: str | None):
-    return datetime.fromisoformat(value.replace("Z", "+00:00")) if value else datetime.now(UTC)
-
-
 def _enqueue(db, source: EvidenceSource, payload: IngestEventRequest, agent_id: str) -> dict:
     content = payload.content.strip() or payload.title.strip() or json.dumps(payload.payload, ensure_ascii=True)
     if not content:
@@ -50,7 +47,7 @@ def _enqueue(db, source: EvidenceSource, payload: IngestEventRequest, agent_id: 
         title=payload.title.strip() or content[:120], summary=content[:500],
         raw_payload_json=json.dumps(payload.payload), normalized_payload_json=json.dumps({"content": content}),
         tags_json=json.dumps(payload.tags), integrity_confidence=payload.integrity_confidence,
-        processing_state="pending", occurred_at=_parse_dt(payload.occurred_at),
+        processing_state="pending", occurred_at=parse_timestamp(payload.occurred_at, "occurred_at") or datetime.now(UTC),
     )
     db.add(row)
     source.last_ingested_at = row.occurred_at
