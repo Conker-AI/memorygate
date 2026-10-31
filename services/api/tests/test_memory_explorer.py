@@ -136,3 +136,29 @@ def test_mcp_context_and_followup_use_same_operator_scope(db, monkeypatch):
     assert all(item["scope"] == "selected" and item["memory_ids"] == ["m"] for item in requests)
     with pytest.raises(ValueError):
         module.explore({"object_type": "memory", "object_id": "m", "scope": "all"})
+
+
+def test_transcripts_are_for_the_admin_key_only(db, monkeypatch):
+    from app.models.session_transcript import SessionTranscript
+    from app.routes import runtime
+    from app.schemas.explorer import LibraryRequest
+    db.add_all([SessionTranscript(id="t", agent_id="owner", transcript="owner: my secret plan"),
+                ObjectLink(id="6", source_type="memory", source_id="m", target_type="transcript", target_id="t", relationship="derived_from")])
+    db.commit()
+    monkeypatch.setattr(runtime, "SessionLocal", sessionmaker(db.get_bind()))
+    content = ExploreRequest(object_type="transcript", object_id="t", operation="content", field="transcript")
+    with pytest.raises(HTTPException) as error:
+        runtime.explore_memory(content, "owner", "read")
+    assert error.value.status_code == 404
+    for request in (LibraryRequest(), LibraryRequest(search="secret plan"), LibraryRequest(object_type="transcript")):
+        assert "secret plan" not in json.dumps(runtime.memory_library(request, "owner", "read"))
+    linked = runtime.explore_memory(ExploreRequest(object_type="memory", object_id="m"), "owner", "read")
+    assert linked["connections"] == {"about": 1, "derived_from": 1}
+    assert all("transcript" not in (link["source_type"], link["target_type"]) for link in linked["links"])
+    summary = compact(db, {"query": "x", "retrieval": {}, "memories": [{"id": "m"}]}, AgentContextRequest(query="x", compact=True), "owner")
+    assert summary["objects"][0]["connections"] == {"about": 1, "derived_from": 1}
+    # The admin key still reads the archive.
+    assert runtime.explore_memory(content, "owner", "admin")["content"] == "owner: my secret plan"
+    assert runtime.memory_library(LibraryRequest(object_type="transcript"), "owner", "admin")["total"] == 1
+    assert runtime.explore_memory(ExploreRequest(object_type="memory", object_id="m"), "owner", "admin")["connections"] == {
+        "about": 1, "derived_from": 2}

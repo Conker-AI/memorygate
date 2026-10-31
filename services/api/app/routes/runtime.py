@@ -263,29 +263,29 @@ def agent_context(payload: AgentContextRequest, header_agent_id: str = Depends(g
         db.commit()
         if payload.compact:
             from app.services.memory_explorer import compact
-            return compact(db, context, payload, agent_id)
+            return compact(db, context, payload, agent_id, admin=_ == "admin")
         return context
     finally:
         db.close()
 
 
 @router.post("/explore")
-def explore_memory(payload: ExploreRequest, agent_id: str = Depends(get_agent_id), _: str = Depends(require_read_key)):
+def explore_memory(payload: ExploreRequest, agent_id: str = Depends(get_agent_id), role: str = Depends(require_read_key)):
     from app.services.memory_explorer import explore
     # The read key is checked against the header namespace, never a body override.
     if payload.agent_id is not None and payload.agent_id != agent_id:
         raise HTTPException(403, "Memory namespace cannot be changed")
     with SessionLocal() as db:
-        return explore(db, payload, agent_id)
+        return explore(db, payload, agent_id, admin=role == "admin")
 
 
 @router.post("/library")
-def memory_library(payload: LibraryRequest, agent_id: str = Depends(get_agent_id), _: str = Depends(require_read_key)):
+def memory_library(payload: LibraryRequest, agent_id: str = Depends(get_agent_id), role: str = Depends(require_read_key)):
     from app.services.memory_explorer import library
     if payload.agent_id is not None and payload.agent_id != agent_id:
         raise HTTPException(403, "Memory namespace cannot be changed")
     with SessionLocal() as db:
-        return library(db, payload, agent_id)
+        return library(db, payload, agent_id, admin=role == "admin")
 
 
 @router.post("/ask")

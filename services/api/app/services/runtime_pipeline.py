@@ -8,6 +8,7 @@ from app.models.memory import Memory
 from app.models.object_link import ObjectLink
 from app.models.processing_job import ProcessingJob
 from app.services.classifier import classify_memory
+from app.services.lexical_retrieval import escape_like
 from app.services.memory_truth import add_revision, detect_conflicts
 from app.services.ollama_service import analyze_evidence
 from app.services.processing_lease import LeaseHeartbeat, LeaseLostError, fence_job_lease
@@ -109,7 +110,8 @@ def process_evidence(
         memory = None
         indexing = {"status": "ok"}
         if value >= 0.3:
-            memory = db.execute(select(Memory).where(Memory.agent_id == evidence.agent_id, Memory.text.ilike(content.strip()))).scalar_one_or_none()
+            # Case-insensitive exact match: reuse the stored memory when the listener text is already there.
+            memory = db.execute(select(Memory).where(Memory.agent_id == evidence.agent_id, Memory.text.ilike(escape_like(content.strip()), escape="/"))).scalars().first()
             if not memory:
                 memory = Memory(
                     agent_id=evidence.agent_id, text=content.strip(), summary=classification["summary"],
