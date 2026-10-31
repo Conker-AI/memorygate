@@ -1,4 +1,5 @@
-"""Memory reset: a backup first, then knowledge and its linked history go; credentials and sources stay."""
+"""Memory reset: a backup first, then knowledge and its linked history go; credentials, sources and
+forgetting tombstones stay."""
 
 import json
 from datetime import datetime
@@ -9,6 +10,7 @@ from app.core import auth
 from app.core.db import Base
 from app.models.agent_access_key import AgentAccessKey
 from app.models.audit import MemoryAudit
+from app.models.conversation_receipt import ConversationReceipt
 from app.models.entity import Entity, EntityEdge, EntityEvent, EntityHistory
 from app.models.evidence_source import EvidenceSource
 from app.models.memory import Memory
@@ -18,7 +20,7 @@ from app.models.object_link import ObjectLink
 from app.models.observation import Observation
 from app.models.vector_outbox import VectorOutbox
 from app.routes import system as system_routes
-from app.services import auth_settings_service, backup_service
+from app.services import auth_settings_service, backup_service, conversation_memory
 from app.services.auth_settings_service import set_admin_key
 from app.services.memory_reset_service import reset_memory
 from fastapi import Depends, FastAPI
@@ -81,7 +83,8 @@ def test_a_full_reset_backs_up_first_then_removes_knowledge_and_linked_history(s
     assert "erase me x" in backup.read_text()  # the backup holds what the reset removed
     assert result["reset_from"] is None
     assert result["removed"] == {"memories": 2, "entities": 2, "observations": 1, "patterns": 0, "evidence": 0,
-                                 "analysis": 0, "episodes": 0, "transcripts": 0, "jobs": 0, "audit": 1}
+                                 "analysis": 0, "episodes": 0, "transcripts": 0, "jobs": 0, "audit": 1,
+                                 "receipts": 0}
     assert result["indexing"] == {"status": "pending", "operations": 5}
     with sessions() as db:
         for model in (Memory, Entity, Observation, MemoryAudit, MemoryRevision, MemoryConflict, EntityEdge,
@@ -135,6 +138,53 @@ def test_resetting_an_empty_workspace_still_writes_a_backup(sessions, tmp_path):
     assert set(result["removed"].values()) == {0}
     assert result["indexing"]["operations"] == 0
     assert json.loads((tmp_path / "backups" / result["backup"]["filename"]).read_text())["tables"]["memories"] == []
+
+
+# --- Conversation receipts follow the knowledge they name -------------------
+
+
+def _conversation(sessions, monkeypatch):
+    monkeypatch.setattr(conversation_memory, "SessionLocal", sessions)
+    said = {"session_id": "ses", "content": "I prefer to train before school", "created_at": 1770000000.0}
+    assert conversation_memory.ingest("owner", "msg_kept", said)["state"] == "admitted"
+    assert conversation_memory.ingest("owner", "msg_forgotten", said)["state"] == "admitted"
+    assert conversation_memory.forget("owner", "msg_forgotten")["state"] == "deleted"
+    return said
+
+
+def test_a_message_delivered_again_after_a_reset_is_admitted_afresh(sessions, monkeypatch):
+    said = _conversation(sessions, monkeypatch)
+    with sessions() as db:
+        result = reset_memory(db)
+    assert result["removed"]["receipts"] == 1
+    with sessions() as db:
+        assert db.query(Memory).count() == 0
+        assert db.scalars(select(ConversationReceipt.message_id)).all() == ["msg_forgotten"]
+
+    again = conversation_memory.ingest("owner", "msg_kept", said)
+    assert again["state"] == "admitted"
+    with sessions() as db:
+        assert db.get(Memory, again["memory_id"]).text == said["content"]
+
+
+def test_a_forgotten_message_stays_forgotten_through_a_reset(sessions, monkeypatch):
+    said = _conversation(sessions, monkeypatch)
+    with sessions() as db:
+        reset_memory(db)
+
+    late = conversation_memory.ingest("owner", "msg_forgotten", said)
+    assert late["state"] == "deleted" and late["citation"]["content_status"] == "forgotten"
+    with sessions() as db:
+        assert db.query(Memory).count() == 0
+
+
+def test_a_dated_reset_keeps_receipts_for_the_older_knowledge_it_keeps(sessions, monkeypatch):
+    _conversation(sessions, monkeypatch)
+    with sessions() as db:
+        result = reset_memory(db, datetime(2999, 1, 1))
+    assert result["removed"]["receipts"] == 0
+    with sessions() as db:
+        assert db.query(ConversationReceipt).count() == 2 and db.query(Memory).count() == 1
 
 
 # --- The route refuses before anything is touched ----------------------------

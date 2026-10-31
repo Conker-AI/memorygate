@@ -6,6 +6,10 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- A memory reset also removes the conversation receipts of the evidence and memories it removes.
+  Before, a message Pi delivered again after a reset was answered as admitted with a memory that no
+  longer existed, so it could never be learned again. Forgetting tombstones survive the reset: a
+  forgotten message still never comes back.
 - A read key's failed attempts are counted per known agent, and every agent id with no key
   shares one count per client address. The count used to be per `X-Agent-Id` header, which
   the caller writes: a new made-up id on each try earned five fresh attempts and added an entry
