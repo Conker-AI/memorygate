@@ -90,7 +90,8 @@ def verify_admin_key(db, key: str | None) -> bool:
         return bool(key) and _verify_key(key, row.admin_key_hash)
     if not MEMORYGATE_ADMIN_KEY:
         return False
-    return bool(key) and secrets.compare_digest(key, MEMORYGATE_ADMIN_KEY)
+    # Bytes, not str: compare_digest raises on a non-ASCII str, and a header can carry one.
+    return bool(key) and secrets.compare_digest(key.encode(), MEMORYGATE_ADMIN_KEY.encode())
 
 
 def assert_admin_key_configured(db) -> str:
