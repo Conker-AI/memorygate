@@ -6,6 +6,11 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- Stored session transcripts are for the admin key only. `/runtime/explore`, `/runtime/library`
+  and the compact `/runtime/context` view used to list, search and page verbatim transcript text for
+  an agent read key under scope `all`; for a read key they now act as if no transcript exists (404,
+  no cards, no search hits, no link counts). The admin key still reads them.
+
 ## 0.7.0
 
 - With `MEMORYGATE_PI_URL` and `MEMORYGATE_PI_SERVICE_KEY` set, every model call (evidence
