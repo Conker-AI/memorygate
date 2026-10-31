@@ -10,6 +10,11 @@ a decision with visible consequences.
   and the compact `/runtime/context` view used to list, search and page verbatim transcript text for
   an agent read key under scope `all`; for a read key they now act as if no transcript exists (404,
   no cards, no search hits, no link counts). The admin key still reads them.
+- A key or typed confirmation with a character outside ASCII is refused like any wrong one
+  (401, or 400 for the memory-reset phrase) instead of a 500. The admin key from the
+  environment, the conversation key, a listener's ingest key and the reset confirmation were
+  compared as text, and `compare_digest` raises on non-ASCII text; they are compared as bytes
+  now, as the correction key already was.
 
 ## 0.7.0
 

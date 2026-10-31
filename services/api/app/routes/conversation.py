@@ -41,7 +41,8 @@ def require_conversation_key(
     requested_agent: str | None = Header(None, alias="X-Agent-Id"),
 ) -> str:
     expected = os.environ.get("MEMORYGATE_CONVERSATION_KEY", "")
-    if len(expected) < 16 or not key or not secrets.compare_digest(expected, key):
+    # Bytes, not str: compare_digest raises on a non-ASCII str, and a header can carry one.
+    if len(expected) < 16 or not key or not secrets.compare_digest(expected.encode(), key.encode()):
         raise HTTPException(
             401,
             "Configure a dedicated MEMORYGATE_CONVERSATION_KEY; admin/read keys do not grant ingestion",

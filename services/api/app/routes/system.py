@@ -25,7 +25,8 @@ MEMORY_RESET_PHRASE = "RESET MEMORY"
 
 
 def _require_confirmation(provided: str, expected: str) -> None:
-    if not hmac.compare_digest(provided, expected):
+    # Bytes, not str: compare_digest raises on a non-ASCII str, which the owner may type.
+    if not hmac.compare_digest(provided.encode(), expected.encode()):
         raise HTTPException(400, f'Type "{expected}" to confirm this destructive action.')
 
 

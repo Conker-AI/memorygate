@@ -80,7 +80,7 @@ CASES = [
     (
         "unscoped-ingestion",
         "services/api/app/routes/conversation.py",
-        "if len(expected) < 16 or not key or not secrets.compare_digest(expected, key):",
+        "if len(expected) < 16 or not key or not secrets.compare_digest(expected.encode(), key.encode()):",
         "if False:",
     ),
     (
