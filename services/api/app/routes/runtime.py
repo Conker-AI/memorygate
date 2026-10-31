@@ -100,7 +100,10 @@ def listener_ingest(source_key: str, payload: IngestEventRequest, request: Reque
         if remaining:
             raise HTTPException(429, f"Too many failed attempts. Try again in {remaining} seconds.")
         secret = json.loads(source.secret_json or "{}").get("ingest_key", "")
-        if not secret or not x_memorygate_listener_key or not hmac.compare_digest(secret, x_memorygate_listener_key):
+        # Bytes, not str: compare_digest raises on a non-ASCII str, and a header can carry one.
+        if not secret or not x_memorygate_listener_key or not hmac.compare_digest(
+            secret.encode(), x_memorygate_listener_key.encode()
+        ):
             remaining = register_failed_attempt(lock_scope)
             if remaining:
                 raise HTTPException(429, f"Too many failed attempts. Try again in {remaining} seconds.")
