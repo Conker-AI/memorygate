@@ -6,6 +6,12 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- A job whose stored evidence payload cannot be read - not JSON, or JSON that is not an object -
+  used to raise inside the worker loop, leaving the job `processing` with its lease; when the
+  lease ran out the next poll claimed it again and failed the same way, forever, one wasted claim
+  per lease. The payload is now parsed in `run_job`, which fails the job once ("evidence payload
+  is not readable") and quarantines the evidence, the same outcome `process_evidence` already
+  gives a job whose processing raises.
 - A read key's failed attempts are counted per known agent, and every agent id with no key
   shares one count per client address. The count used to be per `X-Agent-Id` header, which
   the caller writes: a new made-up id on each try earned five fresh attempts and added an entry

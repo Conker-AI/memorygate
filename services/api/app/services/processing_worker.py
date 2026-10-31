@@ -67,29 +67,44 @@ def claim_next_job(db, worker_id: str, *, now: datetime | None = None,
         db.rollback()
 
 
+def _fail(db, job: ProcessingJob, error: str, evidence: EvidenceObject | None = None) -> None:
+    fence_job_lease(db, job.id, job.lease_owner)
+    job.status = "failed"
+    job.error = error
+    job.lease_owner = None
+    job.lease_expires_at = None
+    if evidence:
+        evidence.processing_state = "quarantined"
+    db.commit()
+
+
+def run_job(db, job: ProcessingJob) -> None:
+    """Process one claimed job, failing it at once if its evidence is unreadable."""
+    evidence = db.get(EvidenceObject, job.evidence_id)
+    if not evidence:
+        _fail(db, job, "evidence no longer exists")
+        return
+    try:
+        content = json.loads(evidence.normalized_payload_json or "{}").get("content") or evidence.summary
+    except (ValueError, AttributeError):
+        _fail(db, job, "evidence payload is not readable", evidence)
+        return
+    with LeaseHeartbeat(
+        SessionLocal,
+        job.id,
+        job.lease_owner,
+        lease_seconds=PROCESSING_LEASE_SECONDS,
+    ) as lease:
+        process_evidence(db, evidence, content, job, lease=lease)
+
+
 def _run() -> None:
     while not _stop.is_set():
         db = SessionLocal()
         try:
             job = claim_next_job(db, _worker_id)
             if job:
-                evidence = db.get(EvidenceObject, job.evidence_id)
-                if not evidence:
-                    fence_job_lease(db, job.id, job.lease_owner)
-                    job.status = "failed"
-                    job.error = "evidence no longer exists"
-                    job.lease_owner = None
-                    job.lease_expires_at = None
-                    db.commit()
-                else:
-                    content = json.loads(evidence.normalized_payload_json or "{}").get("content") or evidence.summary
-                    with LeaseHeartbeat(
-                        SessionLocal,
-                        job.id,
-                        job.lease_owner,
-                        lease_seconds=PROCESSING_LEASE_SECONDS,
-                    ) as lease:
-                        process_evidence(db, evidence, content, job, lease=lease)
+                run_job(db, job)
         except Exception:
             db.rollback()
         finally:
