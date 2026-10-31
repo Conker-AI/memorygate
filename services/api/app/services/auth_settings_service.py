@@ -201,6 +201,12 @@ def verify_agent_access_key(db, key: str | None, agent_id: str) -> bool:
     return False
 
 
+def has_agent_key(db, agent_id: str) -> bool:
+    """Whether any live read key belongs to this agent id."""
+    query = db.query(AgentAccessKey.id).filter(AgentAccessKey.agent_id == agent_id, AgentAccessKey.revoked.is_(False))
+    return query.first() is not None
+
+
 def get_lockout_status(scope: str) -> int:
     state = _attempt_state.get(scope)
     if not state:
