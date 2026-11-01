@@ -6,6 +6,9 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- Retrying a job that a worker is still running (its lease has not expired) is refused with a 409.
+  It used to be queued again and cleared the lease, so a second worker could process the same
+  evidence while the first was still on it.
 - A job whose stored evidence payload cannot be read - not JSON, or JSON that is not an object -
   used to raise inside the worker loop, leaving the job `processing` with its lease; when the
   lease ran out the next poll claimed it again and failed the same way, forever, one wasted claim
