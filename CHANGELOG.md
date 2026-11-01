@@ -6,6 +6,9 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- Retrying a job that a worker is still running is refused with a 409 instead of being queued
+  again, which could cause the same evidence to be processed twice. The `requeue` helper only
+  clears the lease when the job is not `processing`, has no lease, or the lease is expired.
 - A job whose stored evidence payload cannot be read - not JSON, or JSON that is not an object -
   used to raise inside the worker loop, leaving the job `processing` with its lease; when the
   lease ran out the next poll claimed it again and failed the same way, forever, one wasted claim

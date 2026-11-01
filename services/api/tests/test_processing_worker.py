@@ -8,7 +8,7 @@ from app.models.evidence_object import EvidenceObject
 from app.models.processing_job import ProcessingJob
 from app.services import processing_worker, runtime_pipeline
 from app.services.processing_lease import LeaseHeartbeat, LeaseLostError
-from app.services.processing_worker import claim_next_job
+from app.services.processing_worker import claim_next_job, requeue
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
@@ -312,6 +312,106 @@ def test_stale_owner_cannot_commit_failure(tmp_path, monkeypatch):
             assert job.lease_owner == "worker-b"
             assert job.error == ""
             assert evidence.processing_state != "quarantined"
+    finally:
+        engine.dispose()
+
+
+def test_retry_refuses_a_job_with_a_live_lease(tmp_path):
+    engine, sessions = _database(tmp_path)
+    try:
+        started_at = datetime.now(UTC)
+        with sessions() as db:
+            evidence = EvidenceObject(
+                agent_id="owner", source_id="source-1", source_key="listener",
+                source_type="listener", summary="A bounded event",
+                normalized_payload_json='{"content":"A bounded event"}',
+            )
+            db.add(evidence)
+            db.flush()
+            job = ProcessingJob(agent_id="owner", evidence_id=evidence.id, stage="queued")
+            db.add(job)
+            db.commit()
+
+        with sessions() as db:
+            claimed = claim_next_job(db, "worker-a", now=started_at, lease_seconds=60)
+            assert claimed is not None
+
+        with sessions() as db:
+            result = requeue(db, claimed.id, now=started_at + timedelta(seconds=10))
+            assert result is False
+            job = db.get(ProcessingJob, claimed.id)
+            assert job.status == "processing"
+            assert job.lease_owner == "worker-a"
+            # Compare with timezone-aware datetime
+            expected_expiry = started_at + timedelta(seconds=60)
+            assert job.lease_expires_at.replace(tzinfo=UTC) == expected_expiry
+    finally:
+        engine.dispose()
+
+
+def test_retry_requeues_a_failed_job_and_an_expired_lease(tmp_path):
+    engine, sessions = _database(tmp_path)
+    try:
+        # Test (a): failed job with error
+        with sessions() as db:
+            evidence = EvidenceObject(
+                agent_id="owner", source_id="source-1", source_key="listener",
+                source_type="listener", summary="A bounded event",
+                normalized_payload_json='{"content":"A bounded event"}',
+            )
+            db.add(evidence)
+            db.flush()
+            failed_job = ProcessingJob(
+                agent_id="owner", evidence_id=evidence.id, status="failed",
+                stage="analysis", error="some error"
+            )
+            db.add(failed_job)
+            db.commit()
+
+        with sessions() as db:
+            result = requeue(db, failed_job.id)
+            assert result is True
+            job = db.get(ProcessingJob, failed_job.id)
+            assert job.status == "pending"
+            assert job.stage == "retry_queued"
+            assert job.error == ""
+            assert job.lease_owner is None
+            assert job.lease_expires_at is None
+
+        # Test (b): job with expired lease
+        started_at = datetime.now(UTC)
+        with sessions() as db:
+            evidence = EvidenceObject(
+                agent_id="owner", source_id="source-2", source_key="listener",
+                source_type="listener", summary="Another event",
+                normalized_payload_json='{"content":"Another event"}',
+            )
+            db.add(evidence)
+            db.flush()
+            claimed_job = ProcessingJob(agent_id="owner", evidence_id=evidence.id, stage="queued")
+            db.add(claimed_job)
+            db.commit()
+
+        with sessions() as db:
+            claimed = claim_next_job(db, "worker-a", now=started_at, lease_seconds=60)
+            assert claimed is not None
+
+        with sessions() as db:
+            result = requeue(db, claimed.id, now=started_at + timedelta(seconds=61))
+            assert result is True
+            job = db.get(ProcessingJob, claimed.id)
+            assert job.lease_owner is None
+            assert job.lease_expires_at is None
+    finally:
+        engine.dispose()
+
+
+def test_requeue_of_a_missing_job_is_false(tmp_path):
+    engine, sessions = _database(tmp_path)
+    try:
+        with sessions() as db:
+            result = requeue(db, "no-such-job")
+            assert result is False
     finally:
         engine.dispose()
 

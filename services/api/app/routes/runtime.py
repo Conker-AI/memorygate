@@ -30,6 +30,7 @@ from app.services.lexical_retrieval import memory_candidates, prepare_query
 from app.services.memory_truth import mark_unsupported
 from app.services.ollama_service import answer_with_context, ollama_health
 from app.services.pi_inference import CHOSEN_IN, last_answer, model_choice, pi_configured
+from app.services.processing_worker import requeue
 from app.services.qdrant_store import INDEX_UNREACHABLE, search_memory_embeddings, semantic_status
 from app.services.scoring import memory_rank_bonus
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
@@ -370,12 +371,8 @@ def retry_job(job_id: str, agent_id: str = Depends(get_agent_id), _: str = Depen
         evidence = db.get(EvidenceObject, job.evidence_id)
         if not evidence:
             raise HTTPException(404, "Evidence no longer exists")
-        job.status = "pending"
-        job.stage = "retry_queued"
-        job.error = ""
-        job.lease_owner = None
-        job.lease_expires_at = None
-        db.commit()
+        if not requeue(db, job.id):
+            raise HTTPException(409, "Processing job is running; retry after it ends")
         return {"status": "queued", "job_id": job.id}
     finally:
         db.close()

@@ -67,6 +67,30 @@ def claim_next_job(db, worker_id: str, *, now: datetime | None = None,
         db.rollback()
 
 
+def requeue(db, job_id: str, *, now: datetime | None = None) -> bool:
+    """Queue a job again unless a worker holds a live lease on it; True when queued."""
+    now = now or datetime.now(UTC)
+    not_running = or_(
+        ProcessingJob.status != "processing",
+        ProcessingJob.lease_expires_at.is_(None),
+        ProcessingJob.lease_expires_at <= now,
+    )
+    result = db.execute(
+        update(ProcessingJob)
+        .where(ProcessingJob.id == job_id, not_running)
+        .values(
+            status="pending",
+            stage="retry_queued",
+            error="",
+            lease_owner=None,
+            lease_expires_at=None,
+        )
+        .execution_options(synchronize_session=False)
+    )
+    db.commit()
+    return result.rowcount == 1
+
+
 def _fail(db, job: ProcessingJob, error: str, evidence: EvidenceObject | None = None) -> None:
     fence_job_lease(db, job.id, job.lease_owner)
     job.status = "failed"
