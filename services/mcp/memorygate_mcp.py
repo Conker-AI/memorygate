@@ -92,7 +92,7 @@ def main():
                 value = handler(params.get("arguments", {}))
                 respond(request.get("id"), {"content": [{"type": "text", "text": json.dumps(value)}]})
             elif "id" in request:
-                respond(request.get("id"), {})
+                respond(request.get("id"), error="Method not found")
         except Exception:
             respond(request.get("id") if isinstance(request, dict) else None,
                     error="Memory request failed; check configuration, scope and arguments.")
