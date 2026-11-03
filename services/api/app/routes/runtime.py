@@ -51,6 +51,7 @@ def _enqueue(db, source: EvidenceSource, payload: IngestEventRequest, agent_id: 
         processing_state="pending", occurred_at=parse_timestamp(payload.occurred_at, "occurred_at") or datetime.now(UTC),
     )
     db.add(row)
+    db.flush()  # the job below needs the evidence id; both commit together
     source.last_ingested_at = row.occurred_at
     job = None
     if payload.auto_process:
