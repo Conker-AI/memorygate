@@ -6,6 +6,21 @@ a decision with visible consequences.
 
 ## Unreleased
 
+## 0.8.0
+
+- **Refused request bodies are never echoed back.** A 422 lists only `loc`, `msg` and `type` for
+  each error. FastAPI's default repeated the input, so a malformed `POST /auth/change-key` or
+  `PUT /system/ai-runtime` sent the current admin key, or a provider API key, back in the error.
+- **Writes that cannot half-happen.** Ingest commits the evidence and its processing job
+  together, so evidence can no longer sit `pending` with no job; a backup is written to a
+  temporary file and moved into place, so a partial file is never listed; a retried job reuses
+  the analysis rows it already wrote; two concurrent writes of the same memory no longer both get
+  in (a Postgres advisory lock on agent and text); an episode's end time only moves forward.
+- **Dashboard and MCP.** A path with an encoded `../` cannot serve files outside the dashboard
+  build; unknown MCP methods answer "Method not found" and batch requests get an error; the
+  context tool's `query` is bounded to 2,000 characters; deleting a vector from a collection that
+  was never created returns early.
+
 - Retrying a job that a worker is still running (its lease has not expired) is refused with a 409.
   It used to be queued again and cleared the lease, so a second worker could process the same
   evidence while the first was still on it.
