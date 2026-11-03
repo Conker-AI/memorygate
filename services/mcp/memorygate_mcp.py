@@ -79,6 +79,9 @@ def main():
         request = {}
         try:
             request = json.loads(line)
+            if not isinstance(request, dict):
+                respond(None, error="Invalid request: batch requests are not supported")
+                continue
             method = request.get("method")
             params = request.get("params", {})
             if method == "initialize":
