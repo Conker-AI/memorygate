@@ -214,6 +214,9 @@ def upsert_observation_embedding(observation_id: str, text: str, payload: dict |
 
 def delete_observation_embedding(observation_id: str) -> None:
     client = get_qdrant_client()
+    # Forgetting before the first successful vector write is already satisfied.
+    if OBSERVATION_COLLECTION not in {collection.name for collection in client.get_collections().collections}:
+        return
     client.delete(collection_name=OBSERVATION_COLLECTION, points_selector=[observation_id])
 
 
@@ -259,6 +262,9 @@ def upsert_entity_embedding(entity_id: str, text: str, payload: dict | None = No
 
 def delete_entity_embedding(entity_id: str) -> None:
     client = get_qdrant_client()
+    # Forgetting before the first successful vector write is already satisfied.
+    if ENTITY_COLLECTION not in {collection.name for collection in client.get_collections().collections}:
+        return
     client.delete(collection_name=ENTITY_COLLECTION, points_selector=[entity_id])
 
 
