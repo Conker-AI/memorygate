@@ -72,7 +72,8 @@ def process_evidence(
             db.add(episode)
             db.flush()
         else:
-            episode.occurred_end = evidence.occurred_at
+            if evidence.occurred_at is not None and (episode.occurred_end is None or evidence.occurred_at > episode.occurred_end):
+                episode.occurred_end = evidence.occurred_at
         _link(db, "evidence", evidence.id, "episode", episode.id, "grouped_into", evidence.integrity_confidence)
 
         job.stage = "analysis"
