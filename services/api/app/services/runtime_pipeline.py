@@ -112,7 +112,12 @@ def process_evidence(
         indexing = {"status": "ok"}
         if value >= 0.3:
             # Case-insensitive exact match: reuse the stored memory when the listener text is already there.
-            db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:agent_id) ^ hashtext(:memory_text))"), {"agent_id": evidence.agent_id, "memory_text": content.strip()})
+            if db.get_bind().dialect.name == "postgresql":
+                # Serialise concurrent promotions of the same text until this transaction commits.
+                db.execute(
+                    text("SELECT pg_advisory_xact_lock(hashtext(:agent_id), hashtext(:memory_text))"),
+                    {"agent_id": evidence.agent_id, "memory_text": content.strip().lower()},
+                )
             memory = db.execute(select(Memory).where(Memory.agent_id == evidence.agent_id, Memory.text.ilike(escape_like(content.strip()), escape="/"))).scalars().first()
             if not memory:
                 memory = Memory(
