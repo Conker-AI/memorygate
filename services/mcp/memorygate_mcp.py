@@ -16,7 +16,7 @@ _URL_OPENER = build_opener(ProxyHandler({}), _NoRedirectHandler())
 TOOL = {
     "name": "memorygate_context",
     "description": "Retrieve bounded, evidence-aware personal memory context. Read-only; use it before answering personal questions.",
-    "inputSchema": {"type": "object", "properties": {"query": {"type": "string"}, "include_evidence": {"type": "boolean"}}, "required": ["query"]},
+    "inputSchema": {"type": "object", "additionalProperties": False, "properties": {"query": {"type": "string", "maxLength": 2000}, "include_evidence": {"type": "boolean"}}, "required": ["query"]},
 }
 
 EXPLORE = {
@@ -58,7 +58,10 @@ def exchange(path, payload):
 
 
 def context(arguments: dict) -> dict:
-    return exchange("context", {"query": arguments["query"], "compact": True,
+    query = arguments.get("query")
+    if not isinstance(query, str) or not query or len(query) > 2000:
+        raise ValueError("Invalid query")
+    return exchange("context", {"query": query, "compact": True,
         "max_items": 8, "include_evidence": bool(arguments.get("include_evidence", False))})
 
 
