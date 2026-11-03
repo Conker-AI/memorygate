@@ -80,9 +80,15 @@ def process_evidence(
         _commit_job(db, job, lease)
         value = score_value(content)
         classification = classify_memory(content, "automatic_listener")
-        analysis = AnalysisObject(
-            agent_id=evidence.agent_id, analysis_type="deterministic_signal_extraction",
-            evidence_ids_json=json.dumps([evidence.id]), input_summary=content[:500],
+        analysis = db.execute(select(AnalysisObject).where(
+            AnalysisObject.agent_id == evidence.agent_id,
+            AnalysisObject.analysis_type == "deterministic_signal_extraction",
+            AnalysisObject.evidence_ids_json == json.dumps([evidence.id]),
+        )).scalars().first()
+        if not analysis:
+            analysis = AnalysisObject(
+                agent_id=evidence.agent_id, analysis_type="deterministic_signal_extraction",
+                evidence_ids_json=json.dumps([evidence.id]), input_summary=content[:500],
             output_summary=f"Value {value:.2f}; classified as {classification['memory_type']} ({classification['confidence']}).",
             steps_json=json.dumps(["normalize", "value_score", "memory_classification"]),
             confidence=min(evidence.integrity_confidence, 0.85 if value >= 0.3 else 0.6),
@@ -94,8 +100,12 @@ def process_evidence(
         job.stage = "local_ai"
         _commit_job(db, job, lease)
         ai_result = analyze_evidence(content, evidence.source_type)
-        ai_analysis = None
-        if ai_result:
+        ai_analysis = db.execute(select(AnalysisObject).where(
+            AnalysisObject.agent_id == evidence.agent_id,
+            AnalysisObject.analysis_type == "local_ai_proposal",
+            AnalysisObject.evidence_ids_json == json.dumps([evidence.id]),
+        )).scalars().first()
+        if not ai_analysis and ai_result:
             ai_analysis = AnalysisObject(
                 agent_id=evidence.agent_id, analysis_type="local_ai_proposal",
                 evidence_ids_json=json.dumps([evidence.id]), input_summary=content[:500],
@@ -106,6 +116,7 @@ def process_evidence(
             )
             db.add(ai_analysis)
             db.flush()
+        if ai_analysis:
             _link(db, "episode", episode.id, "analysis", ai_analysis.id, "proposed_by", ai_analysis.confidence)
 
         memory = None
