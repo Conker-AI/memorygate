@@ -14,7 +14,7 @@ from app.services.ollama_service import analyze_evidence
 from app.services.processing_lease import LeaseHeartbeat, LeaseLostError, fence_job_lease
 from app.services.signal_filter import score_value
 from app.services.vector_outbox import enqueue_upsert
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 
 def _link(db, source_type, source_id, target_type, target_id, relationship, confidence=1.0):
@@ -72,7 +72,8 @@ def process_evidence(
             db.add(episode)
             db.flush()
         else:
-            episode.occurred_end = evidence.occurred_at
+            if evidence.occurred_at is not None and (episode.occurred_end is None or evidence.occurred_at > episode.occurred_end):
+                episode.occurred_end = evidence.occurred_at
         _link(db, "evidence", evidence.id, "episode", episode.id, "grouped_into", evidence.integrity_confidence)
 
         job.stage = "analysis"
@@ -111,6 +112,12 @@ def process_evidence(
         indexing = {"status": "ok"}
         if value >= 0.3:
             # Case-insensitive exact match: reuse the stored memory when the listener text is already there.
+            if db.get_bind().dialect.name == "postgresql":
+                # Serialise concurrent promotions of the same text until this transaction commits.
+                db.execute(
+                    text("SELECT pg_advisory_xact_lock(hashtext(:agent_id), hashtext(:memory_text))"),
+                    {"agent_id": evidence.agent_id, "memory_text": content.strip().lower()},
+                )
             memory = db.execute(select(Memory).where(Memory.agent_id == evidence.agent_id, Memory.text.ilike(escape_like(content.strip()), escape="/"))).scalars().first()
             if not memory:
                 memory = Memory(
