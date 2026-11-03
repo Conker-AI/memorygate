@@ -40,14 +40,31 @@ from app.services.qdrant_store import (
     ensure_qdrant_collection,
     qdrant_health,
 )
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 log = logging.getLogger("memorygate")
 
 SERVICE_VERSION = "0.7.0"
 
 app = FastAPI(title="MemoryGate", version=SERVICE_VERSION)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error(_request: Request, error: RequestValidationError):
+    # FastAPI's default reply repeats the refused input (for a missing field, the whole body),
+    # and key changes carry the admin key itself: say where and why, never what was sent.
+    return JSONResponse(
+        {
+            "detail": [
+                {"loc": list(item["loc"]), "msg": item["msg"], "type": item["type"]}
+                for item in error.errors()
+            ]
+        },
+        status_code=422,
+    )
 
 # Only the bundled dashboard's own origin by default. `*` is available as an
 # explicit development override via MEMORYGATE_CORS_ORIGINS and is logged when
