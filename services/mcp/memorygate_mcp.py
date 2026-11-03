@@ -97,6 +97,8 @@ def main():
                     raise RuntimeError("unknown tool")
                 value = handler(params.get("arguments", {}))
                 respond(request.get("id"), {"content": [{"type": "text", "text": json.dumps(value)}]})
+            elif method == "ping":
+                respond(request.get("id"), {})
             elif "id" in request:
                 respond(request.get("id"), error="Method not found")
         except Exception:

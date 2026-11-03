@@ -49,8 +49,6 @@ def imported_packages(path: Path) -> set[str]:
 def edges() -> dict[tuple[str, str], list[str]]:
     found: dict[tuple[str, str], list[str]] = {}
     for path in sorted(APP.rglob("*.py")):
-        if path.name == "__init__.py":
-            continue
         path = path.relative_to(ROOT)
         source = owner(path)
         for target in imported_packages(path) - {source}:
