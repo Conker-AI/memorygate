@@ -49,6 +49,8 @@ def imported_packages(path: Path) -> set[str]:
 def edges() -> dict[tuple[str, str], list[str]]:
     found: dict[tuple[str, str], list[str]] = {}
     for path in sorted(APP.rglob("*.py")):
+        if path.name == "__init__.py":
+            continue
         path = path.relative_to(ROOT)
         source = owner(path)
         for target in imported_packages(path) - {source}:
@@ -70,7 +72,7 @@ def main() -> int:
     problems = [
         f"{path.as_posix()}: modules live in a package named for their type; only main.py sits in app/."
         for path in APP.glob("*.py")
-        if path.name != "main.py"
+        if path.name not in ("main.py", "__init__.py")
     ]
     allowed = allowlist()
     found = edges()
