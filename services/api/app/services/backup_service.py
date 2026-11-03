@@ -55,7 +55,13 @@ def create_backup(db) -> dict:
     encoded = json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True).encode("utf-8")
     digest = hashlib.sha256(encoded).hexdigest()
     filename = f"memorygate-{datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')}-{digest[:12]}.json"
-    (destination / filename).write_bytes(encoded)
+    temp_path = destination / (filename + ".tmp")
+    with open(temp_path, "wb") as handle:
+        handle.write(encoded)
+        handle.flush()
+        import os
+        os.fsync(handle.fileno())
+    temp_path.replace(destination / filename)
     return {"filename": filename, "size": len(encoded), "sha256": digest, "created_at": payload["created_at"]}
 
 
