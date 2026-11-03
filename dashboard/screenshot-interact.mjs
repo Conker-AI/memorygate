@@ -43,6 +43,7 @@ for (const action of actions) {
   } else if (action.startsWith('search:')) {
     const query = action.slice('search:'.length);
     const input = await page.$('input[placeholder="Search memories..."]');
+    if (!input) { console.error(`search: input not found for "${query}"`); continue; }
     await input.type(query, { delay: 30 });
     await new Promise((r) => setTimeout(r, 900));
   } else if (action.startsWith('click:')) {

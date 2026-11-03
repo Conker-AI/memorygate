@@ -70,7 +70,7 @@ def main() -> int:
     problems = [
         f"{path.as_posix()}: modules live in a package named for their type; only main.py sits in app/."
         for path in APP.glob("*.py")
-        if path.name != "main.py"
+        if path.name not in ("main.py", "__init__.py")
     ]
     allowed = allowlist()
     found = edges()
