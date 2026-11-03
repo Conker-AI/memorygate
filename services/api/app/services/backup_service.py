@@ -1,6 +1,7 @@
 """Safe, portable logical backups for MemoryGate's user memory data."""
 import hashlib
 import json
+import os
 from datetime import date, datetime
 from pathlib import Path
 
@@ -59,7 +60,6 @@ def create_backup(db) -> dict:
     with open(temp_path, "wb") as handle:
         handle.write(encoded)
         handle.flush()
-        import os
         os.fsync(handle.fileno())
     temp_path.replace(destination / filename)
     return {"filename": filename, "size": len(encoded), "sha256": digest, "created_at": payload["created_at"]}

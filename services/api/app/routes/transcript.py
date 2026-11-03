@@ -43,15 +43,9 @@ def create_transcript(payload: TranscriptCreateRequest, header_agent_id: str = D
             session_end=parse_timestamp(payload.session_end, "session_end"),
             word_count=payload.word_count if payload.word_count is not None else len(payload.transcript.split()),
         )
-        existing = db.execute(
-            select(SessionTranscript).where(
-                SessionTranscript.agent_id == agent_id,
-                SessionTranscript.session_id == payload.session_id,
-            )
-        ).scalar_one_or_none()
-        if existing:
-            return {"status": "ok", "transcript": _summary_dict(existing)}
         db.add(row)
+        db.commit()
+        db.refresh(row)
         db.add(MemoryAudit(
             action="transcript_write",
             memory_id=None,
@@ -62,7 +56,6 @@ def create_transcript(payload: TranscriptCreateRequest, header_agent_id: str = D
             }),
         ))
         db.commit()
-        db.refresh(row)
         return {"status": "ok", "transcript": _summary_dict(row)}
     finally:
         db.close()

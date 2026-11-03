@@ -89,12 +89,12 @@ def process_evidence(
             analysis = AnalysisObject(
                 agent_id=evidence.agent_id, analysis_type="deterministic_signal_extraction",
                 evidence_ids_json=json.dumps([evidence.id]), input_summary=content[:500],
-            output_summary=f"Value {value:.2f}; classified as {classification['memory_type']} ({classification['confidence']}).",
-            steps_json=json.dumps(["normalize", "value_score", "memory_classification"]),
-            confidence=min(evidence.integrity_confidence, 0.85 if value >= 0.3 else 0.6),
-        )
-        db.add(analysis)
-        db.flush()
+                output_summary=f"Value {value:.2f}; classified as {classification['memory_type']} ({classification['confidence']}).",
+                steps_json=json.dumps(["normalize", "value_score", "memory_classification"]),
+                confidence=min(evidence.integrity_confidence, 0.85 if value >= 0.3 else 0.6),
+            )
+            db.add(analysis)
+            db.flush()
         _link(db, "episode", episode.id, "analysis", analysis.id, "analyzed_into", analysis.confidence)
 
         job.stage = "local_ai"
