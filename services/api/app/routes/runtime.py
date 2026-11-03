@@ -52,13 +52,13 @@ def _enqueue(db, source: EvidenceSource, payload: IngestEventRequest, agent_id: 
     )
     db.add(row)
     source.last_ingested_at = row.occurred_at
-    db.commit()
-    db.refresh(row)
     job = None
     if payload.auto_process:
         job = ProcessingJob(agent_id=agent_id, evidence_id=row.id, status="pending", stage="queued")
         db.add(job)
-        db.commit()
+    db.commit()
+    db.refresh(row)
+    if job:
         db.refresh(job)
     return {"status": "queued" if job else "accepted", "evidence_id": row.id, "job_id": job.id if job else None}
 
