@@ -6,6 +6,11 @@ a decision with visible consequences.
 
 ## Unreleased
 
+## 0.8.1
+
+- **The image takes Debian's security fixes newer than its base** (apt, CVE-2026-109518).
+  No code change.
+
 ## 0.8.0
 
 - **Refused request bodies are never echoed back.** A 422 lists only `loc`, `msg` and `type` for
