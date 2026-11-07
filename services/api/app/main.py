@@ -47,7 +47,7 @@ from fastapi.responses import JSONResponse
 
 log = logging.getLogger("memorygate")
 
-SERVICE_VERSION = "0.8.1"
+SERVICE_VERSION = "0.8.2"
 
 app = FastAPI(title="MemoryGate", version=SERVICE_VERSION)
 
