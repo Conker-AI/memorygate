@@ -5,8 +5,10 @@ its audit entries are removed or redacted in one transaction. A content-free aud
 entry and a deletion receipt (for recovery replay) record that it happened. The
 vector point is removed after commit; a failed removal leaves a visible receipt.
 
-The source conversation is not touched: forgetting a memory is not forgetting the
-chat it came from.
+Evidence that backed only this memory is tombstoned in the same transaction, so its
+words are no longer listed, retrieved or analysed again (see forgotten_evidence);
+evidence that still backs another memory stays. Pi's transcript is not touched:
+forgetting a memory is not forgetting the chat it came from.
 """
 
 import hashlib
@@ -19,6 +21,8 @@ from app.models.memory import Memory
 from app.models.memory_conflict import MemoryConflict
 from app.models.memory_forget import MemoryForget
 from app.models.memory_revision import MemoryRevision
+from app.services.forgotten_evidence import forget_sources
+from app.services.memory_text_lock import lock_memory_text
 from app.services.qdrant_store import delete_memory_embedding
 from app.services.vector_outbox import enqueue_delete, reconcile_one
 from fastapi import HTTPException
@@ -38,6 +42,9 @@ def _reconcile_index_intent(operation, memory_id):
 
 def erase(db, agent_id: str, memory: Memory, action: str, detail: dict) -> None:
     """Remove the memory and every text copy inside the caller's transaction."""
+    # Before the backing set is read: a worker reusing this memory by its text links its
+    # evidence either before (and that evidence is forgotten too) or finds the memory gone.
+    lock_memory_text(db, memory.agent_id, memory.text)
     db.execute(delete(MemoryRevision).where(MemoryRevision.memory_id == memory.id))
     db.execute(
         delete(MemoryConflict).where(
@@ -52,6 +59,7 @@ def erase(db, agent_id: str, memory: Memory, action: str, detail: dict) -> None:
         .where(MemoryAudit.memory_id == memory.id)
         .values(payload_json=json.dumps({"redacted": action}))
     )
+    forget_sources(db, agent_id, memory.id)
     deletion_receipt.record(db, agent_id, "memory", memory.id)
     enqueue_delete(db, "memory", memory.id, agent_id=agent_id)
     db.add(MemoryAudit(action=action, memory_id=memory.id, payload_json=json.dumps(detail)))
