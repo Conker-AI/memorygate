@@ -6,6 +6,9 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **Backups keep correction and forget receipts and the audit trail** (`memory_corrections`,
+  `memory_forgets`, `memory_audit`), so a retried correction or forget answers with its receipt
+  after a restore. A test fails on any table that is neither backed up nor listed as left out.
 - **A listener can erase an event it sent** (`DELETE /runtime/listeners/{source_key}/evidence/{id}`,
   same key): the evidence, its analyses, links, job results and the listener memories it alone
   supported go; recovery replays the erase (`listener_evidence` receipts). New endpoint, no change
