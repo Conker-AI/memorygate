@@ -28,6 +28,7 @@ from app.models.analysis_object import AnalysisObject
 from app.models.episode_object import EpisodeObject
 from app.models.evidence_object import EvidenceObject
 from app.models.memory import Memory
+from app.models.memory_revision import MemoryRevision
 from app.models.object_link import ObjectLink
 from app.models.processing_job import ProcessingJob
 from app.services import memory_forgetting
@@ -37,8 +38,10 @@ from sqlalchemy import delete, or_, select, text
 KIND = "listener_evidence"
 ACTION = "listener_evidence_erase"
 TOMBSTONE_TITLE = "Forgotten listener event"
-# Only memories the listener pipeline created are erased with their evidence.
+# Only memories the listener pipeline created, and the owner never edited, corrected or chose
+# in a conflict, are erased with their evidence.
 DERIVED_SOURCE = "automatic_listener"
+OWNER_CHANGES = ("user", "owner_review")
 
 
 def _original(evidence: EvidenceObject) -> tuple[set[str], set[str]]:
@@ -63,7 +66,8 @@ def _blank_evidence(evidence: EvidenceObject) -> None:
     evidence.processing_state = "invalidated"
 
 
-def _blank_episodes(db, evidence_id: str, titles: set[str], summaries: set[str]) -> None:
+def _blank_episodes(db, evidence_id: str, titles: set[str], summaries: set[str],
+                    tags: str) -> None:
     grouped = select(ObjectLink.target_id).where(
         ObjectLink.source_type == "evidence", ObjectLink.source_id == evidence_id,
         ObjectLink.target_type == "episode", ObjectLink.relationship == "grouped_into",
@@ -77,7 +81,7 @@ def _blank_episodes(db, evidence_id: str, titles: set[str], summaries: set[str])
             episode.title = TOMBSTONE_TITLE
         if others is None or episode.summary in summaries:
             episode.summary = ""
-        if others is None:
+        if others is None or episode.tags_json == tags:
             episode.tags_json = "[]"
 
 
@@ -93,6 +97,18 @@ def _memories_to_erase(db, analysis_ids: list[str]) -> list[Memory]:
         memory = db.get(Memory, memory_id)
         if memory is None or memory.source_type != DERIVED_SOURCE:
             continue
+        if db.get_bind().dialect.name == "postgresql":
+            # The pipeline's lock for this text: a worker about to reuse this memory for another
+            # event either links it before this check or finds it gone and makes its own.
+            db.execute(
+                text("SELECT pg_advisory_xact_lock(hashtext(:agent_id), hashtext(:memory_text))"),
+                {"agent_id": memory.agent_id, "memory_text": memory.text.strip().lower()},
+            )
+        owner_touched = db.scalar(select(MemoryRevision.id).where(
+            MemoryRevision.memory_id == memory_id, MemoryRevision.changed_by.in_(OWNER_CHANGES),
+        ).limit(1))
+        if owner_touched is not None:
+            continue  # the owner corrected or chose it: their words now, only the link goes
         other_support = db.scalar(select(ObjectLink.id).where(
             ObjectLink.target_type == "memory", ObjectLink.target_id == memory_id,
             ObjectLink.relationship == "supports", ObjectLink.confidence > 0,
@@ -112,13 +128,14 @@ def erase_in_session(db, agent_id: str, evidence: EvidenceObject | None, evidenc
     if evidence is None:
         return []
     titles, summaries = _original(evidence)
+    tags = evidence.tags_json
     _blank_evidence(evidence)
     analysis_ids = list(db.scalars(select(AnalysisObject.id).where(
         AnalysisObject.agent_id == agent_id,
         AnalysisObject.evidence_ids_json == json.dumps([evidence_id]),
     )))
     memories = _memories_to_erase(db, analysis_ids)
-    _blank_episodes(db, evidence_id, titles, summaries)
+    _blank_episodes(db, evidence_id, titles, summaries, tags)
     owned = [evidence_id, *analysis_ids]
     db.execute(delete(ObjectLink).where(
         or_(ObjectLink.source_id.in_(owned), ObjectLink.target_id.in_(owned))

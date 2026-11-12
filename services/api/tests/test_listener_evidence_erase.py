@@ -14,6 +14,7 @@ from app.models.episode_object import EpisodeObject
 from app.models.evidence_object import EvidenceObject
 from app.models.evidence_source import EvidenceSource
 from app.models.memory import Memory
+from app.models.memory_revision import MemoryRevision
 from app.models.object_link import ObjectLink
 from app.models.processing_job import ProcessingJob
 from app.models.vector_outbox import VectorOutbox
@@ -171,6 +172,24 @@ def test_a_memory_the_owner_wrote_keeps_its_text(setup):
     with sessions() as db:
         assert db.get(Memory, "owner-made").text == SECRET
         assert not db.scalars(select(ObjectLink).where(ObjectLink.target_id == "owner-made")).all()
+    assert removed == []
+
+
+def test_a_listener_memory_the_owner_corrected_keeps_its_text(setup):
+    http, sessions, _, removed = setup
+    evidence_id = sent(http)
+    memory_id = process(sessions, evidence_id)["memory_id"]
+    with sessions() as db:
+        memory = db.get(Memory, memory_id)
+        memory.text = "I prefer the blue mug"  # the owner's own correction
+        db.add(MemoryRevision(memory_id=memory_id, changed_by="owner_review",
+                              reason="before reviewed runtime text correction", snapshot_json="{}"))
+        db.commit()
+
+    assert erase(http, evidence_id).json()["memory_ids"] == []
+
+    with sessions() as db:
+        assert db.get(Memory, memory_id).text == "I prefer the blue mug"
     assert removed == []
 
 
