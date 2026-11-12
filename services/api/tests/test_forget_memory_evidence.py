@@ -318,6 +318,8 @@ def test_conversation_evidence_goes_with_its_memory_and_pi_can_still_forget_the_
 
 
 def test_restoring_an_older_backup_replays_the_evidence_erase(setup):
+    # Recovery replays the tombstone through the listener erase, so the kinds must agree.
+    assert forgotten_evidence.EVIDENCE_KIND == listener_forgetting.KIND
     http, sessions, engine, tmp_path = setup
     first, second, made, other = scenario(http, sessions)
     engine.dispose()
@@ -335,10 +337,6 @@ def test_restoring_an_older_backup_replays_the_evidence_erase(setup):
         assert db.get(EvidenceObject, second).summary == SHARED
         assert db.get(Memory, other["memory_id"]) is not None
     restored_engine.dispose()
-
-
-def test_replay_kind_is_the_listener_erase():
-    assert forgotten_evidence.EVIDENCE_KIND == listener_forgetting.KIND
 
 
 OTHER_KEY = "other-listener-test-key-long-enough"
@@ -431,6 +429,28 @@ def test_forgetting_never_reaches_another_agents_evidence(setup, path):
         episode = db.get(EpisodeObject, their_result["episode_id"])
         assert (episode.title, episode.summary, episode.tags_json) == their_episode
     assert ELSEWHERE in texts_everywhere(engine)
+
+
+@pytest.mark.parametrize("path", sorted(PATHS))
+def test_forgetting_never_blanks_another_agents_episode(setup, path):
+    """Episodes are grouped without a namespace check (POST /lineage/episodes), so a forget
+    blanks only the forgetting agent's own episodes."""
+    http, sessions, _engine, _ = setup
+    first, made = listened(http, sessions, SECRET)
+    _, their_result = other_agents_event(http, sessions)
+    with sessions() as db:
+        # Our evidence grouped into their episode, which it is the only other member of.
+        link(db, "evidence", first, "episode", their_result["episode_id"], "grouped_into")
+        db.commit()
+        episode = db.get(EpisodeObject, their_result["episode_id"])
+        their_episode = (episode.title, episode.summary, episode.tags_json)
+
+    PATHS[path](http, sessions, made["memory_id"], "forget_request_00000005")
+
+    assert_forgotten(sessions, first)
+    with sessions() as db:
+        episode = db.get(EpisodeObject, their_result["episode_id"])
+        assert (episode.title, episode.summary, episode.tags_json) == their_episode
 
 
 class _Stop(Exception):

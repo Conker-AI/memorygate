@@ -102,7 +102,7 @@ def erase_in_session(db, agent_id: str, evidence: EvidenceObject | None, evidenc
         AnalysisObject.evidence_ids_json == json.dumps([evidence_id]),
     )))
     memories = _memories_to_erase(db, analysis_ids)
-    blank_episodes(db, evidence_id, titles, summaries, tags, TOMBSTONE_TITLE)
+    blank_episodes(db, agent_id, evidence_id, titles, summaries, tags, TOMBSTONE_TITLE)
     owned = [evidence_id, *analysis_ids]
     db.execute(delete(ObjectLink).where(
         or_(ObjectLink.source_id.in_(owned), ObjectLink.target_id.in_(owned))

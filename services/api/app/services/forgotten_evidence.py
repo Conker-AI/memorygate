@@ -50,16 +50,27 @@ def original(evidence: EvidenceObject) -> tuple[set[str], set[str]]:
 
 
 def blank_episodes(
-    db, evidence_id: str, titles: set[str], summaries: set[str], tags: str, title: str
+    db,
+    agent_id: str,
+    evidence_id: str,
+    titles: set[str],
+    summaries: set[str],
+    tags: str,
+    title: str,
 ) -> None:
-    """Blank what an episode took from this evidence; an episode only it fed is blanked whole."""
+    """Blank what an episode took from this evidence; an episode only it fed is blanked whole.
+
+    Only the agent's own episodes: a link from another namespace never lets a forget reach them."""
     grouped = select(ObjectLink.target_id).where(
         ObjectLink.source_type == "evidence",
         ObjectLink.source_id == evidence_id,
         ObjectLink.target_type == "episode",
         ObjectLink.relationship == "grouped_into",
     )
-    for episode in db.scalars(select(EpisodeObject).where(EpisodeObject.id.in_(grouped))):
+    episodes = select(EpisodeObject).where(
+        EpisodeObject.agent_id == agent_id, EpisodeObject.id.in_(grouped)
+    )
+    for episode in db.scalars(episodes):
         others = db.scalar(
             select(ObjectLink.id)
             .where(
@@ -201,7 +212,7 @@ def _tombstone(db, agent_id: str, evidence: EvidenceObject) -> None:
     deletion_receipt.record(db, agent_id, EVIDENCE_KIND, evidence.id)
     db.execute(delete(ProcessingJob).where(ProcessingJob.evidence_id == evidence.id))
     titles, summaries = original(evidence)
-    blank_episodes(db, evidence.id, titles, summaries, evidence.tags_json, TITLE)
+    blank_episodes(db, agent_id, evidence.id, titles, summaries, evidence.tags_json, TITLE)
     evidence.title = TITLE
     evidence.summary = ""
     evidence.raw_payload_json = json.dumps(
