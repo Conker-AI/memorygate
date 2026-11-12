@@ -13,6 +13,21 @@ X-MemoryGate-Listener-Key: <source-specific secret>
 
 An event becomes an immutable evidence object. With automatic processing enabled, it receives a processing job that may produce analysis, observations, and durable memory candidates. All resulting objects retain lineage rather than silently replacing their source.
 
+A listener can erase an event it sent, with the same key (also while the source is disabled):
+
+```text
+DELETE /runtime/listeners/{source_key}/evidence/{evidence_id}
+X-MemoryGate-Listener-Key: <source-specific secret>
+```
+
+The evidence becomes a content-free tombstone; its processing jobs, the analyses made from it alone
+and their links are deleted; each automatic listener memory nothing else supports is forgotten
+(revisions, conflicts, audit text, vector point); the episode loses the title, summary and tags it
+took from the event. A memory the owner wrote, or one another event still supports, keeps its text.
+The answer is `{"status": "erased", "memory_ids": [...]}`; a repeat erases nothing more, and another
+listener's event or an unknown id answers `not_found`. A deletion receipt lets recovery replay the
+erase into a restored backup.
+
 ## Backups and Reset
 
 Settings provides logical JSON backups and a **Danger Zone**.

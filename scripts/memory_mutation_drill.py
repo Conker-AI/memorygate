@@ -123,7 +123,20 @@ CASES.extend([
      'quote.update(status="owner_supplied_estimate", upper_bound_microusd=total)',
      'quote.update(supplied)'),
 ])
+CASES.extend([
+    # Erasing an imported event never takes a memory the owner wrote, never reaches another
+    # listener's event, and always takes the memory made from it alone.
+    ("listener-erase-takes-owner-memory", "services/api/app/services/listener_forgetting.py",
+     "if memory is None or memory.source_type != DERIVED_SOURCE:", "if memory is None:"),
+    ("listener-erase-crosses-sources", "services/api/app/services/listener_forgetting.py",
+     "if evidence is not None and source_id is not None and evidence.source_id != source_id:",
+     "if False:"),
+    ("listener-erase-keeps-memory", "services/api/app/services/listener_forgetting.py",
+     'memory_forgetting.erase(db, agent_id, memory, ACTION, {"evidence_id": evidence_id})',
+     "pass"),
+])
 SAFETY_TEST = "services/api/tests/test_audit_safety.py"
+LISTENER_TEST = "services/api/tests/test_listener_evidence_erase.py"
 TEST = "services/api/tests/test_conversation_memory.py"
 BOOTSTRAP_TEST = "services/api/tests/test_bootstrap_revocation.py"
 # The repository-write guard, so the copied tests run exactly as they do in the suite.
@@ -159,6 +172,7 @@ def main():
         shutil.copyfile(ROOT / TEST, target / TEST)
         shutil.copyfile(ROOT / BOOTSTRAP_TEST, target / BOOTSTRAP_TEST)
         shutil.copyfile(ROOT / SAFETY_TEST, target / SAFETY_TEST)
+        shutil.copyfile(ROOT / LISTENER_TEST, target / LISTENER_TEST)
         for guard in GUARD:
             shutil.copyfile(ROOT / guard, target / guard)
         shutil.copyfile(ROOT / "services/api/requirements.txt", target / "services/api/requirements.txt")
@@ -181,6 +195,7 @@ def main():
                 TEST,
                 BOOTSTRAP_TEST,
                 SAFETY_TEST,
+                LISTENER_TEST,
                 "-q",
                 "-p",
                 "no:cacheprovider",

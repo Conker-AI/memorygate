@@ -6,6 +6,11 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **A listener can erase an event it sent** (`DELETE /runtime/listeners/{source_key}/evidence/{id}`,
+  same key): the evidence, its analyses, links, job results and the listener memories it alone
+  supported go; recovery replays the erase (`listener_evidence` receipts). New endpoint, no change
+  to existing ones. Pi uses it when the owner deletes an imported chat.
+
 ## 0.8.2
 
 - **The image takes Debian's zlib security fix** (zlib1g CVE-2026-76844 and CVE-2026-85091,
