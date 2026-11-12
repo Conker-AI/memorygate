@@ -6,6 +6,11 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **Each tag gets a GitHub Release page and an SBOM.** The Release page's notes are the
+  version's CHANGELOG section. Every image carries an SPDX SBOM (BuildKit attestation) inside
+  the image index, and the signed build provenance covers that index digest. Check one with
+  `gh attestation verify oci://IMAGE@DIGEST --owner Conker-AI`.
+
 - **Backups keep correction and forget receipts and the audit trail** (`memory_corrections`,
   `memory_forgets`, `memory_audit`), so a retried correction or forget answers with its receipt
   after a restore. A test fails on any table that is neither backed up nor listed as left out.
