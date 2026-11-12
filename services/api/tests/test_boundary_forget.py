@@ -210,9 +210,11 @@ def test_a_memory_from_chat_stays_forgotten_and_its_message_can_be_forgotten_too
     assert stack.get(f"/memory/{memory_id}").status_code == 404
     assert stack.context("bike", **in_chat)["memories"] == []
 
-    # By design the chat message itself is source evidence, not the memory: it stays
-    # until the owner forgets the message, and then its text is gone everywhere.
-    assert "gym" in json.dumps(stack.library(object_type="evidence"))
+    # The message's evidence backed only this memory, so forgetting the memory took its
+    # words too (Pi keeps the transcript). Pi can still forget the message afterwards,
+    # and then nothing of it is left anywhere.
+    assert "gym" not in json.dumps(stack.library(object_type="evidence"))
+    assert "gym" not in stack.stored_text()
     assert stack.unsay("msg_bike")["state"] == "deleted"
     assert "gym" not in json.dumps(stack.library())
     assert "gym" not in stack.stored_text() and "gym" not in stack.backup()

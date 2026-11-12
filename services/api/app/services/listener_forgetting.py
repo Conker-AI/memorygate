@@ -25,13 +25,14 @@ from datetime import UTC, datetime
 from app.core.db import SessionLocal
 from app.models import deletion_receipt
 from app.models.analysis_object import AnalysisObject
-from app.models.episode_object import EpisodeObject
 from app.models.evidence_object import EvidenceObject
 from app.models.memory import Memory
 from app.models.memory_revision import MemoryRevision
 from app.models.object_link import ObjectLink
 from app.models.processing_job import ProcessingJob
 from app.services import memory_forgetting
+from app.services.forgotten_evidence import blank_episodes, original
+from app.services.memory_text_lock import lock_memory_text
 from app.services.qdrant_store import delete_memory_embedding
 from sqlalchemy import delete, or_, select, text
 
@@ -44,17 +45,6 @@ DERIVED_SOURCE = "automatic_listener"
 OWNER_CHANGES = ("user", "owner_review")
 
 
-def _original(evidence: EvidenceObject) -> tuple[set[str], set[str]]:
-    """The titles and summaries an episode may have copied from this evidence."""
-    try:
-        content = json.loads(evidence.normalized_payload_json or "{}").get("content") or ""
-    except (ValueError, AttributeError):
-        content = ""
-    titles = {value for value in (evidence.title, content[:120]) if value}
-    summaries = {value for value in (evidence.summary, content[:280]) if value}
-    return titles, summaries
-
-
 def _blank_evidence(evidence: EvidenceObject) -> None:
     evidence.title = TOMBSTONE_TITLE
     evidence.summary = ""
@@ -64,25 +54,6 @@ def _blank_evidence(evidence: EvidenceObject) -> None:
     evidence.invalidated_at = evidence.invalidated_at or datetime.now(UTC)
     evidence.invalidation_reason = "Listener event erased"
     evidence.processing_state = "invalidated"
-
-
-def _blank_episodes(db, evidence_id: str, titles: set[str], summaries: set[str],
-                    tags: str) -> None:
-    grouped = select(ObjectLink.target_id).where(
-        ObjectLink.source_type == "evidence", ObjectLink.source_id == evidence_id,
-        ObjectLink.target_type == "episode", ObjectLink.relationship == "grouped_into",
-    )
-    for episode in db.scalars(select(EpisodeObject).where(EpisodeObject.id.in_(grouped))):
-        others = db.scalar(select(ObjectLink.id).where(
-            ObjectLink.target_type == "episode", ObjectLink.target_id == episode.id,
-            ObjectLink.relationship == "grouped_into", ObjectLink.source_id != evidence_id,
-        ).limit(1))
-        if others is None or episode.title in titles:
-            episode.title = TOMBSTONE_TITLE
-        if others is None or episode.summary in summaries:
-            episode.summary = ""
-        if others is None or episode.tags_json == tags:
-            episode.tags_json = "[]"
 
 
 def _memories_to_erase(db, analysis_ids: list[str]) -> list[Memory]:
@@ -97,13 +68,9 @@ def _memories_to_erase(db, analysis_ids: list[str]) -> list[Memory]:
         memory = db.get(Memory, memory_id)
         if memory is None or memory.source_type != DERIVED_SOURCE:
             continue
-        if db.get_bind().dialect.name == "postgresql":
-            # The pipeline's lock for this text: a worker about to reuse this memory for another
-            # event either links it before this check or finds it gone and makes its own.
-            db.execute(
-                text("SELECT pg_advisory_xact_lock(hashtext(:agent_id), hashtext(:memory_text))"),
-                {"agent_id": memory.agent_id, "memory_text": memory.text.strip().lower()},
-            )
+        # The pipeline's lock for this text: a worker about to reuse this memory for another
+        # event either links it before this check or finds it gone and makes its own.
+        lock_memory_text(db, memory.agent_id, memory.text)
         owner_touched = db.scalar(select(MemoryRevision.id).where(
             MemoryRevision.memory_id == memory_id, MemoryRevision.changed_by.in_(OWNER_CHANGES),
         ).limit(1))
@@ -127,7 +94,7 @@ def erase_in_session(db, agent_id: str, evidence: EvidenceObject | None, evidenc
     db.execute(delete(ProcessingJob).where(ProcessingJob.evidence_id == evidence_id))
     if evidence is None:
         return []
-    titles, summaries = _original(evidence)
+    titles, summaries = original(evidence)
     tags = evidence.tags_json
     _blank_evidence(evidence)
     analysis_ids = list(db.scalars(select(AnalysisObject.id).where(
@@ -135,7 +102,7 @@ def erase_in_session(db, agent_id: str, evidence: EvidenceObject | None, evidenc
         AnalysisObject.evidence_ids_json == json.dumps([evidence_id]),
     )))
     memories = _memories_to_erase(db, analysis_ids)
-    _blank_episodes(db, evidence_id, titles, summaries, tags)
+    blank_episodes(db, evidence_id, titles, summaries, tags, TOMBSTONE_TITLE)
     owned = [evidence_id, *analysis_ids]
     db.execute(delete(ObjectLink).where(
         or_(ObjectLink.source_id.in_(owned), ObjectLink.target_id.in_(owned))

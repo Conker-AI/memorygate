@@ -108,6 +108,10 @@ def run_job(db, job: ProcessingJob) -> None:
     if not evidence:
         _fail(db, job, "evidence no longer exists")
         return
+    if evidence.invalidated_at is not None:
+        # Invalidated or forgotten evidence is never analysed again; it stays a tombstone.
+        _fail(db, job, "evidence was invalidated")
+        return
     try:
         content = json.loads(evidence.normalized_payload_json or "{}").get("content") or evidence.summary
     except (ValueError, AttributeError):
