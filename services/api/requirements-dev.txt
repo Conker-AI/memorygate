@@ -2,3 +2,5 @@
 #   pip install -r requirements.txt -r requirements-dev.txt
 #   python -m pytest tests
 pytest==9.1.1
+pytest-cov==7.1.0
+pyright==1.1.414
