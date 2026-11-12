@@ -7,6 +7,7 @@ from pathlib import Path
 
 from app.core.config import BACKUP_DIR
 from app.models.analysis_object import AnalysisObject
+from app.models.audit import MemoryAudit
 from app.models.conversation_receipt import ConversationReceipt
 from app.models.deletion_receipt import DeletionReceipt, RecoveryHold
 from app.models.entity import Entity, EntityEdge, EntityEvent, EntityHistory
@@ -15,6 +16,8 @@ from app.models.evidence_object import EvidenceObject
 from app.models.evidence_source import EvidenceSource
 from app.models.memory import Memory
 from app.models.memory_conflict import MemoryConflict
+from app.models.memory_correction import MemoryCorrection
+from app.models.memory_forget import MemoryForget
 from app.models.memory_revision import MemoryRevision
 from app.models.object_link import ObjectLink
 from app.models.observation import Observation
@@ -27,7 +30,16 @@ from sqlalchemy import select
 _MODELS = (Memory, Entity, EntityEdge, EntityEvent, EntityHistory, Observation, Pattern,
            SessionTranscript, EvidenceSource, EvidenceObject, EpisodeObject, AnalysisObject,
            ObjectLink, ProcessingJob, MemoryRevision, MemoryConflict, ConversationReceipt,
-           DeletionReceipt, RecoveryHold, VectorOutbox)
+           DeletionReceipt, RecoveryHold, VectorOutbox,
+           # Correction and forget receipts answer a retried request after a restore; the
+           # audit trail is the history. All three hold ids, hashes or redacted payloads.
+           MemoryCorrection, MemoryForget, MemoryAudit)
+# Left out on purpose: credentials and keys (agent_access_keys, auth_settings,
+# bootstrap_authorities, ai_runtime_settings with its encrypted provider key), per-agent tuning
+# the owner sets again (agent_configs), and recovery_verifications, which only prove a check ran
+# on this database. tests/test_backup_coverage.py fails on any table in neither list.
+EXCLUDED = frozenset({"agent_access_keys", "auth_settings", "bootstrap_authorities",
+                      "ai_runtime_settings", "agent_configs", "recovery_verifications"})
 
 
 def _value(value):

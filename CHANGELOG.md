@@ -6,6 +6,10 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **Backups keep correction and forget receipts and the audit trail** (`memory_corrections`,
+  `memory_forgets`, `memory_audit`), so a retried correction or forget answers with its receipt
+  after a restore. A test fails on any table that is neither backed up nor listed as left out.
+
 ## 0.8.2
 
 - **The image takes Debian's zlib security fix** (zlib1g CVE-2026-76844 and CVE-2026-85091,
