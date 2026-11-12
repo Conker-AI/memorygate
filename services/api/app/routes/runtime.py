@@ -19,6 +19,7 @@ from app.models.processing_job import ProcessingJob
 from app.models.vector_outbox import VectorOutbox
 from app.schemas.explorer import ExploreRequest, LibraryRequest
 from app.schemas.runtime import AgentContextRequest, IngestEventRequest, MemoryQuestionRequest
+from app.services import listener_forgetting
 from app.services.auth_settings_service import (
     clear_failed_attempts,
     get_lockout_status,
@@ -85,35 +86,53 @@ def ingest(payload: IngestEventRequest, header_agent_id: str = Depends(get_agent
         db.close()
 
 
+def _listener_source(db, source_key: str, request: Request, key: str | None, *,
+                     require_enabled: bool = True) -> tuple[EvidenceSource, str]:
+    """The listener a source key names, checked against its own key; and its agent id."""
+    source = db.execute(select(EvidenceSource).where(EvidenceSource.source_key == source_key.strip().lower())).scalar_one_or_none()
+    if not source or (require_enabled and not source.enabled):
+        raise HTTPException(404, "Enabled evidence source not found" if require_enabled else "Evidence source not found")
+    client_host = request.client.host if request.client else "unknown"
+    lock_scope = f"listener:{client_host}:{source.source_key}"
+    remaining = get_lockout_status(lock_scope)
+    if remaining:
+        raise HTTPException(429, f"Too many failed attempts. Try again in {remaining} seconds.")
+    secret = json.loads(source.secret_json or "{}").get("ingest_key", "")
+    # Bytes, not str: compare_digest raises on a non-ASCII str, and a header can carry one.
+    if not secret or not key or not hmac.compare_digest(secret.encode(), key.encode()):
+        remaining = register_failed_attempt(lock_scope)
+        if remaining:
+            raise HTTPException(429, f"Too many failed attempts. Try again in {remaining} seconds.")
+        raise HTTPException(401, "invalid listener key")
+    clear_failed_attempts(lock_scope)
+    return source, json.loads(source.config_json or "{}").get("agent_id", "default")
+
+
 @router.post("/listeners/{source_key}")
 def listener_ingest(source_key: str, payload: IngestEventRequest, request: Request, x_memorygate_listener_key: str | None = Header(None, alias="X-MemoryGate-Listener-Key")):
     """Dedicated listener ingress: source token only, never an admin credential."""
     db = SessionLocal()
     try:
-        source = db.execute(select(EvidenceSource).where(EvidenceSource.source_key == source_key.strip().lower())).scalar_one_or_none()
-        if not source or not source.enabled:
-            raise HTTPException(404, "Enabled evidence source not found")
-        client_host = request.client.host if request.client else "unknown"
-        lock_scope = f"listener:{client_host}:{source.source_key}"
-        remaining = get_lockout_status(lock_scope)
-        if remaining:
-            raise HTTPException(429, f"Too many failed attempts. Try again in {remaining} seconds.")
-        secret = json.loads(source.secret_json or "{}").get("ingest_key", "")
-        # Bytes, not str: compare_digest raises on a non-ASCII str, and a header can carry one.
-        if not secret or not x_memorygate_listener_key or not hmac.compare_digest(
-            secret.encode(), x_memorygate_listener_key.encode()
-        ):
-            remaining = register_failed_attempt(lock_scope)
-            if remaining:
-                raise HTTPException(429, f"Too many failed attempts. Try again in {remaining} seconds.")
-            raise HTTPException(401, "invalid listener key")
-        clear_failed_attempts(lock_scope)
-        config = json.loads(source.config_json or "{}")
+        source, agent_id = _listener_source(db, source_key, request, x_memorygate_listener_key)
         payload.source_key = source.source_key
-        payload.agent_id = config.get("agent_id", "default")
+        payload.agent_id = agent_id
         return _enqueue(db, source, payload, payload.agent_id)
     finally:
         db.close()
+
+
+@router.delete("/listeners/{source_key}/evidence/{evidence_id}")
+def listener_erase(source_key: str, evidence_id: str, request: Request, x_memorygate_listener_key: str | None = Header(None, alias="X-MemoryGate-Listener-Key")):
+    """Erase one event this listener sent and what was derived from it. Works on a disabled source."""
+    db = SessionLocal()
+    try:
+        source, agent_id = _listener_source(db, source_key, request, x_memorygate_listener_key, require_enabled=False)
+    finally:
+        db.close()
+    result = listener_forgetting.erase_evidence(agent_id, evidence_id, source_id=source.id)
+    # Not 404: that answer means the listener itself is unknown, and its sender pauses on it.
+    # Another listener's event gets the same answer as one that never existed.
+    return result or {"status": "not_found", "evidence_id": evidence_id, "memory_ids": []}
 
 
 def _scoped_context(db, payload: AgentContextRequest, agent_id: str) -> dict:

@@ -11,7 +11,7 @@ from app.models.episode_object import EpisodeObject
 from app.models.memory import Memory
 from app.models.object_link import ObjectLink
 from app.models.observation import Observation
-from app.services import conversation_memory
+from app.services import conversation_memory, listener_forgetting
 from sqlalchemy import select
 
 MODELS = {"memory": Memory, "entity": Entity, "observation": Observation,
@@ -96,7 +96,7 @@ def replay(receipts, target_sessions):
     if (not isinstance(receipts, list) or len(receipts) > 1_000_000 or any(
         not isinstance(item, (list, tuple)) or len(item) != 3
         or any(not isinstance(part, str) or len(part) > 256 for part in item)
-        or item[1] not in (*MODELS, "conversation") or not item[2]
+        or item[1] not in (*MODELS, "conversation", listener_forgetting.KIND) or not item[2]
         or (item[1] != "link" and not item[0]) for item in receipts)):
         raise ValueError("Invalid deletion evidence.")
     with target_sessions() as db:
@@ -109,6 +109,10 @@ def replay(receipts, target_sessions):
             result = conversation_memory.forget(agent_id, identity, sessions=target_sessions)
             if result["memory_id"]:
                 indexes.add(("memory", result["memory_id"]))
+            continue
+        if kind == listener_forgetting.KIND:
+            result = listener_forgetting.erase_evidence(agent_id, identity, sessions=target_sessions)
+            indexes.update(("memory", memory_id) for memory_id in result["memory_ids"])
             continue
         with target_sessions() as db:
             model = MODELS[kind]
