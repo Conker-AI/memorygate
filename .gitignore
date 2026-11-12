@@ -9,3 +9,5 @@ build
 example/
 data/
 .pytest_cache/
+.coverage
+.coverage.*
