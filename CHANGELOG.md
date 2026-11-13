@@ -56,6 +56,10 @@ a decision with visible consequences.
   newest 100. Now only an active memory of the agent counts, however old, and two writes of one
   text are serialised (Postgres).
 
+- **Memory and entity lists page.** `GET /memory` and `GET /entity` returned the newest 100 rows
+  and nothing more, so older ones could not be listed, reviewed or deleted through them. Both take
+  `limit` (1-500, default 100) and `offset`.
+
 - **"Don't remember" keeps no words.** A conversation message the owner asked not to keep
   ("don't remember ...", "не запоминай ...") used to be stored word for word as evidence (only
   the memory was skipped). Its evidence now holds no text (`normalized_payload` is
