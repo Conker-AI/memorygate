@@ -14,6 +14,7 @@ from app.schemas.observation import (
     ObservationUpdateRequest,
 )
 from app.services.agent_config_service import get_or_create_config
+from app.services.observation_forgetting import erase_observation_dependents
 from app.services.observation_lifecycle import apply_session_context, enforce_budget, find_duplicate
 from app.services.pattern_promotion import promote_from_observations
 from app.services.vector_outbox import enqueue_delete, enqueue_upsert, reconcile_one
@@ -189,6 +190,7 @@ def delete_observation(observation_id: str, agent_id: str = Depends(get_agent_id
         from app.models.deletion_receipt import record
         record(db, agent_id, "observation", row.id)
         enqueue_delete(db, "observation", row.id, agent_id=agent_id)
+        erase_observation_dependents(db, row.id)
         db.delete(row)
         db.commit()
         indexing = reconcile_one("observation", observation_id, sessions=SessionLocal)

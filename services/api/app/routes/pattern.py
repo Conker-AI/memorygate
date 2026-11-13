@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 
 from app.core.agent import get_agent_id, resolve_agent_id
 from app.core.db import SessionLocal
+from app.models.deletion_receipt import record
 from app.models.observation import Observation
 from app.models.pattern import Pattern
 from app.schemas.pattern import (
@@ -13,6 +14,7 @@ from app.schemas.pattern import (
     PatternSearchRequest,
     PatternUpdateRequest,
 )
+from app.services.observation_forgetting import erase_pattern
 from app.services.pattern_promotion import (
     DEPRECATE_AT_CONTRADICTIONS,
     clamp_confidence,
@@ -76,6 +78,19 @@ def create_pattern(payload: PatternCreateRequest, header_agent_id: str = Depends
         db.commit()
         db.refresh(row)
         return {"status": "ok", "pattern": _pattern_to_dict(row)}
+    finally:
+        db.close()
+
+@router.delete("/{pattern_id}")
+def delete_pattern(pattern_id: str, agent_id: str = Depends(get_agent_id)):
+    """Delete a pattern and its lineage links; it leaves a content-free receipt for replay."""
+    db = SessionLocal()
+    try:
+        row = _get_owned_pattern(db, pattern_id, agent_id)
+        record(db, agent_id, "pattern", row.id)
+        erase_pattern(db, row.id)
+        db.commit()
+        return {"status": "ok"}
     finally:
         db.close()
 

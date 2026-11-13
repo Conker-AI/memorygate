@@ -82,6 +82,15 @@ a decision with visible consequences.
   goes, the removed entity's vector is queued for deletion (the startup dedup left it in Qdrant),
   and a malformed tags or attributes value no longer stops startup.
 
+- **Patterns can be deleted, and a deleted observation leaves them.** There was no way to delete
+  a pattern, and deleting an observation left its id, its lineage links and every pattern built
+  from it. `DELETE /pattern/{id}` now deletes a pattern of the calling agent (404 for another
+  agent's) with its lineage links and a `pattern` deletion receipt. Deleting an observation
+  removes its lineage links, its id in other observations and in patterns, and a pattern left
+  with no observation (with its receipt). Recovery replay of `observation` and `pattern`
+  receipts removes the same set from a restored backup. A pattern that still has other
+  observations keeps its text.
+
 - **Lineage stays inside one agent.** `POST /lineage/links`, `GET /lineage/{type}/{id}`,
   `DELETE /lineage/links/{id}` and an episode's `evidence_ids` now answer 404 for an object
   of another agent (the `X-Agent-Id` header), as for a missing one. Before, they read and
