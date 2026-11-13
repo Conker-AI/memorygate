@@ -6,10 +6,6 @@ a decision with visible consequences.
 
 ## Unreleased
 
-- **The audit list is bounded.** `GET /audit` returned every row ever written; it now returns the
-  newest `limit` rows (default 500, at most 2000). `/audit/metrics` counts with GROUP BY instead of
-  loading every row of the window.
-
 - **A lockout stops wrong keys, never the right one.** After five wrong keys from one address,
   every key from that address was refused for 300 s, so one misconfigured caller behind a proxy
   or the host network locked out the rest, and failures never expired. Now the key is checked
@@ -20,6 +16,10 @@ a decision with visible consequences.
 - **No model answer, no AI analysis.** When no model answered (Pi down, local model off, hosted
   call refused), evidence processing stored an empty `local_ai_proposal` analysis, so the
   evidence counted as analysed and was never analysed again. Now nothing is stored.
+
+- **The audit list is bounded.** `GET /audit` returned every row ever written; it now returns the
+  newest `limit` rows (default 500, at most 2000). `/audit/metrics` counts with GROUP BY instead of
+  loading every row of the window.
 
 - **The conflict check reads whole words and keeps the owner's words in recall.** It counted
   "not" inside "knot" or "cannot " and matched long words as substrings over the first eight
