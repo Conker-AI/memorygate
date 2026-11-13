@@ -6,6 +6,11 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **A recovery replay removes every copy of a forgotten memory's text.** Replaying a memory's
+  deletion receipt into a restored backup deleted only the memory row, so its revision snapshots,
+  the conflicts naming it and the text in its audit entries came back with the backup. The replay
+  now removes and redacts them as a live forget does, also when the row is already gone.
+
 - **Two patterns that start alike stay two patterns.** A pattern was named by the first 60
   characters of its hypothesis, so two clusters sharing that beginning wrote into one pattern,
   each run replacing the other's observations and counting a new confirmation. A long hypothesis
