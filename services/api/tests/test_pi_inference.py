@@ -176,9 +176,8 @@ def test_pi_503_falls_back_exactly_like_an_unavailable_local_model(pi, monkeypat
 
     assert via_pi == today
     generated, analysis, answer = via_pi
-    assert generated is None and answer is None
-    # Nothing is made up: no summary, no observations, no candidates.
-    assert analysis == {"summary": "", "observations": [], "memory_candidates": []}
+    # Nothing is made up: no model answer means no analysis at all.
+    assert generated is None and answer is None and analysis is None
 
 
 @pytest.mark.parametrize(
@@ -229,11 +228,11 @@ def test_processing_completes_on_pi_503_without_invented_memory(pi, tmp_path):
             db.add(evidence)
             db.commit()
             result = runtime_pipeline.process_evidence(db, evidence, EVIDENCE)
-            proposal = db.get(AnalysisObject, result["ai_analysis_id"])
             job = db.query(ProcessingJob).one()
             assert job.status == "completed"
-            assert proposal.output_summary == ""
-            assert json.loads(proposal.steps_json) == {"observations": [], "memory_candidates": []}
+            # No empty "finished" AI analysis is stored, so a later run can still analyse it.
+            assert result["ai_analysis_id"] is None
+            assert db.query(AnalysisObject).filter_by(analysis_type="local_ai_proposal").count() == 0
     finally:
         engine.dispose()
 

@@ -55,7 +55,10 @@ def _answered_by(raw) -> dict:
 
 def analyze_evidence(content: str, source_type: str) -> dict | None:
     try:
-        raw = _generate(SYSTEM_PROMPT, f"Source type: {source_type}\nEvidence:\n{content[:6000]}", 160) or "{}"
+        raw = _generate(SYSTEM_PROMPT, f"Source type: {source_type}\nEvidence:\n{content[:6000]}", 160)
+        if not raw:
+            # No model answered: no analysis, so the evidence is not marked as analysed.
+            return None
         data = json.loads(raw)
         if not isinstance(data, dict):
             return None

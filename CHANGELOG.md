@@ -12,6 +12,10 @@ a decision with visible consequences.
   edit, and reads return the stored text. In `/context/skills` a skill that does not fit what is
   left is skipped instead of ending the list, so smaller skills after it are still delivered.
 
+- **No model answer, no AI analysis.** When no model answered (Pi down, local model off, hosted
+  call refused), evidence processing stored an empty `local_ai_proposal` analysis, so the
+  evidence counted as analysed and was never analysed again. Now nothing is stored.
+
 - **The conflict check reads whole words and keeps the owner's words in recall.** It counted
   "not" inside "knot" or "cannot " and matched long words as substrings over the first eight
   only. Now it compares whole words ("not", "never", "no longer", "stopped", "cannot", "-n't"

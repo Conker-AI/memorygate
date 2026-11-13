@@ -11,7 +11,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 
 from app.routes import memory as memory_routes
-from memory_stack import request_id
+from memory_stack import holds_word, request_id
 from memory_stack import stack as stack
 
 OLD = "I always study physics in the library after school"
@@ -90,7 +90,7 @@ def test_a_correction_is_what_every_read_returns_and_history_keeps_the_old_text(
     assert stale.status_code == 409
     assert set(returned_texts(stack, memory_id)) == {NEWER}
     assert stack.index.holds(memory_id, NEWER)
-    assert "bus" not in stack.stored_text()
+    assert not holds_word(stack.stored_text(), "bus")
 
 
 def test_concurrent_corrections_one_wins_and_the_rest_leave_no_trace(stack):
@@ -222,3 +222,9 @@ def test_concurrent_resolutions_do_not_both_win(stack, monkeypatch):
         json.loads(responses[[r.status_code for r in responses].index(409)].text)["detail"]["code"]
         == "revision_conflict"
     )
+
+
+def test_the_leak_check_ignores_letters_inside_a_random_hash():
+    # The check above once failed on a stored key hash that happened to spell "bus".
+    assert not holds_word("zI7eP5gQdGbusxeJu9C9KN5iuaFtieMX4=", "bus")
+    assert holds_word('["bus"]', "bus") and holds_word("study physics on the BUS", "bus")
