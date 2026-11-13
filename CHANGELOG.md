@@ -30,6 +30,14 @@ a decision with visible consequences.
   was cut off; the ingest key now stays. `POST /evidence` refuses a disabled source (409), and a
   source's "last ingested" is the arrival time, not the event's own time.
 
+- **Memory upkeep candidates (read-only).** `GET /runtime/memory-upkeep` (read key or admin key,
+  the header's agent only) lists exact and near duplicates, open contradictions, memories past
+  `valid_until` or their review date, and active memories not recalled for `unused_days`
+  (default 90), each with the ids and a reason; `limit` caps each group, `total` counts all.
+  It changes nothing. Recall (`/runtime/context`, `/runtime/ask`) now stamps a new
+  `last_recalled_at` column on the memories it returns, at most once an hour, best effort and
+  without bumping the revision; memories recalled before this release read "never recalled".
+
 - **Memory search without the vector index matches words.** When the index was down or found
   nothing, `POST /memory/search` matched the whole query as one piece of text, so "release
   pipeline" found nothing in "the pipeline for the release". The fallback now uses recall's word
