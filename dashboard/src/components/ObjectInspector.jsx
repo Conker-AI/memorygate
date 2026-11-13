@@ -36,7 +36,7 @@ export default function ObjectInspector({ record, onClose, onChanged, onRemoved 
     setTab('Overview');
     setDraft(record.data);
     setDetails({ history: [], edges: [], events: [], incoming: [], outgoing: [] });
-    const lineage = api.get(`/lineage/${record.kind}/${record.id}`).catch(() => ({ incoming: [], outgoing: [] }));
+    const lineage = api.get(`/lineage/${record.kind}/${record.id}`, undefined, record.agentId).catch(() => ({ incoming: [], outgoing: [] }));
     if (record.kind !== 'entity') {
       lineage.then((graph) => setDetails((current) => ({ ...current, ...graph })));
       return;
