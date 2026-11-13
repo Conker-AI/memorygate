@@ -6,6 +6,11 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **Id lists name only rows that exist.** Observation and pattern create and update stored any
+  ids in `entity_ids`, `related_observation_ids`, `observation_ids` and `applies_to_entity_ids`,
+  so a deleted or another agent's id could be written back. Such a request is now refused (422
+  `unknown_ids`, naming the ids) and stores nothing.
+
 - **Two patterns that start alike stay two patterns.** A pattern was named by the first 60
   characters of its hypothesis, so two clusters sharing that beginning wrote into one pattern,
   each run replacing the other's observations and counting a new confirmation. A long hypothesis
