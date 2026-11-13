@@ -6,6 +6,13 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **Two patterns that start alike stay two patterns.** A pattern was named by the first 60
+  characters of its hypothesis, so two clusters sharing that beginning wrote into one pattern,
+  each run replacing the other's observations and counting a new confirmation. A long hypothesis
+  now adds a short hash of the whole text to the name; a pattern under the old name stays with
+  the cluster whose observations it holds. Contradicted or archived observations no longer build
+  a pattern.
+
 - **A lockout stops wrong keys, never the right one.** After five wrong keys from one address,
   every key from that address was refused for 300 s, so one misconfigured caller behind a proxy
   or the host network locked out the rest, and failures never expired. Now the key is checked
