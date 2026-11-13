@@ -6,6 +6,11 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **Memory search without the vector index matches words.** When the index was down or found
+  nothing, `POST /memory/search` matched the whole query as one piece of text, so "release
+  pipeline" found nothing in "the pipeline for the release". The fallback now uses recall's word
+  search (active memories, best match first).
+
 - **A lockout stops wrong keys, never the right one.** After five wrong keys from one address,
   every key from that address was refused for 300 s, so one misconfigured caller behind a proxy
   or the host network locked out the rest, and failures never expired. Now the key is checked

@@ -238,3 +238,25 @@ def test_a_write_survives_an_unavailable_index_and_admits_it(
     assert body["novelty_check"]["status"] == "degraded"
     with session() as db:
         assert db.query(Memory).count() == 1
+
+
+def test_memory_search_without_the_index_matches_words_not_the_whole_query(
+    session, monkeypatch, no_semantic_retrieval
+):
+    monkeypatch.setattr(auth_settings_service, "MEMORYGATE_ADMIN_KEY", "")
+    with session() as db:
+        set_admin_key(db, ADMIN_KEY)
+        db.add(Memory(agent_id="default", text="The pipeline for the release broke on Friday.",
+                      summary="release broke", tags_json="[]"))
+        db.add(Memory(agent_id="default", text="Lunch is at noon.", summary="lunch", tags_json="[]"))
+        db.commit()
+    app = FastAPI()
+    app.include_router(memory_routes.router, dependencies=[Depends(auth.require_key)])
+    client = TestClient(app, raise_server_exceptions=False)
+
+    body = client.post(
+        "/memory/search", headers={"X-MemoryGate-Key": ADMIN_KEY}, json={"query": "release pipeline"}
+    ).json()
+
+    assert body["retrieval"]["mode"] == "lexical"
+    assert [item["text"] for item in body["results"]] == ["The pipeline for the release broke on Friday."]
