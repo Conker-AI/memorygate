@@ -6,6 +6,13 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **Two patterns that start alike stay two patterns.** A pattern was named by the first 60
+  characters of its hypothesis, so two clusters sharing that beginning wrote into one pattern,
+  each run replacing the other's observations and counting a new confirmation. A long hypothesis
+  now adds a short hash of the whole text to the name; a pattern under the old name stays with
+  the cluster whose observations it holds. Contradicted or archived observations no longer build
+  a pattern.
+
 - **A lockout stops wrong keys, never the right one.** After five wrong keys from one address,
   every key from that address was refused for 300 s, so one misconfigured caller behind a proxy
   or the host network locked out the rest, and failures never expired. Now the key is checked
@@ -18,6 +25,11 @@ a decision with visible consequences.
   was cut off; the ingest key now stays. `POST /evidence` refuses a disabled source (409), and a
   source's "last ingested" is the arrival time, not the event's own time.
 
+- **Memory search without the vector index matches words.** When the index was down or found
+  nothing, `POST /memory/search` matched the whole query as one piece of text, so "release
+  pipeline" found nothing in "the pipeline for the release". The fallback now uses recall's word
+  search (active memories, best match first).
+
 - **No model answer, no AI analysis.** When no model answered (Pi down, local model off, hosted
   call refused), evidence processing stored an empty `local_ai_proposal` analysis, so the
   evidence counted as analysed and was never analysed again. Now nothing is stored.
@@ -25,6 +37,11 @@ a decision with visible consequences.
 - **The audit list is bounded.** `GET /audit` returned every row ever written; it now returns the
   newest `limit` rows (default 500, at most 2000). `/audit/metrics` counts with GROUP BY instead of
   loading every row of the window.
+
+- **A reset leaves no trace of what it removed.** Correction receipts naming a removed memory are
+  removed with it (a repeated correction request would otherwise answer for a memory that no
+  longer exists), and a dated reset takes the removed entities' ids out of the observations and
+  patterns it keeps. Forget receipts stay, so a forgotten memory never returns.
 
 - **The conflict check reads whole words and keeps the owner's words in recall.** It counted
   "not" inside "knot" or "cannot " and matched long words as substrings over the first eight
@@ -38,6 +55,10 @@ a decision with visible consequences.
   expired answered ok with `duplicate_of` and nothing became active; it also looked only at the
   newest 100. Now only an active memory of the agent counts, however old, and two writes of one
   text are serialised (Postgres).
+
+- **Memory and entity lists page.** `GET /memory` and `GET /entity` returned the newest 100 rows
+  and nothing more, so older ones could not be listed, reviewed or deleted through them. Both take
+  `limit` (1-500, default 100) and `offset`.
 
 - **"Don't remember" keeps no words.** A conversation message the owner asked not to keep
   ("don't remember ...", "не запоминай ...") used to be stored word for word as evidence (only

@@ -15,9 +15,11 @@ from app.models.entity import Entity, EntityEdge, EntityEvent, EntityHistory
 from app.models.evidence_source import EvidenceSource
 from app.models.memory import Memory
 from app.models.memory_conflict import MemoryConflict
+from app.models.memory_correction import MemoryCorrection
 from app.models.memory_revision import MemoryRevision
 from app.models.object_link import ObjectLink
 from app.models.observation import Observation
+from app.models.pattern import Pattern
 from app.models.vector_outbox import VectorOutbox
 from app.routes import system as system_routes
 from app.services import auth_settings_service, backup_service, conversation_memory
@@ -84,7 +86,7 @@ def test_a_full_reset_backs_up_first_then_removes_knowledge_and_linked_history(s
     assert result["reset_from"] is None
     assert result["removed"] == {"memories": 2, "entities": 2, "observations": 1, "patterns": 0, "evidence": 0,
                                  "analysis": 0, "episodes": 0, "transcripts": 0, "jobs": 0, "audit": 1,
-                                 "receipts": 0}
+                                 "receipts": 0, "corrections": 0}
     assert result["indexing"] == {"status": "pending", "operations": 5}
     with sessions() as db:
         for model in (Memory, Entity, Observation, MemoryAudit, MemoryRevision, MemoryConflict, EntityEdge,
@@ -226,3 +228,27 @@ def test_five_wrong_keys_lock_out_wrong_keys_but_never_the_right_one(sessions, m
         assert db.query(Memory).count() == 2
     # Someone else's wrong keys from the same address never lock out the owner's right key.
     assert _reset(client, ADMIN_KEY).status_code == 200
+
+
+def test_a_dated_reset_leaves_no_trace_of_what_it_removed_in_what_it_keeps(sessions):
+    with sessions() as db:
+        _seed(db, OLD)
+        _seed(db, NEW)
+        db.add_all([
+            Observation(id="o-names", agent_id="owner", signal_type="verbal", description="d", observed_at=OLD,
+                        entity_ids_json='["e-old", "e-new"]'),
+            Pattern(id="p-old", agent_id="owner", pattern_name="p", created_at=OLD,
+                    applies_to_entity_ids_json='["e-new", "e2-old"]'),
+            MemoryCorrection(agent_id="owner", request_id="fix-new", memory_id="m-new", payload_hash="h",
+                             previous_revision=1, revision=2),
+            MemoryCorrection(agent_id="owner", request_id="fix-old", memory_id="m-old", payload_hash="h",
+                             previous_revision=1, revision=2),
+        ])
+        db.commit()
+        result = reset_memory(db, CUTOFF)
+
+    assert result["removed"]["corrections"] == 1
+    with sessions() as db:
+        assert json.loads(db.get(Observation, "o-names").entity_ids_json) == ["e-old"]
+        assert json.loads(db.get(Pattern, "p-old").applies_to_entity_ids_json) == ["e2-old"]
+        assert [row.request_id for row in db.scalars(select(MemoryCorrection))] == ["fix-old"]
