@@ -6,15 +6,6 @@ a decision with visible consequences.
 
 ## Unreleased
 
-- **Patterns can be deleted, and a deleted observation leaves them.** There was no way to delete
-  a pattern, and deleting an observation left its id, its lineage links and every pattern built
-  from it. `DELETE /pattern/{id}` now deletes a pattern of the calling agent (404 for another
-  agent's) with its lineage links and a `pattern` deletion receipt. Deleting an observation
-  removes its lineage links, its id in other observations and in patterns, and a pattern left
-  with no observation (with its receipt). Recovery replay of `observation` and `pattern`
-  receipts removes the same set from a restored backup. A pattern that still has other
-  observations keeps its text.
-
 - **A lockout stops wrong keys, never the right one.** After five wrong keys from one address,
   every key from that address was refused for 300 s, so one misconfigured caller behind a proxy
   or the host network locked out the rest, and failures never expired. Now the key is checked
@@ -55,6 +46,15 @@ a decision with visible consequences.
   the kept one, an edge between the two (a would-be self-loop) or one the kept entity already has
   goes, the removed entity's vector is queued for deletion (the startup dedup left it in Qdrant),
   and a malformed tags or attributes value no longer stops startup.
+
+- **Patterns can be deleted, and a deleted observation leaves them.** There was no way to delete
+  a pattern, and deleting an observation left its id, its lineage links and every pattern built
+  from it. `DELETE /pattern/{id}` now deletes a pattern of the calling agent (404 for another
+  agent's) with its lineage links and a `pattern` deletion receipt. Deleting an observation
+  removes its lineage links, its id in other observations and in patterns, and a pattern left
+  with no observation (with its receipt). Recovery replay of `observation` and `pattern`
+  receipts removes the same set from a restored backup. A pattern that still has other
+  observations keeps its text.
 
 - **Lineage stays inside one agent.** `POST /lineage/links`, `GET /lineage/{type}/{id}`,
   `DELETE /lineage/links/{id}` and an episode's `evidence_ids` now answer 404 for an object
