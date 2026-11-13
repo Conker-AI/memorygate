@@ -1,6 +1,7 @@
 from app.core import auth
 from app.core.db import Base
 from app.models.memory import Memory
+from app.models.session_transcript import SessionTranscript
 from app.routes import audit, runtime, transcript
 from app.services.auth_settings_service import create_agent_access_key, set_admin_key
 from fastapi import Depends, FastAPI
@@ -23,6 +24,7 @@ def make_client(tmp_path, monkeypatch):
         set_admin_key(db, "Admin-key-123!")
         _, read_key = create_agent_access_key(db, "test", "hermes")
         db.add(Memory(agent_id="hermes", text="Owner prefers safe local metadata.", summary="safe metadata", tags_json="[]"))
+        db.add(SessionTranscript(id="t1", agent_id="hermes", transcript="private transcript secret=abc123"))
         db.commit()
     app = FastAPI()
     app.include_router(runtime.router)
@@ -38,10 +40,9 @@ def test_audit_metrics_count_reads_and_writes_without_content(tmp_path, monkeypa
         headers={"X-Agent-Id": "hermes", "X-MemoryGate-Key": read_key},
         json={"query": "private query token=abc123", "max_items": 3},
     )
-    write = client.post(
-        "/transcripts",
+    write = client.delete(
+        "/transcripts/t1",
         headers={"X-Agent-Id": "hermes", "X-MemoryGate-Key": "Admin-key-123!"},
-        json={"agent_id": "hermes", "session_id": "sess-1", "transcript": "private transcript secret=abc123"},
     )
     metrics = client.get("/audit/metrics", headers={"X-MemoryGate-Key": "Admin-key-123!"})
     audit_rows = client.get("/audit", headers={"X-MemoryGate-Key": "Admin-key-123!"})
@@ -52,7 +53,7 @@ def test_audit_metrics_count_reads_and_writes_without_content(tmp_path, monkeypa
     assert metrics.json()["reads"] == 1
     assert metrics.json()["writes"] == 1
     assert metrics.json()["by_action"]["runtime_context"] == 1
-    assert metrics.json()["by_action"]["transcript_write"] == 1
+    assert metrics.json()["by_action"]["transcript_delete"] == 1
     serialized_audit = str(audit_rows.json())
     assert "private query" not in serialized_audit
     assert "private transcript" not in serialized_audit

@@ -13,7 +13,7 @@ The dashboard is a single-workspace operating console for one agent:
 - **Memory Lab**: saved browser-session investigations. Each question is independent and read-only; inspect the exact objects supplied to the model.
 - **Database**: search and inspect every object type in one table.
 - **Sources & Evidence**: manage listener credentials, inspect immutable evidence, and verify ingest endpoints.
-- **Episodes / Sessions / Observations / Derived Patterns**: focused views for time-bounded events, transcript archives, extracted signals, and promoted patterns.
+- **Episodes / Sessions / Observations / Derived Patterns**: focused views for time-bounded events, legacy transcripts from before Conker (read and delete only; Pi keeps every chat), extracted signals, and promoted patterns.
 - **Architecture**: developer-facing object, lineage, truth, and search model.
 - **Settings**: keys, backups, AI runtime, and destructive operations.
 
