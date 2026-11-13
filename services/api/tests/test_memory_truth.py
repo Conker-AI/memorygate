@@ -163,3 +163,37 @@ def test_mark_unsupported_moves_only_active_memories(db):
     assert review.status == "needs_review"
     assert review.valid_until == datetime(2026, 1, 1, tzinfo=UTC)
     assert revisions(db, "review") == []
+
+
+def test_words_that_only_contain_a_negation_do_not_count_as_one(db):
+    # "knot " contained "not " and matched before; only whole words count now.
+    memory = add_memory(db, "new", "Owner ties a bowline knot before sailing trips.")
+    other = add_memory(db, "old", "Owner enjoys sailing trips with friends.")
+    db.flush()
+
+    assert memory_truth.detect_conflicts(db, memory) == []
+    assert memory.status == "active" and other.status == "active"
+
+
+def test_a_memory_in_the_owners_words_stays_in_recall_against_one_that_is_not(db):
+    owner = add_memory(db, "owner", "Owner prefers quasar scheduling.", source_type="user")
+    conker = add_memory(db, "conker", "Owner no longer prefers quasar scheduling.", source_type="assistant")
+    chat = add_memory(db, "chat", "Owner never wants quasar scheduling reminders.", source_type="owner_statement")
+    db.flush()
+
+    created = memory_truth.detect_conflicts(db, conker)
+    db.flush()
+
+    # The contradiction is recorded, but only the memory not in the owner's words leaves recall.
+    assert len(created) == 1 and created[0].conflicting_memory_id == "owner"
+    assert owner.status == "active" and conker.status == "needs_review"
+    assert revisions(db, "owner") == []
+
+    conker.status = "active"
+    db.flush()
+    memory_truth.detect_conflicts(db, chat)
+    db.flush()
+    # The owner's own chat words against the owner's statement: both go to review as before.
+    # Conker's memory negates too, so it does not conflict with the chat line and stays.
+    assert chat.status == "needs_review" and owner.status == "needs_review"
+    assert conker.status == "active"
