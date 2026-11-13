@@ -8,6 +8,7 @@ from qdrant_client.models import (
     FieldCondition,
     Filter,
     MatchValue,
+    PointIdsList,
     PointStruct,
     VectorParams,
 )
@@ -277,7 +278,7 @@ def delete_embeddings(memory_ids: list[str], observation_ids: list[str], entity_
         (ENTITY_COLLECTION, entity_ids),
     ):
         if ids:
-            client.delete(collection_name=collection, points_selector=ids)
+            client.delete(collection_name=collection, points_selector=PointIdsList(points=list(ids)))
 
 
 def find_similar_entities(
