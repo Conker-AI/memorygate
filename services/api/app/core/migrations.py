@@ -187,6 +187,7 @@ def run_migrations(engine: Engine) -> None:
         conn.execute(text("ALTER TABLE memories ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active'"))
         conn.execute(text("ALTER TABLE memories ADD COLUMN IF NOT EXISTS valid_from TIMESTAMPTZ"))
         conn.execute(text("ALTER TABLE memories ADD COLUMN IF NOT EXISTS valid_until TIMESTAMPTZ"))
+        conn.execute(text("ALTER TABLE memories ADD COLUMN IF NOT EXISTS last_recalled_at TIMESTAMPTZ"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_memories_status ON memories (status)"))
         conn.execute(text(
             "CREATE TABLE IF NOT EXISTS memory_revisions ("

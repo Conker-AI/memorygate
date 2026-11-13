@@ -25,5 +25,7 @@ class Memory(Base):
     status: Mapped[str] = mapped_column(String, default="active", index=True)
     valid_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     valid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # When recall last returned this memory (upkeep reads it); stamping it is not an edit.
+    last_recalled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
