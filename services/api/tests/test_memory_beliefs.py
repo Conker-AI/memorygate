@@ -7,6 +7,8 @@ set up directly in the database. Every read goes through the HTTP API with a rea
 Pi calls it. Design: context/design/memory-beliefs.md.
 """
 
+import base64
+import json
 from datetime import UTC, datetime, timedelta
 
 from app.models.conversation_receipt import ConversationReceipt
@@ -244,3 +246,16 @@ def test_bad_parameters_are_refused(stack):
                    {"after": "W10"}, {"after": "x" * 601}):
         response = beliefs(stack, **params)
         assert response.status_code == 422, (params, response.text)
+
+
+def cursor(value) -> str:
+    return base64.urlsafe_b64encode(json.dumps(value).encode()).decode().rstrip("=")
+
+
+def test_a_crafted_cursor_is_refused_not_a_server_error(stack):
+    add(stack, "m-1", "Something believed")
+    moment = "2026-01-01T00:00:00"
+    for value in ([moment, chr(0xD800)], [moment, "m" + chr(0) + "x"], [moment, "../m"],
+                  [moment, "x" * 201], [moment, 7], ["soon", "m-1"], {"a": 1}, 5):
+        response = beliefs(stack, after=cursor(value))
+        assert response.status_code == 422, (repr(value), response.text)

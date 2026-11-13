@@ -10,6 +10,7 @@ correction routes with the `revision` given here. Design: context/design/memory-
 import base64
 import binascii
 import json
+import re
 from datetime import UTC, datetime
 
 from app.models.conversation_receipt import ConversationReceipt
@@ -23,6 +24,8 @@ BELIEF_TYPES = ("fact", "phase", "context", "watch")
 LIVE_STATUSES = ("active", "needs_review")
 LINEAGE_LIMIT = 5  # newest sources of support named per belief
 _OWNER = tuple(sorted(OWNER_SOURCES))
+# The memory-id shape the correction routes accept; anything else in a cursor is not ours.
+_MEMORY_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}")
 
 
 class InvalidCursor(ValueError):
@@ -46,7 +49,7 @@ def _decode(after: str) -> tuple[datetime, str]:
         moment = datetime.fromisoformat(created)
     except (binascii.Error, ValueError, TypeError, UnicodeDecodeError) as error:
         raise InvalidCursor("invalid cursor") from error
-    if not isinstance(memory_id, str) or not memory_id:
+    if not isinstance(memory_id, str) or not _MEMORY_ID.fullmatch(memory_id):
         raise InvalidCursor("invalid cursor")
     return moment if moment.tzinfo else moment.replace(tzinfo=UTC), memory_id
 
