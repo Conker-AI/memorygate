@@ -6,12 +6,6 @@ a decision with visible consequences.
 
 ## Unreleased
 
-- **A deleted observation takes the patterns built on it.** A pattern that still named other
-  observations kept its name, description and interpretation, which may carry what the deleted
-  observation said. Now every pattern that names it goes, each with a deletion receipt (so a
-  restored backup forgets them too); promotion builds a pattern again from the observations left
-  when they still qualify.
-
 - **Two patterns that start alike stay two patterns.** A pattern was named by the first 60
   characters of its hypothesis, so two clusters sharing that beginning wrote into one pattern,
   each run replacing the other's observations and counting a new confirmation. A long hypothesis
@@ -102,6 +96,12 @@ a decision with visible consequences.
   counts as a straight one). One feeling word also fired two phase signals, because the two
   emotion lists overlap; a phase now has two signals, a feeling and a timeframe, so "sad this
   week" is `medium`, not `high`. The unused `NEGATION_WORDS` list is gone.
+
+- **A deleted observation takes the patterns built on it.** A pattern that still named other
+  observations kept its name, description and interpretation, which may carry what the deleted
+  observation said. Now every pattern that names it goes, each with a deletion receipt (so a
+  restored backup forgets them too); promotion builds a pattern again from the observations left
+  when they still qualify.
 
 - **Merging entities keeps lineage and the graph whole.** The startup dedup and the manual
   merge (`POST /entity/merge`) now share one routine: lineage links to the removed entity move to
