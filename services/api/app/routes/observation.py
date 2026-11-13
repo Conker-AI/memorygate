@@ -16,6 +16,7 @@ from app.schemas.observation import (
 )
 from app.services.agent_config_service import get_or_create_config
 from app.services.known_ids import require_known
+from app.services.lexical_retrieval import matches_any
 from app.services.observation_forgetting import erase_observation_dependents
 from app.services.observation_lifecycle import apply_session_context, enforce_budget, find_duplicate
 from app.services.pattern_promotion import promote_from_observations
@@ -23,6 +24,7 @@ from app.services.vector_outbox import enqueue_delete, enqueue_upsert, reconcile
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import and_, select
 
+SEARCH_LIMIT = 50
 router = APIRouter(prefix="/observation", tags=["observation"])
 
 def _obs_to_dict(row: Observation) -> dict:
@@ -135,13 +137,22 @@ def search_observations(payload: ObservationSearchRequest, header_agent_id: str 
             filters.append(Observation.status == payload.status)
         if payload.needs_clarification is not None:
             filters.append(Observation.needs_clarification == payload.needs_clarification)
+        # SQL narrows (a substring of a field, an id inside the JSON list); the exact checks
+        # below decide, and the rows stream until 50 results instead of loading them all.
+        if payload.entity_id:
+            filters.append(Observation.entity_ids_json.contains(payload.entity_id, autoescape=True))
+        if payload.query:
+            filters.append(matches_any((Observation.description, Observation.raw_context, Observation.hypothesis,
+                                        Observation.status, Observation.signal_type), payload.query))
         if filters:
             stmt = stmt.where(and_(*filters))
 
-        rows = db.execute(stmt.order_by(Observation.observed_at.desc())).scalars().all()
+        rows = db.execute(stmt.order_by(Observation.observed_at.desc()).execution_options(yield_per=100)).scalars()
 
         results = []
         for row in rows:
+            if len(results) == SEARCH_LIMIT:
+                break
             item = _obs_to_dict(row)
 
             if payload.entity_id and payload.entity_id not in item["entity_ids"]:
@@ -160,7 +171,7 @@ def search_observations(payload: ObservationSearchRequest, header_agent_id: str 
 
             results.append(item)
 
-        return {"results": results[:50]}
+        return {"results": results}
     finally:
         db.close()
 
