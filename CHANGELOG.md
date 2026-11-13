@@ -6,10 +6,6 @@ a decision with visible consequences.
 
 ## Unreleased
 
-- **Memory and entity lists page.** `GET /memory` and `GET /entity` returned the newest 100 rows
-  and nothing more, so older ones could not be listed, reviewed or deleted through them. Both take
-  `limit` (1-500, default 100) and `offset`.
-
 - **A lockout stops wrong keys, never the right one.** After five wrong keys from one address,
   every key from that address was refused for 300 s, so one misconfigured caller behind a proxy
   or the host network locked out the rest, and failures never expired. Now the key is checked
@@ -42,6 +38,10 @@ a decision with visible consequences.
   expired answered ok with `duplicate_of` and nothing became active; it also looked only at the
   newest 100. Now only an active memory of the agent counts, however old, and two writes of one
   text are serialised (Postgres).
+
+- **Memory and entity lists page.** `GET /memory` and `GET /entity` returned the newest 100 rows
+  and nothing more, so older ones could not be listed, reviewed or deleted through them. Both take
+  `limit` (1-500, default 100) and `offset`.
 
 - **"Don't remember" keeps no words.** A conversation message the owner asked not to keep
   ("don't remember ...", "не запоминай ...") used to be stored word for word as evidence (only
