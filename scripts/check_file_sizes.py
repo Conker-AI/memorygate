@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 LIMIT = 600
-SUFFIXES = (".py", ".ts", ".tsx", ".js", ".mjs")
+SUFFIXES = (".py", ".ts", ".tsx", ".js", ".jsx", ".mjs")
 ALLOWLIST = Path("file-size-allowlist.txt")
 
 
@@ -39,7 +39,8 @@ def main() -> int:
     allowed = allowlist()
     problems = []
     for path in tracked_sources():
-        lines = Path(path).read_text(encoding="utf-8", errors="replace").count("\n")
+        # splitlines also counts a last line that has no newline
+        lines = len(Path(path).read_text(encoding="utf-8", errors="replace").splitlines())
         ceiling = allowed.pop(path, None)
         if ceiling is None and lines > LIMIT:
             problems.append(f"{path}: {lines} lines, limit {LIMIT}. Split it by concern.")
