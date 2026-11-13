@@ -6,6 +6,13 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **A right key is stretched once, not on every request.** Each read request with a dashboard
+  admin key set ran PBKDF2 for the admin miss and again for every read key before the match, so
+  Pi paid that on every turn. A key that verified is now remembered for the process (by a
+  peppered tag, beside the hash it matched, at most 256), and a read key is checked against read
+  keys first. A changed admin key or a revoked read key is refused at once, and a wrong key still
+  pays the full check.
+
 - **Two patterns that start alike stay two patterns.** A pattern was named by the first 60
   characters of its hypothesis, so two clusters sharing that beginning wrote into one pattern,
   each run replacing the other's observations and counting a new confirmation. A long hypothesis
