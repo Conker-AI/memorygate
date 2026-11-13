@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 
 from app.core.db import Base
 from sqlalchemy import DateTime, Float, String, Text, func
@@ -16,7 +17,7 @@ class EpisodeObject(Base):
     status: Mapped[str] = mapped_column(String, default="open", index=True)
     confidence: Mapped[float] = mapped_column(Float, default=1.0)
     tags_json: Mapped[str] = mapped_column(Text, default="[]")
-    occurred_start: Mapped[DateTime] = mapped_column(DateTime(timezone=True), nullable=True)
-    occurred_end: Mapped[DateTime] = mapped_column(DateTime(timezone=True), nullable=True)
-    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    occurred_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    occurred_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

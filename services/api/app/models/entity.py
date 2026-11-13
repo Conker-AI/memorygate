@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 
 from app.core.db import Base
 from sqlalchemy import DateTime, Float, Integer, String, Text, func
@@ -18,8 +19,8 @@ class Entity(Base):
     agent_notes: Mapped[str] = mapped_column(Text, default="")
     agent_summary: Mapped[str] = mapped_column(Text, default="")
     importance_level: Mapped[str] = mapped_column(String, default="normal")
-    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 class EntityEdge(Base):
@@ -33,7 +34,7 @@ class EntityEdge(Base):
     direction: Mapped[str] = mapped_column(String, default="directed")
     notes: Mapped[str] = mapped_column(Text, default="")
     since_when: Mapped[str] = mapped_column(String, default="")
-    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class EntityEvent(Base):
@@ -45,7 +46,7 @@ class EntityEvent(Base):
     description: Mapped[str] = mapped_column(Text)
     emotional_weight: Mapped[int] = mapped_column(Integer, default=1)
     occurred_at: Mapped[str] = mapped_column(String, default="")
-    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class EntityHistory(Base):
@@ -58,4 +59,4 @@ class EntityHistory(Base):
     new_value_json: Mapped[str] = mapped_column(Text, default="null")
     change_reason: Mapped[str] = mapped_column(Text, default="")
     triggered_by: Mapped[str] = mapped_column(String, default="system")
-    snapshot_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    snapshot_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

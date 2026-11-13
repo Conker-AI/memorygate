@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 
 from app.core.db import Base
 from sqlalchemy import DateTime, Float, String, Text, func
@@ -20,7 +21,7 @@ class EvidenceObject(Base):
     tags_json: Mapped[str] = mapped_column(Text, default="[]")
     integrity_confidence: Mapped[float] = mapped_column(Float, default=1.0)
     processing_state: Mapped[str] = mapped_column(String, default="pending", index=True)
-    invalidated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), nullable=True)
+    invalidated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     invalidation_reason: Mapped[str] = mapped_column(Text, default="")
-    occurred_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
-    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

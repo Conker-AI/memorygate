@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 
 from app.core.db import Base
 from sqlalchemy import Boolean, DateTime, Integer, String, Text, func
@@ -19,10 +20,10 @@ class Memory(Base):
     source_type: Mapped[str] = mapped_column(String, default="user")
     confidence: Mapped[str] = mapped_column(String, default="medium")
     do_not_generalize: Mapped[bool] = mapped_column(Boolean, default=False)
-    review_by: Mapped[DateTime] = mapped_column(DateTime(timezone=True), nullable=True)  # required in practice for phase, optional otherwise
+    review_by: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)  # required in practice for phase, optional otherwise
     tags_json: Mapped[str] = mapped_column(Text, default="[]")
     status: Mapped[str] = mapped_column(String, default="active", index=True)
-    valid_from: Mapped[DateTime] = mapped_column(DateTime(timezone=True), nullable=True)
-    valid_until: Mapped[DateTime] = mapped_column(DateTime(timezone=True), nullable=True)
-    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    valid_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    valid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

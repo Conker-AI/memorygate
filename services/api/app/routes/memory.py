@@ -344,7 +344,7 @@ def write_memory(payload: MemoryWriteRequest, header_agent_id: str = Depends(get
         db.refresh(memory)
         indexing = _reconcile_index_intent(upsert_memory_embedding, memory.id, memory.text)
 
-        response = {
+        response: dict[str, object] = {
             "status": "ok",
             "id": memory.id,
             "memory_type": memory.memory_type,
@@ -542,7 +542,7 @@ def delete_memory(memory_id: str, agent_id: str = Depends(get_agent_id),
         erase(db, agent_id, row, "delete", {"revision": row.revision})
         db.commit()
         indexing = _reconcile_index_intent(delete_memory_embedding, memory_id)
-        result = {"status": "ok"}
+        result: dict[str, object] = {"status": "ok"}
         if indexing["status"] != "ok":
             result["indexing"] = indexing
         return result
