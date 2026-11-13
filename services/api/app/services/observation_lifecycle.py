@@ -1,4 +1,5 @@
 """Dedup, exposure tracking, and active-observation budget enforcement (FIX 3)."""
+import re
 from datetime import UTC, datetime
 
 from app.models.observation import Observation
@@ -6,6 +7,11 @@ from app.services.qdrant_store import INDEX_UNREACHABLE, find_similar_observatio
 from sqlalchemy import func, select
 
 DEDUP_SIMILARITY_THRESHOLD = 0.85
+# Common words longer than three letters that say nothing about a trigger's topic.
+TRIGGER_STOPWORDS = frozenset({
+    "about", "been", "from", "have", "that", "their", "there", "they",
+    "this", "were", "what", "when", "will", "with", "would", "your",
+})
 
 
 def find_duplicate(agent_id: str, signal_type: str, description: str) -> tuple[dict | None, dict]:
@@ -65,13 +71,17 @@ def apply_session_context(db, agent_id: str, session_context: str) -> dict:
     ).scalars().all()
 
     lower_context = session_context.lower()
+    context_words = set(re.findall(r"\w+", lower_context))
     exposed_ids = []
     archived_ids = []
 
     for row in rows:
         trigger_lower = row.trigger_context.lower()
-        trigger_words = [w for w in trigger_lower.split() if len(w) > 3]
-        matched = trigger_lower in lower_context or any(w in lower_context for w in trigger_words)
+        trigger_words = {
+            w for w in re.findall(r"\w+", trigger_lower) if len(w) > 3 and w not in TRIGGER_STOPWORDS
+        }
+        phrase = re.search(r"(?<!\w)" + re.escape(trigger_lower) + r"(?!\w)", lower_context)
+        matched = phrase is not None or not trigger_words.isdisjoint(context_words)
         if not matched:
             continue
 

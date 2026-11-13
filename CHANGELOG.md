@@ -119,6 +119,12 @@ a decision with visible consequences.
   edit, and reads return the stored text. In `/context/skills` a skill that does not fit what is
   left is skipped instead of ending the list, so smaller skills after it are still delivered.
 
+- **A trigger matches whole words only.** A session context counted an exposure for an
+  observation when any trigger word longer than three letters appeared anywhere, so "when"
+  or the "work" inside "network" could wear an observation down to archived. The trigger
+  phrase and its words now match only as whole words, and common words such as "when" or
+  "about" no longer count.
+
 - **Observation and pattern search no longer load every row.** Search (and pattern promotion)
   read every observation or pattern of the agent and filtered in Python. Status, text and entity
   filters now narrow in SQL, the exact checks stay, and search stops at its 50 results.
