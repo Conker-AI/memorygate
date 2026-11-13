@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 
 from app.core.db import Base
 from sqlalchemy import DateTime, Float, String, Text, func
@@ -20,4 +21,4 @@ class AnalysisObject(Base):
     # (older records, the direct path, analyses no model wrote).
     model: Mapped[str | None] = mapped_column(String, nullable=True)
     provider: Mapped[str | None] = mapped_column(String, nullable=True)
-    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

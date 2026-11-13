@@ -1,5 +1,7 @@
 """Durable correction receipts; no duplicate copy of corrected memory text."""
 
+from datetime import datetime
+
 from app.core.db import Base
 from sqlalchemy import DateTime, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column
@@ -15,6 +17,6 @@ class MemoryCorrection(Base):
     previous_revision: Mapped[int] = mapped_column(Integer, nullable=False)
     revision: Mapped[int] = mapped_column(Integer, nullable=False)
     indexing: Mapped[str] = mapped_column(String(24), nullable=False, default="pending")
-    created_at: Mapped[DateTime] = mapped_column(
+    created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

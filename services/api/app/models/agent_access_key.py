@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 
 from app.core.db import Base
 from sqlalchemy import Boolean, DateTime, String, Text, func
@@ -15,10 +16,10 @@ class AgentAccessKey(Base):
     agent_id: Mapped[str] = mapped_column(String, index=True)
     key_hash: Mapped[str] = mapped_column(Text)
     revoked: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[DateTime] = mapped_column(
+    created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
-    last_used_at: Mapped[DateTime] = mapped_column(
+    last_used_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
 

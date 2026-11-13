@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 
 from app.core.db import Base
 from sqlalchemy import Boolean, DateTime, Integer, String, Text, func
@@ -17,8 +18,8 @@ class SessionTranscript(Base):
     agent_id: Mapped[str] = mapped_column(String, default="default", index=True)
     session_id: Mapped[str] = mapped_column(String, default="", index=True)  # from Hermes state.db
     transcript: Mapped[str] = mapped_column(Text)
-    session_start: Mapped[DateTime] = mapped_column(DateTime(timezone=True), nullable=True)
-    session_end: Mapped[DateTime] = mapped_column(DateTime(timezone=True), nullable=True)
+    session_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    session_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     word_count: Mapped[int] = mapped_column(Integer, default=0)
     processed_by_soulgate: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

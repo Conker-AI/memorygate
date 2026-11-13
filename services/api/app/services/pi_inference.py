@@ -32,6 +32,9 @@ class PiText(str):
     `model` and `provider` are None when Pi's answer did not name them in a usable shape.
     """
 
+    model: str | None
+    provider: str | None
+
     def __new__(cls, text: str, model: str | None = None, provider: str | None = None):
         answer = super().__new__(cls, text)
         answer.model = model

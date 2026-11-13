@@ -192,7 +192,7 @@ def delete_observation(observation_id: str, agent_id: str = Depends(get_agent_id
         db.delete(row)
         db.commit()
         indexing = reconcile_one("observation", observation_id, sessions=SessionLocal)
-        result = {"status": "ok"}
+        result: dict[str, object] = {"status": "ok"}
         if indexing["status"] != "ok":
             result["indexing"] = indexing
         return result

@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 
 from app.core.db import Base
 from sqlalchemy import DateTime, Float, Integer, String, Text, func
@@ -26,8 +27,8 @@ class Pattern(Base):
     context_conditions_json: Mapped[str] = mapped_column(Text, default="{}")
 
     status: Mapped[str] = mapped_column(String, default="candidate", index=True)  # candidate / active / deprecated / contradicted
-    promoted_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), nullable=True)
-    last_confirmed_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), nullable=True)
+    promoted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

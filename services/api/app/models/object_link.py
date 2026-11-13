@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 
 from app.core.db import Base
 from sqlalchemy import DateTime, Float, String, Text, func
@@ -17,4 +18,4 @@ class ObjectLink(Base):
     confidence: Mapped[float] = mapped_column(Float, default=1.0)
     metadata_json: Mapped[str] = mapped_column(Text, default="{}")
     created_by: Mapped[str] = mapped_column(String, default="system")
-    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
