@@ -6,6 +6,10 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **Creating an observation no longer reads every unconfirmed one.** The observation budget
+  loaded all unconfirmed observations of the agent on each create; it now counts them in SQL and
+  loads only the ones it archives (most exposed first, oldest first among equals).
+
 - **Two patterns that start alike stay two patterns.** A pattern was named by the first 60
   characters of its hypothesis, so two clusters sharing that beginning wrote into one pattern,
   each run replacing the other's observations and counting a new confirmation. A long hypothesis

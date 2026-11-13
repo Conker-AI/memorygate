@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 
 from app.models.observation import Observation
 from app.services.qdrant_store import INDEX_UNREACHABLE, find_similar_observations, semantic_status
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 DEDUP_SIMILARITY_THRESHOLD = 0.85
 
@@ -34,19 +34,19 @@ def enforce_budget(db, agent_id: str, max_observations: int) -> None:
     the archive is committed together with the observation being created, or not at all.
     """
     cap = max(1, max_observations)
-    active = db.execute(
-        select(Observation).where(
-            Observation.agent_id == agent_id,
-            Observation.status == "unconfirmed",
-        )
-    ).scalars().all()
-
-    excess = len(active) - cap + 1
+    unconfirmed = (Observation.agent_id == agent_id, Observation.status == "unconfirmed")
+    excess = db.scalar(select(func.count()).select_from(Observation).where(*unconfirmed)) - cap + 1
     if excess <= 0:
         return
 
+    # Only the rows to archive are loaded: the most exposed, oldest first among equals.
+    victims = db.execute(
+        select(Observation).where(*unconfirmed)
+        .order_by(Observation.exposure_count.desc(), Observation.observed_at.asc(), Observation.id.asc())
+        .limit(excess)
+    ).scalars().all()
     now = datetime.now(UTC)
-    for victim in sorted(active, key=lambda o: o.exposure_count, reverse=True)[:excess]:
+    for victim in victims:
         victim.status = "archived"
         victim.archived_at = now
         victim.archive_reason = "max active observations reached; archived to make room"

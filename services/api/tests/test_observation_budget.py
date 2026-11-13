@@ -195,3 +195,26 @@ def test_the_config_route_refuses_numbers_out_of_range():
         with pytest.raises(ValidationError):
             AgentConfigUpdateRequest(**bad)
     assert AgentConfigUpdateRequest(max_observations=1, value_threshold=0, novelty_threshold=1)
+
+
+def test_the_budget_counts_in_sql_and_loads_only_the_rows_it_archives(db):
+    from sqlalchemy import event
+
+    db.add_all([Observation(agent_id="owner", signal_type="verbal", description=f"note {n}", exposure_count=n % 5)
+                for n in range(200)])
+    db.commit()
+    db.expunge_all()
+    loaded = []
+
+    def count(_session, row):
+        loaded.append(row)
+
+    event.listen(db, "loaded_as_persistent", count)
+    try:
+        observation_lifecycle.enforce_budget(db, "owner", 500)
+        assert loaded == []
+        observation_lifecycle.enforce_budget(db, "owner", 199)
+    finally:
+        event.remove(db, "loaded_as_persistent", count)
+    assert len(loaded) == 2 and {row.status for row in loaded} == {"archived"}
+    assert {row.exposure_count for row in loaded} == {4}
