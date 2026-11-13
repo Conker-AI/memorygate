@@ -21,9 +21,7 @@ from app.schemas.explorer import ExploreRequest, LibraryRequest
 from app.schemas.runtime import AgentContextRequest, IngestEventRequest, MemoryQuestionRequest
 from app.services import listener_forgetting
 from app.services.auth_settings_service import (
-    clear_failed_attempts,
-    get_lockout_status,
-    register_failed_attempt,
+    attempt,
 )
 from app.services.briefing import build_briefing
 from app.services.conversation_memory import citations
@@ -94,17 +92,14 @@ def _listener_source(db, source_key: str, request: Request, key: str | None, *,
         raise HTTPException(404, "Enabled evidence source not found" if require_enabled else "Evidence source not found")
     client_host = request.client.host if request.client else "unknown"
     lock_scope = f"listener:{client_host}:{source.source_key}"
-    remaining = get_lockout_status(lock_scope)
-    if remaining:
-        raise HTTPException(429, f"Too many failed attempts. Try again in {remaining} seconds.")
     secret = json.loads(source.secret_json or "{}").get("ingest_key", "")
     # Bytes, not str: compare_digest raises on a non-ASCII str, and a header can carry one.
-    if not secret or not key or not hmac.compare_digest(secret.encode(), key.encode()):
-        remaining = register_failed_attempt(lock_scope)
-        if remaining:
-            raise HTTPException(429, f"Too many failed attempts. Try again in {remaining} seconds.")
+    valid = bool(secret and key and hmac.compare_digest(secret.encode(), key.encode()))
+    remaining = attempt(lock_scope, valid)
+    if remaining:
+        raise HTTPException(429, f"Too many failed attempts. Try again in {remaining} seconds.")
+    if not valid:
         raise HTTPException(401, "invalid listener key")
-    clear_failed_attempts(lock_scope)
     return source, json.loads(source.config_json or "{}").get("agent_id", "default")
 
 
