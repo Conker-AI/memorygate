@@ -6,6 +6,13 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **An observation cap of zero no longer breaks observation create.** `PUT /config/{agent}`
+  accepted any `max_observations`, so 0 or less made every create answer 500 (`max()` of an
+  empty list). The config now takes 1..100000 and thresholds 0..1 (422 otherwise), and a cap
+  below one already stored counts as one. Lowering the cap archives enough of the most-exposed
+  unconfirmed observations in one call (it used to archive one per create), inside the create's
+  own transaction.
+
 - **Deleting an entity takes what refers to it.** `DELETE /entity/{id}` used to remove only the
   entity row; its history snapshots (old names, notes and attributes), events, edges and lineage
   links stayed, and observations and patterns kept its id. Now they go with it (each link leaves

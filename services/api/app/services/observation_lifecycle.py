@@ -28,6 +28,12 @@ def find_duplicate(agent_id: str, signal_type: str, description: str) -> tuple[d
 
 
 def enforce_budget(db, agent_id: str, max_observations: int) -> None:
+    """Archive the most-exposed unconfirmed observations until one more fits under the cap.
+
+    A cap below one (an old stored value) counts as one. Runs inside the caller's transaction:
+    the archive is committed together with the observation being created, or not at all.
+    """
+    cap = max(1, max_observations)
     active = db.execute(
         select(Observation).where(
             Observation.agent_id == agent_id,
@@ -35,14 +41,16 @@ def enforce_budget(db, agent_id: str, max_observations: int) -> None:
         )
     ).scalars().all()
 
-    if len(active) < max_observations:
+    excess = len(active) - cap + 1
+    if excess <= 0:
         return
 
-    victim = max(active, key=lambda o: o.exposure_count)
-    victim.status = "archived"
-    victim.archived_at = datetime.now(UTC)
-    victim.archive_reason = "max active observations reached; archived to make room"
-    db.commit()
+    now = datetime.now(UTC)
+    for victim in sorted(active, key=lambda o: o.exposure_count, reverse=True)[:excess]:
+        victim.status = "archived"
+        victim.archived_at = now
+        victim.archive_reason = "max active observations reached; archived to make room"
+    db.flush()
 
 
 def apply_session_context(db, agent_id: str, session_context: str) -> dict:
