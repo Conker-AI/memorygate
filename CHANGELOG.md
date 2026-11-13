@@ -6,12 +6,6 @@ a decision with visible consequences.
 
 ## Unreleased
 
-- **A skill is delivered whole or refused, and one big skill no longer hides the rest.** A skill
-  body was accepted up to 12000 characters but cut to 8192 bytes on every read, so an edit saved
-  the cut text. Now a skill whose title and body exceed 8192 bytes is refused (422) on create and
-  edit, and reads return the stored text. In `/context/skills` a skill that does not fit what is
-  left is skipped instead of ending the list, so smaller skills after it are still delivered.
-
 - **A lockout stops wrong keys, never the right one.** After five wrong keys from one address,
   every key from that address was refused for 300 s, so one misconfigured caller behind a proxy
   or the host network locked out the rest, and failures never expired. Now the key is checked
@@ -35,6 +29,12 @@ a decision with visible consequences.
   the memory was skipped). Its evidence now holds no text (`normalized_payload` is
   `{"withheld": "owner_declined"}`, empty summary); the receipt and the analysis still record
   that it was declined. Messages filtered for low value keep their words as before.
+
+- **A skill is delivered whole or refused, and one big skill no longer hides the rest.** A skill
+  body was accepted up to 12000 characters but cut to 8192 bytes on every read, so an edit saved
+  the cut text. Now a skill whose title and body exceed 8192 bytes is refused (422) on create and
+  edit, and reads return the stored text. In `/context/skills` a skill that does not fit what is
+  left is skipped instead of ending the list, so smaller skills after it are still delivered.
 
 - **Deleting an entity takes what refers to it.** `DELETE /entity/{id}` used to remove only the
   entity row; its history snapshots (old names, notes and attributes), events, edges and lineage
