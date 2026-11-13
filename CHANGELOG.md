@@ -6,6 +6,11 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **"Don't remember" keeps no words.** A conversation message the owner asked not to keep
+  ("don't remember ...", "не запоминай ...") used to be stored word for word as evidence (only
+  the memory was skipped). Its evidence now holds no text (`normalized_payload` is
+  `{"withheld": "owner_declined"}`, empty summary); the receipt and the analysis still record
+  that it was declined. Messages filtered for low value keep their words as before.
 - **Lineage stays inside one agent.** `POST /lineage/links`, `GET /lineage/{type}/{id}`,
   `DELETE /lineage/links/{id}` and an episode's `evidence_ids` now answer 404 for an object
   of another agent (the `X-Agent-Id` header), as for a missing one. Before, they read and
