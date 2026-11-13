@@ -126,6 +126,26 @@ def test_a_long_shared_word_counts_but_short_words_do_not(db):
     assert db.get(Observation, short_words.id).exposure_count == 0
 
 
+def test_common_words_and_words_inside_other_words_do_not_count(db):
+    row = observe(db, trigger_context="when the owner talks about work")
+
+    result = observation_lifecycle.apply_session_context(
+        db, "owner", "that was when the network went down"
+    )
+
+    assert result == {"exposed": [], "archived": []}
+    assert db.get(Observation, row.id).exposure_count == 0
+
+
+def test_a_whole_trigger_word_still_counts(db):
+    row = observe(db, trigger_context="when the owner talks about work")
+
+    result = observation_lifecycle.apply_session_context(db, "owner", "my work is late")
+
+    assert result == {"exposed": [row.id], "archived": []}
+    assert db.get(Observation, row.id).exposure_count == 1
+
+
 def test_reaching_max_exposures_archives_and_one_below_does_not(db):
     exhausting = observe(db, trigger_context="standup notes", exposure_count=2, max_exposures=3)
     surviving = observe(db, trigger_context="standup notes", exposure_count=1, max_exposures=3)

@@ -18,6 +18,13 @@ _LOCKOUT_SECONDS = 300
 # Failures older than this no longer count toward a lockout.
 _FAILURE_WINDOW_SECONDS = 900
 _attempt_state: dict[str, dict[str, float | int]] = {}
+# Keys that verified, so a caller's next request skips PBKDF2. Indexed by an HMAC tag under a
+# per-process pepper (never the key or a plain hash of it); the value is the stored hash the key
+# matched, so a changed admin key or a revoked or deleted read row no longer matches. Only
+# successes are kept: a wrong key always pays the full stretch.
+_CACHE_PEPPER = secrets.token_bytes(32)
+_VERIFIED_LIMIT = 256
+_verified: dict[bytes, str] = {}
 
 # An environment key is a machine secret, so it is held to a length floor rather
 # than to the human-password character classes `validate_new_admin_key` applies
@@ -54,7 +61,14 @@ def _hash_key(key: str, salt: bytes | None = None) -> str:
     return f"{base64.b64encode(salt).decode()}${base64.b64encode(digest).decode()}"
 
 
+def _cache_tag(key: str) -> bytes:
+    return hmac.new(_CACHE_PEPPER, key.encode("utf-8"), "sha256").digest()
+
+
 def _verify_key(key: str, encoded: str) -> bool:
+    tag = _cache_tag(key)
+    if encoded and _verified.get(tag) == encoded:
+        return True
     try:
         salt_b64, digest_b64 = encoded.split("$", 1)
         salt = base64.b64decode(salt_b64.encode())
@@ -62,7 +76,12 @@ def _verify_key(key: str, encoded: str) -> bool:
     except Exception:
         return False
     actual = hashlib.pbkdf2_hmac("sha256", key.encode("utf-8"), salt, _PBKDF2_ROUNDS)
-    return hmac.compare_digest(actual, expected)
+    if not hmac.compare_digest(actual, expected):
+        return False
+    if len(_verified) >= _VERIFIED_LIMIT:
+        _verified.clear()
+    _verified[tag] = encoded
+    return True
 
 
 def get_auth_row(db) -> AuthSetting | None:
@@ -195,7 +214,9 @@ def verify_agent_access_key(db, key: str | None, agent_id: str) -> bool:
     if not key:
         return False
     rows = db.query(AgentAccessKey).filter(AgentAccessKey.agent_id == agent_id, AgentAccessKey.revoked.is_(False)).all()
-    for row in rows:
+    known = _verified.get(_cache_tag(key))
+    # A remembered match first, so rows before it are not stretched on every request.
+    for row in sorted(rows, key=lambda item: item.key_hash != known):
         if _verify_key(key, row.key_hash):
             row.last_used_at = datetime.now(UTC)
             db.commit()

@@ -20,6 +20,11 @@ a decision with visible consequences.
   while the address is locked, and failures older than 15 minutes no longer count. Applies to
   the admin key, read keys, listener keys and the current-key confirmations.
 
+- **A memory that becomes a phase gets its two-week review date.** Editing a memory to a phase,
+  a duplicate write that upgrades one to a phase and a listener promotion classified as a phase
+  left the review date empty, so the startup catch-up later dated it from when the memory was
+  made, already in the past for an old one. Each now sets it to two weeks from the change.
+
 - **Editing an evidence source keeps its listener working.** New secrets on `POST /evidence/sources`
   replaced the whole secret map, dropping the ingest key from `rotate-ingest-key`, so the listener
   was cut off; the ingest key now stays. `POST /evidence` refuses a disabled source (409), and a
@@ -33,6 +38,10 @@ a decision with visible consequences.
   `last_recalled_at` column on the memories it returns, at most once an hour, best effort and
   without bumping the revision; memories recalled before this release read "never recalled".
 
+- **A deleted lineage link stays deleted.** Every start rebuilt the lineage links held in the
+  older id lists, so a link the owner deleted came back at the next start. The rebuild now runs
+  once per install (a marker in `data_migration_steps`); the id lists stay what forgetting reads.
+
 - **Memory search without the vector index matches words.** When the index was down or found
   nothing, `POST /memory/search` matched the whole query as one piece of text, so "release
   pipeline" found nothing in "the pipeline for the release". The fallback now uses recall's word
@@ -42,6 +51,13 @@ a decision with visible consequences.
   call refused), evidence processing stored an empty `local_ai_proposal` analysis, so the
   evidence counted as analysed and was never analysed again. Now nothing is stored.
 
+- **A right key is stretched once, not on every request.** Each read request with a dashboard
+  admin key set ran PBKDF2 for the admin miss and again for every read key before the match, so
+  Pi paid that on every turn. A key that verified is now remembered for the process (by a
+  peppered tag, beside the hash it matched, at most 256), and a read key is checked against read
+  keys first. A changed admin key or a revoked read key is refused at once, and a wrong key still
+  pays the full check.
+
 - **The audit list is bounded.** `GET /audit` returned every row ever written; it now returns the
   newest `limit` rows (default 500, at most 2000). `/audit/metrics` counts with GROUP BY instead of
   loading every row of the window.
@@ -50,6 +66,11 @@ a decision with visible consequences.
   removed with it (a repeated correction request would otherwise answer for a memory that no
   longer exists), and a dated reset takes the removed entities' ids out of the observations and
   patterns it keeps. Forget receipts stay, so a forgotten memory never returns.
+
+- **The briefing shows only live evidence.** A watch memory that lost a conflict or was
+  marked unsupported stayed in the pre-session briefing for 14 days, and a contradicted or
+  archived emotional observation could still set its mood. Watch flags now come only from
+  active memories, and the mood ignores contradicted and archived observations.
 
 - **The conflict check reads whole words and keeps the owner's words in recall.** It counted
   "not" inside "knot" or "cannot " and matched long words as substrings over the first eight
@@ -63,6 +84,13 @@ a decision with visible consequences.
   changed the model the status could say ready while every call failed. Health now names and
   checks the stored model.
 
+- **A recovery replay removes every copy of a forgotten memory's text.** Replaying a memory's
+  deletion receipt into a restored backup deleted only the memory row, so its revision snapshots,
+  the conflicts naming it and the text in its audit entries came back with the backup. The replay
+  now removes and redacts them as a live forget does, also when the row is already gone, and
+  turns the memory's (or entity's or observation's) vector outbox row into a delete, so neither
+  its stored text nor a pending re-index survives the restore.
+
 - **A write is not lost to a memory under review.** `POST /memory/write` took a memory with the
   same text as its duplicate whatever its status, so a write equal to a memory under review or
   expired answered ok with `duplicate_of` and nothing became active; it also looked only at the
@@ -72,6 +100,12 @@ a decision with visible consequences.
 - **Memory and entity lists page.** `GET /memory` and `GET /entity` returned the newest 100 rows
   and nothing more, so older ones could not be listed, reviewed or deleted through them. Both take
   `limit` (1-500, default 100) and `offset`.
+
+- **The owner's correction stays in recall.** When the owner remembered a fact that contradicts
+  an older one in his own words, both went to review and recall lost the old and the new fact
+  under a "remembered" receipt. Now the newest owner statement stays active and only the older
+  one goes to review; Conker-written statements keep the old rule. The remember receipt also
+  carries `memory_status`, so a caller can tell a memory that waits for review.
 
 - **"Don't remember" keeps no words.** A conversation message the owner asked not to keep
   ("don't remember ...", "не запоминай ...") used to be stored word for word as evidence (only
@@ -84,6 +118,12 @@ a decision with visible consequences.
   the cut text. Now a skill whose title and body exceed 8192 bytes is refused (422) on create and
   edit, and reads return the stored text. In `/context/skills` a skill that does not fit what is
   left is skipped instead of ending the list, so smaller skills after it are still delivered.
+
+- **A trigger matches whole words only.** A session context counted an exposure for an
+  observation when any trigger word longer than three letters appeared anywhere, so "when"
+  or the "work" inside "network" could wear an observation down to archived. The trigger
+  phrase and its words now match only as whole words, and common words such as "when" or
+  "about" no longer count.
 
 - **Observation and pattern search no longer load every row.** Search (and pattern promotion)
   read every observation or pattern of the agent and filtered in Python. Status, text and entity

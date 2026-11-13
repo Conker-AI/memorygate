@@ -107,3 +107,46 @@ def test_conversation_replay_prevents_late_upload(target, monkeypatch):
         assert db.get(Memory, original["memory_id"]) is None
         assert db.get(ConversationReceipt, original["id"]).index_pending == "delete"
         assert ("owner", "conversation", "msg_one") in recovery.evidence(db)
+
+
+def test_memory_replay_erases_revisions_conflicts_and_audit_text(target):
+    import json
+
+    from app.models.audit import MemoryAudit
+    from app.models.memory_conflict import MemoryConflict
+    from app.models.memory_revision import MemoryRevision
+    from app.models.vector_outbox import VectorOutbox
+    from app.services import vector_outbox
+    secret = json.dumps({"text": "my PIN is 4321"})
+    with target() as db:
+        db.add_all([Memory(id="m1", agent_id="owner", text="my PIN is 4321"),
+                    MemoryRevision(memory_id="m1", changed_by="system", snapshot_json=secret),
+                    MemoryAudit(action="write", memory_id="m1", payload_json=secret),
+                    MemoryConflict(agent_id="owner", memory_id="m2", conflicting_memory_id="m1"),
+                    MemoryRevision(id="keep-revision", memory_id="keep", snapshot_json="{}"),
+                    MemoryConflict(id="keep-conflict", agent_id="owner", memory_id="keep", conflicting_memory_id="m2"),
+                    MemoryAudit(action="write", memory_id="keep", payload_json=json.dumps({"text": "keep this"}))])
+        vector_outbox.enqueue_upsert(db, "memory", "m1", "my PIN is 4321", agent_id="owner", payload={})
+        db.commit()
+
+    def assert_clean():
+        with target() as db:
+            assert db.get(Memory, "m1") is None
+            assert not db.scalars(select(MemoryRevision).where(MemoryRevision.memory_id == "m1")).all()
+            assert db.get(MemoryRevision, "keep-revision") is not None
+            assert not db.scalars(select(MemoryConflict).where(
+                (MemoryConflict.memory_id == "m1") | (MemoryConflict.conflicting_memory_id == "m1"))).all()
+            assert not [row for row in db.scalars(select(MemoryAudit)) if "4321" in row.payload_json]
+            assert db.get(MemoryConflict, "keep-conflict") is not None
+            assert [row for row in db.scalars(select(MemoryAudit)) if "keep this" in row.payload_json]
+            outbox = db.scalars(select(VectorOutbox).where(VectorOutbox.object_id == "m1")).one()
+            assert (outbox.operation, outbox.document_text) == ("delete", None)
+
+    recovery.replay([("owner", "memory", "m1")], target)
+    assert_clean()
+    # A restarted replay, with the row already gone, still removes a leftover copy.
+    with target() as db:
+        db.add(MemoryRevision(memory_id="m1", snapshot_json=secret))
+        db.commit()
+    recovery.replay([("owner", "memory", "m1")], target)
+    assert_clean()
