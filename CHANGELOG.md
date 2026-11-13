@@ -25,6 +25,11 @@ a decision with visible consequences.
   was cut off; the ingest key now stays. `POST /evidence` refuses a disabled source (409), and a
   source's "last ingested" is the arrival time, not the event's own time.
 
+- **Memory search without the vector index matches words.** When the index was down or found
+  nothing, `POST /memory/search` matched the whole query as one piece of text, so "release
+  pipeline" found nothing in "the pipeline for the release". The fallback now uses recall's word
+  search (active memories, best match first).
+
 - **No model answer, no AI analysis.** When no model answered (Pi down, local model off, hosted
   call refused), evidence processing stored an empty `local_ai_proposal` analysis, so the
   evidence counted as analysed and was never analysed again. Now nothing is stored.
