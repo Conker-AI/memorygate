@@ -91,8 +91,15 @@ def requeue(db, job_id: str, *, now: datetime | None = None) -> bool:
     return result.rowcount == 1
 
 
+def _leased_by(job: ProcessingJob) -> str:
+    """The worker holding a claimed job's lease; a claimed job always has one."""
+    if job.lease_owner is None:
+        raise RuntimeError(f"processing job {job.id} has no lease owner")
+    return job.lease_owner
+
+
 def _fail(db, job: ProcessingJob, error: str, evidence: EvidenceObject | None = None) -> None:
-    fence_job_lease(db, job.id, job.lease_owner)
+    fence_job_lease(db, job.id, _leased_by(job))
     job.status = "failed"
     job.error = error
     job.lease_owner = None
@@ -120,7 +127,7 @@ def run_job(db, job: ProcessingJob) -> None:
     with LeaseHeartbeat(
         SessionLocal,
         job.id,
-        job.lease_owner,
+        _leased_by(job),
         lease_seconds=PROCESSING_LEASE_SECONDS,
     ) as lease:
         process_evidence(db, evidence, content, job, lease=lease)

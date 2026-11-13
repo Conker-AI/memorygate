@@ -116,7 +116,8 @@ def replay(receipts, target_sessions):
             continue
         if kind == listener_forgetting.KIND:
             result = listener_forgetting.erase_evidence(agent_id, identity, sessions=target_sessions)
-            indexes.update(("memory", memory_id) for memory_id in result["memory_ids"])
+            if result is not None:  # with `sessions` it always answers; None is the live 404 path
+                indexes.update(("memory", memory_id) for memory_id in result["memory_ids"])
             continue
         with target_sessions() as db:
             model = MODELS[kind]
