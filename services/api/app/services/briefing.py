@@ -47,7 +47,10 @@ def _emotional_state(db, agent_id: str) -> tuple[str | None, str | None]:
     if not row or not row.observed_at:
         return None, None
 
-    if row.observed_at < _now() - timedelta(hours=24):
+    observed = row.observed_at
+    if observed.tzinfo is None:  # SQLite returns stored UTC times without their zone
+        observed = observed.replace(tzinfo=UTC)
+    if observed < _now() - timedelta(hours=24):
         return None, None
 
     return (row.hypothesis or None), (row.description or None)
