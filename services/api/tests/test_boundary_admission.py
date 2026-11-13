@@ -131,10 +131,14 @@ def test_filtered_chat_never_becomes_memory(stack, said, mark):
     stack.drain()
     assert mark not in memory_reads(stack, mark)
     assert stack.outbox() == []
-    # By design filtering is not deletion: the message stays as raw source evidence
-    # (an explicit evidence read), until Pi forgets the message.
     evidence = stack.context(mark, include_evidence=True)["evidence"]
-    assert [row["id"] for row in evidence] == [receipt["id"]]
+    if mark == "thanks":
+        # Filtering for low value is not deletion: the message stays as raw source
+        # evidence (an explicit evidence read), until Pi forgets the message.
+        assert [row["id"] for row in evidence] == [receipt["id"]]
+    else:
+        # The owner asked not to keep it: no copy of the words anywhere in MemoryGate.
+        assert evidence == [] and mark not in stack.stored_text()
 
 
 def test_an_admin_write_below_the_value_threshold_is_filtered(stack):
