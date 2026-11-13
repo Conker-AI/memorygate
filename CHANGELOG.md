@@ -10,6 +10,7 @@ a decision with visible consequences.
   marked unsupported stayed in the pre-session briefing for 14 days, and a contradicted or
   archived emotional observation could still set its mood. Watch flags now come only from
   active memories, and the mood ignores contradicted and archived observations.
+
 - **Two patterns that start alike stay two patterns.** A pattern was named by the first 60
   characters of its hypothesis, so two clusters sharing that beginning wrote into one pattern,
   each run replacing the other's observations and counting a new confirmation. A long hypothesis
