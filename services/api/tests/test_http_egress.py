@@ -107,7 +107,6 @@ def _configure_api_clients(monkeypatch, target_url: str) -> None:
     monkeypatch.setattr(embeddings, "EMBEDDINGS_KEY", "test-key")
     embeddings.reset_provider_cache()
     monkeypatch.setattr(ollama_service, "OLLAMA_URL", target_url)
-    monkeypatch.setattr(ollama_service, "OLLAMA_MODEL", "test-ollama")
     monkeypatch.setattr(ollama_service, "OLLAMA_ENABLED", True)
     monkeypatch.setattr(ollama_service, "SessionLocal", lambda: type("DB", (), {"close": lambda self: None})())
     monkeypatch.setattr(

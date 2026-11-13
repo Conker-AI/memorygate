@@ -1,7 +1,7 @@
 import json
 
 import httpx
-from app.core.config import OLLAMA_ENABLED, OLLAMA_MODEL, OLLAMA_URL
+from app.core.config import OLLAMA_ENABLED, OLLAMA_URL
 from app.core.db import SessionLocal
 from app.services.ai_runtime_service import get_runtime_config
 from app.services.hosted_budget import record_refusal
@@ -99,12 +99,22 @@ def answer_with_context(question: str, context: dict) -> str | None:
         return None
 
 
+def _model_in_use() -> str:
+    """The model `_generate` sends: the stored runtime setting, else the env default."""
+    db = SessionLocal()
+    try:
+        return get_runtime_config(db)["model"]
+    finally:
+        db.close()
+
+
 def ollama_health() -> dict:
+    model = _model_in_use()
     try:
         with httpx.Client(timeout=3, trust_env=False, follow_redirects=False) as client:
             response = client.get(f"{OLLAMA_URL}/api/tags")
             response.raise_for_status()
         models = [item.get("name") for item in response.json().get("models", [])]
-        return {"enabled": OLLAMA_ENABLED, "available": True, "model": OLLAMA_MODEL, "model_ready": OLLAMA_MODEL in models, "models": models}
+        return {"enabled": OLLAMA_ENABLED, "available": True, "model": model, "model_ready": model in models, "models": models}
     except httpx.HTTPError:
-        return {"enabled": OLLAMA_ENABLED, "available": False, "model": OLLAMA_MODEL, "model_ready": False, "models": []}
+        return {"enabled": OLLAMA_ENABLED, "available": False, "model": model, "model_ready": False, "models": []}

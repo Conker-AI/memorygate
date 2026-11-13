@@ -6,6 +6,11 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **Health checks the model in use.** The local model's health reported the env default
+  (`OLLAMA_MODEL`), while calls send the model stored in the runtime setting, so after the owner
+  changed the model the status could say ready while every call failed. Health now names and
+  checks the stored model.
+
 - **A lockout stops wrong keys, never the right one.** After five wrong keys from one address,
   every key from that address was refused for 300 s, so one misconfigured caller behind a proxy
   or the host network locked out the rest, and failures never expired. Now the key is checked
