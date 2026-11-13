@@ -6,6 +6,16 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **What Conker believes about you (read-only).** `GET /runtime/memory-beliefs` (read key or
+  admin key, the header's agent only) lists the agent's current memories, active or waiting for
+  review, never skills or forgotten ones. Each item has `origin` (`stated` by the owner or
+  `concluded` by Conker), `confidence`, `state`, `revision` (for the correction and forget
+  routes), `last_recalled_at`, evidence counts (`supporting`, and `withdrawn` for invalidated
+  support), up to five lineage sources that open with `/runtime/explore`, and the open conflicts
+  whose other side is also a belief. Filters: `origin`, `state`, `memory_type`. Paging: `limit`
+  up to 100 and an `after` cursor that stays stable when a row is corrected between pages.
+  `total` and `counts` cover every page. The route changes nothing, not even the recall stamp.
+
 - **Two patterns that start alike stay two patterns.** A pattern was named by the first 60
   characters of its hypothesis, so two clusters sharing that beginning wrote into one pattern,
   each run replacing the other's observations and counting a new confirmation. A long hypothesis
