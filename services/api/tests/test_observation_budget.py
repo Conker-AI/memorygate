@@ -164,3 +164,34 @@ def test_empty_trigger_context_another_agent_and_archived_rows_are_untouched(db)
     assert untouched.exposure_count == 4
     assert db.get(Observation, other_agent.id).exposure_count == 0
     assert db.get(Observation, already.id).exposure_count == 0
+
+
+# --- A cap of zero or less, and a cap lowered below what is stored -----------------
+
+
+@pytest.mark.parametrize("cap", [0, -5])
+def test_a_cap_below_one_does_not_crash_with_nothing_to_archive(db, cap):
+    observation_lifecycle.enforce_budget(db, "owner", cap)  # used to raise on max([])
+
+    assert statuses_by_id(db) == {}
+
+
+def test_a_lowered_cap_archives_enough_to_make_room_in_one_call(db):
+    rows = [observe(db, exposure_count=n) for n in range(6)]
+
+    observation_lifecycle.enforce_budget(db, "owner", 3)
+
+    statuses = statuses_by_id(db)
+    # Room for one more under a cap of 3: the four most exposed go, the two least stay.
+    assert [statuses[row.id] for row in rows] == ["unconfirmed"] * 2 + ["archived"] * 4
+
+
+def test_the_config_route_refuses_numbers_out_of_range():
+    from app.schemas.agent_config import AgentConfigUpdateRequest
+    from pydantic import ValidationError
+
+    for bad in ({"max_observations": 0}, {"max_observations": -1}, {"value_threshold": 1.5},
+                {"novelty_threshold": -0.1}):
+        with pytest.raises(ValidationError):
+            AgentConfigUpdateRequest(**bad)
+    assert AgentConfigUpdateRequest(max_observations=1, value_threshold=0, novelty_threshold=1)

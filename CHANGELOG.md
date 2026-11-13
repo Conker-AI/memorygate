@@ -57,6 +57,13 @@ a decision with visible consequences.
   a `link` receipt), and recovery replay of an `entity` receipt removes the same set from a
   restored backup.
 
+- **An observation cap of zero no longer breaks observation create.** `PUT /config/{agent}`
+  accepted any `max_observations`, so 0 or less made every create answer 500 (`max()` of an
+  empty list). The config now takes 1..100000 and thresholds 0..1 (422 otherwise), and a cap
+  below one already stored counts as one. Lowering the cap archives enough of the most-exposed
+  unconfirmed observations in one call (it used to archive one per create), inside the create's
+  own transaction.
+
 - **The 600-line check covers the dashboard.** `scripts/check_file_sizes.py` skipped `.jsx`
   (the dashboard's own files) and missed a last line with no newline; the one file over the
   limit, the Entities screen (662), is split (its three dialogs moved to
