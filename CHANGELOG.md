@@ -6,10 +6,6 @@ a decision with visible consequences.
 
 ## Unreleased
 
-- **Observation and pattern search no longer load every row.** Search (and pattern promotion)
-  read every observation or pattern of the agent and filtered in Python. Status, text and entity
-  filters now narrow in SQL, the exact checks stay, and search stops at its 50 results.
-
 - **Two patterns that start alike stay two patterns.** A pattern was named by the first 60
   characters of its hypothesis, so two clusters sharing that beginning wrote into one pattern,
   each run replacing the other's observations and counting a new confirmation. A long hypothesis
@@ -75,6 +71,10 @@ a decision with visible consequences.
   the cut text. Now a skill whose title and body exceed 8192 bytes is refused (422) on create and
   edit, and reads return the stored text. In `/context/skills` a skill that does not fit what is
   left is skipped instead of ending the list, so smaller skills after it are still delivered.
+
+- **Observation and pattern search no longer load every row.** Search (and pattern promotion)
+  read every observation or pattern of the agent and filtered in Python. Status, text and entity
+  filters now narrow in SQL, the exact checks stay, and search stops at its 50 results.
 
 - **Deleting an entity takes what refers to it.** `DELETE /entity/{id}` used to remove only the
   entity row; its history snapshots (old names, notes and attributes), events, edges and lineage
