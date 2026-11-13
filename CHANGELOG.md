@@ -6,6 +6,12 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **Merging entities keeps lineage and the graph whole.** The startup dedup and the manual
+  merge (`POST /entity/merge`) now share one routine: lineage links to the removed entity move to
+  the kept one, an edge between the two (a would-be self-loop) or one the kept entity already has
+  goes, the removed entity's vector is queued for deletion (the startup dedup left it in Qdrant),
+  and a malformed tags or attributes value no longer stops startup.
+
 - **Lineage stays inside one agent.** `POST /lineage/links`, `GET /lineage/{type}/{id}`,
   `DELETE /lineage/links/{id}` and an episode's `evidence_ids` now answer 404 for an object
   of another agent (the `X-Agent-Id` header), as for a missing one. Before, they read and
