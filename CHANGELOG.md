@@ -6,6 +6,9 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **The audit list is bounded.** `GET /audit` returned every row ever written; it now returns the
+  newest `limit` rows (default 500, at most 2000). `/audit/metrics` counts with GROUP BY instead of
+  loading every row of the window.
 - **Merging entities keeps lineage and the graph whole.** The startup dedup and the manual
   merge (`POST /entity/merge`) now share one routine: lineage links to the removed entity move to
   the kept one, an edge between the two (a would-be self-loop) or one the kept entity already has
