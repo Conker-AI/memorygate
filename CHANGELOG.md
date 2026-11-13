@@ -6,11 +6,6 @@ a decision with visible consequences.
 
 ## Unreleased
 
-- **Health checks the model in use.** The local model's health reported the env default
-  (`OLLAMA_MODEL`), while calls send the model stored in the runtime setting, so after the owner
-  changed the model the status could say ready while every call failed. Health now names and
-  checks the stored model.
-
 - **A lockout stops wrong keys, never the right one.** After five wrong keys from one address,
   every key from that address was refused for 300 s, so one misconfigured caller behind a proxy
   or the host network locked out the rest, and failures never expired. Now the key is checked
@@ -55,6 +50,11 @@ a decision with visible consequences.
   the cut text. Now a skill whose title and body exceed 8192 bytes is refused (422) on create and
   edit, and reads return the stored text. In `/context/skills` a skill that does not fit what is
   left is skipped instead of ending the list, so smaller skills after it are still delivered.
+
+- **Health checks the model in use.** The local model's health reported the env default
+  (`OLLAMA_MODEL`), while calls send the model stored in the runtime setting, so after the owner
+  changed the model the status could say ready while every call failed. Health now names and
+  checks the stored model.
 
 - **Deleting an entity takes what refers to it.** `DELETE /entity/{id}` used to remove only the
   entity row; its history snapshots (old names, notes and attributes), events, edges and lineage
