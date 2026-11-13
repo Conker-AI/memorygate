@@ -4,9 +4,7 @@ from app.core.db import SessionLocal
 from app.schemas.auth_settings import AiRuntimeUpdateRequest, MemoryResetRequest
 from app.services.ai_runtime_service import get_runtime_status, update_runtime_config
 from app.services.auth_settings_service import (
-    clear_failed_attempts,
-    get_lockout_status,
-    register_failed_attempt,
+    attempt,
     verify_admin_key,
 )
 from app.services.backup_service import create_backup, list_backups, resolve_backup
@@ -56,15 +54,12 @@ def download_backup(filename: str):
 def _confirm_admin(db, current_key: str, request: Request, action: str) -> None:
     client_host = request.client.host if request.client else "unknown"
     scope = f"{action}:{client_host}"
-    remaining = get_lockout_status(scope)
+    valid = verify_admin_key(db, current_key)
+    remaining = attempt(scope, valid)
     if remaining:
         raise HTTPException(429, f"Too many failed attempts. Try again in {remaining} seconds.")
-    if not verify_admin_key(db, current_key):
-        remaining = register_failed_attempt(scope)
-        if remaining:
-            raise HTTPException(429, f"Too many failed attempts. Try again in {remaining} seconds.")
+    if not valid:
         raise HTTPException(403, "Current admin key is invalid.")
-    clear_failed_attempts(scope)
 
 
 @router.get("/ai-runtime")
