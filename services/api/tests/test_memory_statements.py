@@ -150,3 +150,37 @@ def test_remembering_reads_only_memories_that_could_match(setup):
         event.remove(sessions, "loaded_as_persistent", count)
     assert "Unrelated note number 7 about lunch." not in loaded
     assert len(loaded) <= 5
+
+
+OLD_FACT = "Alexey works remotely from Berlin."
+NEW_FACT = "Alexey no longer works remotely from Berlin."
+
+
+def test_the_owners_newest_statement_stays_in_recall(setup):
+    """An owner correction keeps the new words active; only the older owner memory is reviewed."""
+    http, sessions, _ = setup
+    first = put(http, text=OLD_FACT)
+    second = put(http, request_id="creq_" + "b" * 32, text=NEW_FACT)
+    assert first.status_code == 200 and second.status_code == 200
+    with sessions() as db:
+        new = db.get(Memory, second.json()["memory_id"])
+        old = db.get(Memory, first.json()["memory_id"])
+        assert new.status == "active"
+        assert old.status == "needs_review"
+    assert second.json()["memory_status"] == "active"
+    replay = put(http, request_id="creq_" + "b" * 32, text=NEW_FACT)
+    assert replay.json() == second.json()
+
+
+def test_the_receipt_says_when_conkers_words_wait_for_review(setup):
+    http, sessions, _ = setup
+    owner = put(http, text=OLD_FACT)
+    conker = put(http, request_id="creq_" + "c" * 32, text=NEW_FACT, origin="conker")
+    assert conker.status_code == 200
+    assert conker.json()["status"] == "remembered"
+    assert conker.json()["memory_status"] == "needs_review"
+    with sessions() as db:
+        assert db.get(Memory, owner.json()["memory_id"]).status == "active"
+        assert db.get(Memory, conker.json()["memory_id"]).status == "needs_review"
+    replay = put(http, request_id="creq_" + "c" * 32, text=NEW_FACT, origin="conker")
+    assert replay.json()["memory_status"] == "needs_review"

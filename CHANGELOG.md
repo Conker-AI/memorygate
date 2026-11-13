@@ -6,6 +6,12 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **The owner's correction stays in recall.** When the owner remembered a fact that contradicts
+  an older one in his own words, both went to review and recall lost the old and the new fact
+  under a "remembered" receipt. Now the newest owner statement stays active and only the older
+  one goes to review; Conker-written statements keep the old rule. The remember receipt also
+  carries `memory_status`, so a caller can tell a memory that waits for review.
+
 - **Two patterns that start alike stay two patterns.** A pattern was named by the first 60
   characters of its hypothesis, so two clusters sharing that beginning wrote into one pattern,
   each run replacing the other's observations and counting a new confirmation. A long hypothesis
