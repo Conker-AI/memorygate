@@ -22,6 +22,10 @@ a decision with visible consequences.
   call refused), evidence processing stored an empty `local_ai_proposal` analysis, so the
   evidence counted as analysed and was never analysed again. Now nothing is stored.
 
+- **The audit list is bounded.** `GET /audit` returned every row ever written; it now returns the
+  newest `limit` rows (default 500, at most 2000). `/audit/metrics` counts with GROUP BY instead of
+  loading every row of the window.
+
 - **The conflict check reads whole words and keeps the owner's words in recall.** It counted
   "not" inside "knot" or "cannot " and matched long words as substrings over the first eight
   only. Now it compares whole words ("not", "never", "no longer", "stopped", "cannot", "-n't"

@@ -3,19 +3,25 @@ from datetime import UTC, datetime, timedelta
 from app.core.db import SessionLocal
 from app.models.audit import MemoryAudit
 from fastapi import APIRouter
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 router = APIRouter(prefix="/audit", tags=["audit"])
 
 READ_ACTIONS = {"runtime_context", "runtime_ask", "read"}
 WRITE_ACTIONS = {"write", "upgrade", "edit", "delete", "transcript_write", "transcript_delete"}
 
+DEFAULT_LIMIT = 500
+MAX_LIMIT = 2000
+
+
 @router.get("")
-def list_audit():
+def list_audit(limit: int = DEFAULT_LIMIT):
+    """The newest audit rows, at most `limit` (1..2000): the table grows with every read."""
     db = SessionLocal()
     try:
         rows = db.execute(
-            select(MemoryAudit).order_by(MemoryAudit.created_at.desc())
+            select(MemoryAudit).order_by(MemoryAudit.created_at.desc(), MemoryAudit.id.desc())
+            .limit(max(1, min(limit, MAX_LIMIT)))
         ).scalars().all()
 
         return [
@@ -38,19 +44,16 @@ def audit_metrics(hours: int = 24):
     cutoff = datetime.now(UTC) - timedelta(hours=bounded_hours)
     db = SessionLocal()
     try:
-        rows = db.execute(
-            select(MemoryAudit.action, MemoryAudit.created_at).where(MemoryAudit.created_at >= cutoff)
+        counts = db.execute(
+            select(MemoryAudit.action, func.count()).where(MemoryAudit.created_at >= cutoff)
+            .group_by(MemoryAudit.action)
         ).all()
         by_action: dict[str, int] = {}
-        reads = 0
-        writes = 0
-        for action, _created_at in rows:
+        for action, count in counts:
             key = str(action or "unknown")
-            by_action[key] = by_action.get(key, 0) + 1
-            if key in READ_ACTIONS:
-                reads += 1
-            if key in WRITE_ACTIONS:
-                writes += 1
+            by_action[key] = by_action.get(key, 0) + count
+        reads = sum(count for key, count in by_action.items() if key in READ_ACTIONS)
+        writes = sum(count for key, count in by_action.items() if key in WRITE_ACTIONS)
         return {
             "window_hours": bounded_hours,
             "reads": reads,
