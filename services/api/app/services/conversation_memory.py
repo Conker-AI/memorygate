@@ -105,9 +105,12 @@ def ingest(agent_id: str, message_id: str, payload: dict) -> dict:
         receipt.admission_method = (
             "owner_requested" if intent == "requested" else "signal" if admitted else "filtered"
         )
-        # Filtering does not erase source evidence. Conversation evidence is
-        # already processed and has no listener ProcessingJob; a declined
-        # retention request cannot be promoted by the background worker.
+        # Filtering for low value keeps the words as source evidence. A message
+        # the owner asked not to keep ("don't remember ...") keeps none: its
+        # evidence records only that it was declined (Pi still holds the chat).
+        # Conversation evidence is already processed and has no listener
+        # ProcessingJob, so the background worker never promotes either.
+        declined = intent == "declined"
         evidence = EvidenceObject(
             id=receipt.id,
             agent_id=agent_id,
@@ -115,11 +118,13 @@ def ingest(agent_id: str, message_id: str, payload: dict) -> dict:
             source_key="pi-conversation",
             source_type="owner_statement",
             title="Owner conversation evidence",
-            summary=content[:500],
+            summary="" if declined else content[:500],
             raw_payload_json=json.dumps(
                 {"message_id": message_id, "session_id": payload["session_id"]}
             ),
-            normalized_payload_json=json.dumps({"content": content}),
+            normalized_payload_json=json.dumps(
+                {"withheld": "owner_declined"} if declined else {"content": content}
+            ),
             occurred_at=occurred,
             integrity_confidence=1.0,
             processing_state="processed",

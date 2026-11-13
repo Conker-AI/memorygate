@@ -160,7 +160,8 @@ def test_direct_decline_filters_even_high_signal_without_scheduling_later_promot
         assert db.scalar(select(func.count()).select_from(ProcessingJob)) == 0
         evidence = db.get(EvidenceObject, receipt["id"])
         assert evidence.processing_state == "processed"
-        assert json.loads(evidence.normalized_payload_json) == {"content": content}
+        assert json.loads(evidence.normalized_payload_json) == {"withheld": "owner_declined"}
+        assert evidence.summary == ""
         assert "owner_declined_retention" in json.loads(
             db.scalars(select(AnalysisObject)).one().steps_json
         )
@@ -168,11 +169,11 @@ def test_direct_decline_filters_even_high_signal_without_scheduling_later_promot
             db, AgentContextRequest(query="answers короткие", include_evidence=False), "owner"
         )
         assert package["memories"] == [] and package["evidence"] == []
-        # Filtering is not deletion: an authorized raw-evidence read remains possible.
+        # A declined message keeps no words, so even a raw-evidence read finds nothing.
         evidence_package = runtime._build_context(
             db, AgentContextRequest(query="answers короткие", include_evidence=True), "owner"
         )
-        assert [row["id"] for row in evidence_package["evidence"]] == [receipt["id"]]
+        assert evidence_package["evidence"] == []
 
 
 def test_concurrent_retry_is_single_admission_with_original_fingerprint(database):
