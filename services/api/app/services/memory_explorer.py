@@ -7,7 +7,7 @@ from app.models.entity import EntityEdge
 from app.models.object_link import ObjectLink
 from app.models.object_types import OBJECT_MODELS
 from fastapi import HTTPException
-from sqlalchemy import and_, func, literal, or_, select, union_all
+from sqlalchemy import and_, false, func, literal, or_, select, union_all
 
 # Explicit projection: never return ORM internals, connector configuration or keys.
 FIELDS = {
@@ -38,7 +38,7 @@ def visible_nodes(body, agent_id, admin=False):
             ) if hasattr(model, name)]
             query = query.where(or_(*(column.ilike(pattern, escape="\\") for column in columns)))
         if body.scope == "none" or (body.scope != "all" and kind != "memory"):
-            query = query.where(False)
+            query = query.where(false())
         if kind == "memory":
             query = query.where(model.status == "active")
             if body.scope == "selected":
