@@ -13,6 +13,10 @@ a decision with visible consequences.
   while the address is locked, and failures older than 15 minutes no longer count. Applies to
   the admin key, read keys, listener keys and the current-key confirmations.
 
+- **No model answer, no AI analysis.** When no model answered (Pi down, local model off, hosted
+  call refused), evidence processing stored an empty `local_ai_proposal` analysis, so the
+  evidence counted as analysed and was never analysed again. Now nothing is stored.
+
 - **The conflict check reads whole words and keeps the owner's words in recall.** It counted
   "not" inside "knot" or "cannot " and matched long words as substrings over the first eight
   only. Now it compares whole words ("not", "never", "no longer", "stopped", "cannot", "-n't"
