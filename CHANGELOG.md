@@ -6,6 +6,10 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **A briefing streak belongs to one habit.** Streak events were grouped by their description,
+  so two habits that each logged "done" once made a streak neither had, and one habit with
+  differently worded events never reached one. They are now counted per habit and named after it.
+
 - **Two patterns that start alike stay two patterns.** A pattern was named by the first 60
   characters of its hypothesis, so two clusters sharing that beginning wrote into one pattern,
   each run replacing the other's observations and counting a new confirmation. A long hypothesis
