@@ -68,7 +68,7 @@ def ai_runtime():
     try:
         status = get_runtime_status(db)
         # With Pi choosing, MemoryGate's own Ollama runs nothing, so it is not probed.
-        return {**status, "ollama": ollama_health() if status["editable"] else None}
+        return {**status, "ollama": ollama_health(status["model"]) if status["editable"] else None}
     finally:
         db.close()
 
