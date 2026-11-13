@@ -16,8 +16,10 @@ from app.services.classifier import (
         ("I am a night owl, I'm a developer", "user", "fact", "medium"),
         ("I always love dark humor, deadpan", "user", "fact", "medium"),
         ("I am feeling tired today", "user", "phase", "low"),
-        ("I'm feeling sad and overwhelmed this week", "user", "phase", "high"),
-        ("I am a person and I am sad today", "user", "phase", "high"),
+        # A feeling and a timeframe are two signals; one word never fires two (it used to).
+        ("I'm feeling sad and overwhelmed this week", "user", "phase", "medium"),
+        ("I am a person and I am sad today", "user", "phase", "medium"),
+        ("I'm sad", "user", "phase", "low"),
         ("I keep doing it again, can't stop", "user", "watch", "low"),
         ("the meeting is at 3", "user", "context", "medium"),
         ("the meeting is at 3", "soulgate_inferred", "watch", "low"),
@@ -75,3 +77,24 @@ def test_legacy_types_map_to_current_ones():
 def test_legacy_map_targets_are_current_types():
     for _legacy_type, current_type in LEGACY_TYPE_MAP.items():
         assert current_type in CURRENT_MEMORY_TYPES
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "I argued against the plan",  # "again" inside "against"
+        "Sadie trains in the morning",  # "sad" inside "Sadie"
+        "the constraint is the budget",  # "train" inside "constraint"
+        "a crusade for cleaner hallways",  # "sad" in "crusade", "always" in "hallways"
+    ],
+)
+def test_a_phrase_inside_another_word_does_not_count(text):
+    assert classify_memory(text, "user") == {"memory_type": "context", "confidence": "medium",
+                                             "summary": text}
+
+
+def test_a_curly_apostrophe_counts_as_a_straight_one():
+    straight = classify_memory("I can't stop checking my phone", "user")
+    curly = classify_memory("I can" + chr(0x2019) + "t stop checking my phone", "user")
+    assert straight == {**curly, "summary": straight["summary"]}
+    assert straight["memory_type"] == "watch"

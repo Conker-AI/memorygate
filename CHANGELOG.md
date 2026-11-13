@@ -6,6 +6,13 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **The classifier matches whole words.** A memory type came from substring hits, so "again"
+  in "against" made a memory `watch`, "sad" in "Sadie" or "crusade" made it `phase`, and "train"
+  in "constraint" counted as a domain word. Phrases now match as whole words (a curly apostrophe
+  counts as a straight one). One feeling word also fired two phase signals, because the two
+  emotion lists overlap; a phase now has two signals, a feeling and a timeframe, so "sad this
+  week" is `medium`, not `high`. The unused `NEGATION_WORDS` list is gone.
+
 - **"Don't remember" keeps no words.** A conversation message the owner asked not to keep
   ("don't remember ...", "не запоминай ...") used to be stored word for word as evidence (only
   the memory was skipped). Its evidence now holds no text (`normalized_payload` is
