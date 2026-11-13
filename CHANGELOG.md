@@ -6,11 +6,6 @@ a decision with visible consequences.
 
 ## Unreleased
 
-- **The briefing reads an emotional observation's time with or without a zone.** On SQLite
-  `observed_at` comes back without one, and comparing it with the aware "now" made
-  GET /briefing answer 500 for any agent with a recent emotional observation. A time without a
-  zone is now read as UTC (Postgres, which keeps the zone, was not affected).
-
 - **Two patterns that start alike stay two patterns.** A pattern was named by the first 60
   characters of its hypothesis, so two clusters sharing that beginning wrote into one pattern,
   each run replacing the other's observations and counting a new confirmation. A long hypothesis
@@ -34,6 +29,11 @@ a decision with visible consequences.
   replaced the whole secret map, dropping the ingest key from `rotate-ingest-key`, so the listener
   was cut off; the ingest key now stays. `POST /evidence` refuses a disabled source (409), and a
   source's "last ingested" is the arrival time, not the event's own time.
+
+- **The briefing reads an emotional observation's time with or without a zone.** On SQLite
+  `observed_at` comes back without one, and comparing it with the aware "now" made
+  GET /briefing answer 500 for any agent with a recent emotional observation. A time without a
+  zone is now read as UTC (Postgres, which keeps the zone, was not affected).
 
 - **Memory upkeep candidates (read-only).** `GET /runtime/memory-upkeep` (read key or admin key,
   the header's agent only) lists exact and near duplicates, open contradictions, memories past
