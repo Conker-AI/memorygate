@@ -6,17 +6,17 @@ a decision with visible consequences.
 
 ## Unreleased
 
-- **Editing an evidence source keeps its listener working.** New secrets on `POST /evidence/sources`
-  replaced the whole secret map, dropping the ingest key from `rotate-ingest-key`, so the listener
-  was cut off; the ingest key now stays. `POST /evidence` refuses a disabled source (409), and a
-  source's "last ingested" is the arrival time, not the event's own time.
-
 - **A lockout stops wrong keys, never the right one.** After five wrong keys from one address,
   every key from that address was refused for 300 s, so one misconfigured caller behind a proxy
   or the host network locked out the rest, and failures never expired. Now the key is checked
   first: a right key always passes (and clears the count), a wrong one is counted and refused
   while the address is locked, and failures older than 15 minutes no longer count. Applies to
   the admin key, read keys, listener keys and the current-key confirmations.
+
+- **Editing an evidence source keeps its listener working.** New secrets on `POST /evidence/sources`
+  replaced the whole secret map, dropping the ingest key from `rotate-ingest-key`, so the listener
+  was cut off; the ingest key now stays. `POST /evidence` refuses a disabled source (409), and a
+  source's "last ingested" is the arrival time, not the event's own time.
 
 - **No model answer, no AI analysis.** When no model answered (Pi down, local model off, hosted
   call refused), evidence processing stored an empty `local_ai_proposal` analysis, so the
