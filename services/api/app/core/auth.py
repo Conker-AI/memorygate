@@ -37,8 +37,14 @@ def require_read_key(request: Request, x_memorygate_key: str | None = Header(Non
             lock_scope = f"read:{client_host}:{agent_id}"
         else:
             lock_scope = f"read-unknown-agent:{client_host}"
-        tier = ("admin" if verify_admin_key(db, x_memorygate_key)
-                else "read" if verify_agent_access_key(db, x_memorygate_key, agent_id) else None)
+        if x_memorygate_key and x_memorygate_key.startswith("mg_read_"):
+            # A read key never matches the admin hash: checking it first would stretch one
+            # miss on every request. An admin key with this prefix still passes below.
+            tier = ("read" if verify_agent_access_key(db, x_memorygate_key, agent_id)
+                    else "admin" if verify_admin_key(db, x_memorygate_key) else None)
+        else:
+            tier = ("admin" if verify_admin_key(db, x_memorygate_key)
+                    else "read" if verify_agent_access_key(db, x_memorygate_key, agent_id) else None)
         remaining = attempt(lock_scope, tier is not None)
         if remaining:
             raise HTTPException(429, f"Too many failed attempts. Try again in {remaining} seconds.")

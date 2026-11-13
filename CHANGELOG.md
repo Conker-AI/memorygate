@@ -51,6 +51,13 @@ a decision with visible consequences.
   call refused), evidence processing stored an empty `local_ai_proposal` analysis, so the
   evidence counted as analysed and was never analysed again. Now nothing is stored.
 
+- **A right key is stretched once, not on every request.** Each read request with a dashboard
+  admin key set ran PBKDF2 for the admin miss and again for every read key before the match, so
+  Pi paid that on every turn. A key that verified is now remembered for the process (by a
+  peppered tag, beside the hash it matched, at most 256), and a read key is checked against read
+  keys first. A changed admin key or a revoked read key is refused at once, and a wrong key still
+  pays the full check.
+
 - **The audit list is bounded.** `GET /audit` returned every row ever written; it now returns the
   newest `limit` rows (default 500, at most 2000). `/audit/metrics` counts with GROUP BY instead of
   loading every row of the window.
