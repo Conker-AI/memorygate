@@ -10,6 +10,12 @@ a decision with visible consequences.
   call refused), evidence processing stored an empty `local_ai_proposal` analysis, so the
   evidence counted as analysed and was never analysed again. Now nothing is stored.
 
+- **Deleting an entity takes what refers to it.** `DELETE /entity/{id}` used to remove only the
+  entity row; its history snapshots (old names, notes and attributes), events, edges and lineage
+  links stayed, and observations and patterns kept its id. Now they go with it (each link leaves
+  a `link` receipt), and recovery replay of an `entity` receipt removes the same set from a
+  restored backup.
+
 - **The 600-line check covers the dashboard.** `scripts/check_file_sizes.py` skipped `.jsx`
   (the dashboard's own files) and missed a last line with no newline; the one file over the
   limit, the Entities screen (662), is split (its three dialogs moved to
