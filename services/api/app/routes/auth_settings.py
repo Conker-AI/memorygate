@@ -6,12 +6,10 @@ from app.schemas.auth_settings import (
     AgentKeyCreateRequest,
 )
 from app.services.auth_settings_service import (
-    clear_failed_attempts,
+    attempt,
     create_agent_access_key,
     generate_admin_key,
     get_auth_state,
-    get_lockout_status,
-    register_failed_attempt,
     set_admin_key,
     validate_new_admin_key,
     verify_admin_key,
@@ -36,19 +34,16 @@ def change_key(payload: AdminKeyUpdateRequest, request: Request):
     lock_scope = f"settings:{client_host}"
     db = SessionLocal()
     try:
-        remaining = get_lockout_status(lock_scope)
+        valid = verify_admin_key(db, payload.current_key)
+        remaining = attempt(lock_scope, valid)
         if remaining:
             raise HTTPException(429, f"Too many failed attempts. Try again in {remaining} seconds.")
-        if not verify_admin_key(db, payload.current_key):
-            remaining = register_failed_attempt(lock_scope)
-            if remaining:
-                raise HTTPException(429, f"Too many failed attempts. Try again in {remaining} seconds.")
+        if not valid:
             raise HTTPException(403, "current key is invalid")
         validation_error = validate_new_admin_key(payload.new_key)
         if validation_error:
             raise HTTPException(400, validation_error)
         set_admin_key(db, payload.new_key)
-        clear_failed_attempts(lock_scope)
         return {"status": "ok"}
     finally:
         db.close()
@@ -60,17 +55,14 @@ def rotate_key(payload: AdminKeyRotateRequest, request: Request):
     lock_scope = f"settings:{client_host}"
     db = SessionLocal()
     try:
-        remaining = get_lockout_status(lock_scope)
+        valid = verify_admin_key(db, payload.current_key)
+        remaining = attempt(lock_scope, valid)
         if remaining:
             raise HTTPException(429, f"Too many failed attempts. Try again in {remaining} seconds.")
-        if not verify_admin_key(db, payload.current_key):
-            remaining = register_failed_attempt(lock_scope)
-            if remaining:
-                raise HTTPException(429, f"Too many failed attempts. Try again in {remaining} seconds.")
+        if not valid:
             raise HTTPException(403, "current key is invalid")
         new_key = generate_admin_key(payload.length)
         set_admin_key(db, new_key)
-        clear_failed_attempts(lock_scope)
         return {"status": "ok", "new_key": new_key}
     finally:
         db.close()
