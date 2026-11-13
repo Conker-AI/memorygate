@@ -6,6 +6,11 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **Lineage stays inside one agent.** `POST /lineage/links`, `GET /lineage/{type}/{id}`,
+  `DELETE /lineage/links/{id}` and an episode's `evidence_ids` now answer 404 for an object
+  of another agent (the `X-Agent-Id` header), as for a missing one. Before, they read and
+  linked any agent's objects by id.
+
 - **Each tag gets a GitHub Release page and an SBOM.** The Release page's notes are the
   version's CHANGELOG section. Every image carries an SPDX SBOM (BuildKit attestation) inside
   the image index, and the signed build provenance covers that index digest. Check one with
