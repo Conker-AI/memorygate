@@ -17,7 +17,7 @@ from app.schemas.memory import (
 )
 from app.services.agent_config_service import get_or_create_config
 from app.services.classifier import CURRENT_MEMORY_TYPES, classify_memory, normalize_memory_type
-from app.services.lexical_retrieval import escape_like, memory_candidates, prepare_query
+from app.services.lexical_retrieval import memory_candidates, prepare_query
 from app.services.memory_text_lock import lock_memory_text
 from app.services.memory_truth import add_revision, detect_conflicts
 from app.services.qdrant_store import (
@@ -409,12 +409,9 @@ def search_memory(payload: MemorySearchRequest, header_agent_id: str = Depends(g
             scores = id_to_score
         else:
             path = "lexical"
-            rows = db.execute(
-                select(Memory)
-                .where(Memory.agent_id == agent_id, Memory.text.ilike(f"%{escape_like(payload.query)}%", escape="/"))
-                .order_by(Memory.created_at.desc())
-                .limit(20)
-            ).scalars().all()
+            # Words, not the whole query as one substring: "release pipeline" must find
+            # "the pipeline for the release". Same search as recall (active memories only).
+            rows = [row for row, _score in memory_candidates(db, prepare_query(payload.query), agent_id)[:20]]
 
         results = []
         for row in rows:
@@ -439,11 +436,14 @@ def search_memory(payload: MemorySearchRequest, header_agent_id: str = Depends(g
         db.close()
 
 @router.get("")
-def list_memory(agent_id: str = Depends(get_agent_id)):
+def list_memory(agent_id: str = Depends(get_agent_id), limit: int = Query(default=100, ge=1, le=500),
+                offset: int = Query(default=0, ge=0)):
+    """Newest first; `offset` pages to older memories (the id breaks ties, so pages are stable)."""
     db = SessionLocal()
     try:
         rows = db.execute(
-            select(Memory).where(Memory.agent_id == agent_id).order_by(Memory.created_at.desc()).limit(100)
+            select(Memory).where(Memory.agent_id == agent_id)
+            .order_by(Memory.created_at.desc(), Memory.id.desc()).limit(limit).offset(offset)
         ).scalars().all()
         return [_row_to_dict(row) for row in rows]
     finally:

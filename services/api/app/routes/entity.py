@@ -16,7 +16,7 @@ from app.services.entity_dedup import find_duplicate, merge_entities
 from app.services.entity_forgetting import erase_dependents
 from app.services.lexical_retrieval import escape_like
 from app.services.vector_outbox import enqueue_delete, enqueue_upsert, reconcile_one
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import or_, select
 
 router = APIRouter(prefix="/entity", tags=["entity"])
@@ -55,11 +55,14 @@ def _get_owned_entity(db, entity_id: str, agent_id: str) -> Entity:
     return row
 
 @router.get("")
-def list_entities(agent_id: str = Depends(get_agent_id)):
+def list_entities(agent_id: str = Depends(get_agent_id), limit: int = Query(default=100, ge=1, le=500),
+                  offset: int = Query(default=0, ge=0)):
+    """Most recently changed first; `offset` pages to older entities."""
     db = SessionLocal()
     try:
         rows = db.execute(
-            select(Entity).where(Entity.agent_id == agent_id).order_by(Entity.updated_at.desc()).limit(100)
+            select(Entity).where(Entity.agent_id == agent_id)
+            .order_by(Entity.updated_at.desc(), Entity.id.desc()).limit(limit).offset(offset)
         ).scalars().all()
         return [_entity_to_dict(row) for row in rows]
     finally:
