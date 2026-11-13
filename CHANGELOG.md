@@ -6,6 +6,11 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **Deleting an entity takes what refers to it.** `DELETE /entity/{id}` used to remove only the
+  entity row; its history snapshots (old names, notes and attributes), events, edges and lineage
+  links stayed, and observations and patterns kept its id. Now they go with it (each link leaves
+  a `link` receipt), and recovery replay of an `entity` receipt removes the same set from a
+  restored backup.
 - **Lineage stays inside one agent.** `POST /lineage/links`, `GET /lineage/{type}/{id}`,
   `DELETE /lineage/links/{id}` and an episode's `evidence_ids` now answer 404 for an object
   of another agent (the `X-Agent-Id` header), as for a missing one. Before, they read and
