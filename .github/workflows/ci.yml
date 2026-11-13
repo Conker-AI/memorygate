@@ -78,7 +78,7 @@ jobs:
         # Run from services/api: the tests import `app.*`, which resolves only
         # with that directory as the root - the same layout the image uses.
         working-directory: services/api
-        run: python -m pytest tests/ --ignore=tests/test_module_contract.py -q --cov --cov-report=term --cov-fail-under=84
+        run: python -m pytest tests/ --ignore=tests/test_module_contract.py -q --cov --cov-report=term --cov-fail-under=88
 
       - name: Memory safety mutation drill
         # Proves the tests still catch broken key, deletion, retry and spending rules.
