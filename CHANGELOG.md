@@ -10,6 +10,12 @@ a decision with visible consequences.
   (the dashboard's own files) and missed a last line with no newline; the one file over the
   limit, the Entities screen (662), is split (its three dialogs moved to
   `components/EntityModals.jsx`). No behaviour change.
+
+- **Lineage stays inside one agent.** `POST /lineage/links`, `GET /lineage/{type}/{id}`,
+  `DELETE /lineage/links/{id}` and an episode's `evidence_ids` now answer 404 for an object
+  of another agent (the `X-Agent-Id` header), as for a missing one. Before, they read and
+  linked any agent's objects by id.
+
 - **No more transcript archive writes** (contract change). Transcripts live only in Pi
   (ADR-0002), and nothing in Conker wrote here, so `POST /transcripts` and the SoulGate
   flags (`POST /transcripts/{id}/reprocess`, `/mark-processed`, `processed_by_soulgate` in

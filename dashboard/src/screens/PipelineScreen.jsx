@@ -81,7 +81,7 @@ export default function PipelineScreen() {
   useEffect(() => {
     if (!selected) { setLineage(null); return; }
     setLineage(null);
-    api.get(`/lineage/${selected.stage === 'input' ? 'transcript' : selected.stage === 'response' ? 'memory' : selected.stage}/${selected.item.id}`)
+    api.get(`/lineage/${selected.stage === 'input' ? 'transcript' : selected.stage === 'response' ? 'memory' : selected.stage}/${selected.item.id}`, undefined, selected.agentId || agentId)
       .then(setLineage)
       .catch(() => setLineage({ incoming: [], outgoing: [] }));
   }, [selected]);
