@@ -163,6 +163,7 @@ def _upgrade_existing_memory(db, row, payload, final_memory_type, final_confiden
     indexing = {"status": "ok"}
     if new_strength > old_strength:
         row.memory_type = final_memory_type
+        row.review_by = _default_review_by(row.memory_type, row.review_by)
         row.confidence = final_confidence
         row.summary = final_summary
         upgraded = True
@@ -495,6 +496,7 @@ def patch_memory(memory_id: str, payload: MemoryPatchRequest, agent_id: str = De
             row.do_not_generalize = payload.do_not_generalize
         if payload.review_by is not None:
             row.review_by = parse_timestamp(payload.review_by, "review_by")
+        row.review_by = _default_review_by(row.memory_type, row.review_by)
         if payload.tags is not None:
             row.tags_json = json.dumps(payload.tags)
 

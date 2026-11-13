@@ -133,6 +133,7 @@ def process_evidence(
                     memory_type=classification["memory_type"], source_type="automatic_listener",
                     confidence=classification["confidence"], tags_json=evidence.tags_json,
                     valid_from=datetime.now(UTC),
+                    review_by=datetime.now(UTC) + timedelta(days=14) if classification["memory_type"] == "phase" else None,
                 )
                 db.add(memory)
                 db.flush()

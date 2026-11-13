@@ -6,6 +6,10 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **A memory that becomes a phase gets its two-week review date.** Editing a memory to a phase,
+  a duplicate write that upgrades one to a phase and a listener promotion classified as a phase
+  left the review date empty, so the startup catch-up later dated it from when the memory was
+  made, already in the past for an old one. Each now sets it to two weeks from the change.
 - **Two patterns that start alike stay two patterns.** A pattern was named by the first 60
   characters of its hypothesis, so two clusters sharing that beginning wrote into one pattern,
   each run replacing the other's observations and counting a new confirmation. A long hypothesis
