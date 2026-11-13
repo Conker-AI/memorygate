@@ -33,6 +33,12 @@ a decision with visible consequences.
   `user` or `owner_statement`) is no longer taken out of recall because of one that is not: the
   conflict is still recorded, and only the other memory goes to review.
 
+- **A write is not lost to a memory under review.** `POST /memory/write` took a memory with the
+  same text as its duplicate whatever its status, so a write equal to a memory under review or
+  expired answered ok with `duplicate_of` and nothing became active; it also looked only at the
+  newest 100. Now only an active memory of the agent counts, however old, and two writes of one
+  text are serialised (Postgres).
+
 - **"Don't remember" keeps no words.** A conversation message the owner asked not to keep
   ("don't remember ...", "не запоминай ...") used to be stored word for word as evidence (only
   the memory was skipped). Its evidence now holds no text (`normalized_payload` is
