@@ -6,9 +6,6 @@ a decision with visible consequences.
 
 ## Unreleased
 
-- **The backup list names only backup files.** A folder in the backup directory whose name
-  matched the backup pattern was listed as a backup that the download then refused.
-
 - **Two patterns that start alike stay two patterns.** A pattern was named by the first 60
   characters of its hypothesis, so two clusters sharing that beginning wrote into one pattern,
   each run replacing the other's observations and counting a new confirmation. A long hypothesis
@@ -53,6 +50,9 @@ a decision with visible consequences.
 - **No model answer, no AI analysis.** When no model answered (Pi down, local model off, hosted
   call refused), evidence processing stored an empty `local_ai_proposal` analysis, so the
   evidence counted as analysed and was never analysed again. Now nothing is stored.
+
+- **The backup list names only backup files.** A folder in the backup directory whose name
+  matched the backup pattern was listed as a backup that the download then refused.
 
 - **A right key is stretched once, not on every request.** Each read request with a dashboard
   admin key set ran PBKDF2 for the admin miss and again for every read key before the match, so
