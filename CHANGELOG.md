@@ -84,6 +84,13 @@ a decision with visible consequences.
   changed the model the status could say ready while every call failed. Health now names and
   checks the stored model.
 
+- **A recovery replay removes every copy of a forgotten memory's text.** Replaying a memory's
+  deletion receipt into a restored backup deleted only the memory row, so its revision snapshots,
+  the conflicts naming it and the text in its audit entries came back with the backup. The replay
+  now removes and redacts them as a live forget does, also when the row is already gone, and
+  turns the memory's (or entity's or observation's) vector outbox row into a delete, so neither
+  its stored text nor a pending re-index survives the restore.
+
 - **A write is not lost to a memory under review.** `POST /memory/write` took a memory with the
   same text as its duplicate whatever its status, so a write equal to a memory under review or
   expired answered ok with `duplicate_of` and nothing became active; it also looked only at the

@@ -13,9 +13,11 @@ from app.models.object_link import ObjectLink
 from app.models.observation import Observation
 from app.models.pattern import Pattern
 from app.models.session_transcript import SessionTranscript
-from app.services import conversation_memory, listener_forgetting
+from app.services import conversation_memory, listener_forgetting, memory_forgetting
 from app.services.entity_forgetting import erase_dependents
 from app.services.observation_forgetting import erase_observation_dependents, erase_pattern
+from app.services.vector_outbox import KINDS as VECTOR_KINDS
+from app.services.vector_outbox import enqueue_delete
 from sqlalchemy import select
 
 MODELS = {"memory": Memory, "entity": Entity, "observation": Observation, "pattern": Pattern,
@@ -125,6 +127,11 @@ def replay(receipts, target_sessions):
             if row is not None and kind != "link" and row.agent_id != agent_id:
                 raise ValueError("Restored object namespace conflicts with deletion evidence.")
             record(db, agent_id, kind, identity)
+            if kind == "memory":
+                memory_forgetting.erase_text_copies(db, identity, "recovery_replay")
+            if kind in VECTOR_KINDS:
+                # A restored outbox row keeps the text, and a pending upsert would index it again.
+                enqueue_delete(db, kind, identity, agent_id=agent_id)
             if kind == "entity":
                 erase_dependents(db, identity)
             if kind == "observation":

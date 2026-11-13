@@ -40,25 +40,33 @@ def _reconcile_index_intent(operation, memory_id):
     )
 
 
-def erase(db, agent_id: str, memory: Memory, action: str, detail: dict) -> None:
-    """Remove the memory and every text copy inside the caller's transaction."""
-    # Before the backing set is read: a worker reusing this memory by its text links its
-    # evidence either before (and that evidence is forgotten too) or finds the memory gone.
-    lock_memory_text(db, memory.agent_id, memory.text)
-    db.execute(delete(MemoryRevision).where(MemoryRevision.memory_id == memory.id))
+def erase_text_copies(db, memory_id: str, action: str) -> None:
+    """Delete revisions and conflicts naming the memory and redact its audit text.
+
+    Works by id alone, so a recovery replay can run it after the row is gone.
+    """
+    db.execute(delete(MemoryRevision).where(MemoryRevision.memory_id == memory_id))
     db.execute(
         delete(MemoryConflict).where(
             or_(
-                MemoryConflict.memory_id == memory.id,
-                MemoryConflict.conflicting_memory_id == memory.id,
+                MemoryConflict.memory_id == memory_id,
+                MemoryConflict.conflicting_memory_id == memory_id,
             )
         )
     )
     db.execute(
         update(MemoryAudit)
-        .where(MemoryAudit.memory_id == memory.id)
+        .where(MemoryAudit.memory_id == memory_id)
         .values(payload_json=json.dumps({"redacted": action}))
     )
+
+
+def erase(db, agent_id: str, memory: Memory, action: str, detail: dict) -> None:
+    """Remove the memory and every text copy inside the caller's transaction."""
+    # Before the backing set is read: a worker reusing this memory by its text links its
+    # evidence either before (and that evidence is forgotten too) or finds the memory gone.
+    lock_memory_text(db, memory.agent_id, memory.text)
+    erase_text_copies(db, memory.id, action)
     forget_sources(db, agent_id, memory.id)
     deletion_receipt.record(db, agent_id, "memory", memory.id)
     enqueue_delete(db, "memory", memory.id, agent_id=agent_id)
