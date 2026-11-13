@@ -9,6 +9,7 @@ HTTP API; the index is Qdrant local mode behind the harness's switch.
 
 import json
 
+from memory_stack import holds_word
 from memory_stack import stack as stack
 
 GREY = "The weather was grey on the walk home"  # below the default value threshold
@@ -31,7 +32,7 @@ def test_a_refused_write_keeps_only_the_refusal(stack):
     payload = json.loads(refusal["payload_json"])
     assert payload["reason"] == "low_value" and payload["text_length"] == len(GREY)
     assert set(payload) == {"agent_id", "reason", "text_length", "value_score"}
-    assert "grey" not in stack.stored_text().lower()  # nor anywhere else
+    assert not holds_word(stack.stored_text(), "grey")  # nor anywhere else
 
 
 def test_search_finds_a_memory_still_queued_for_the_index_by_its_words(stack):
