@@ -6,6 +6,9 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **No model answer, no AI analysis.** When no model answered (Pi down, local model off, hosted
+  call refused), evidence processing stored an empty `local_ai_proposal` analysis, so the
+  evidence counted as analysed and was never analysed again. Now nothing is stored.
 - **Lineage stays inside one agent.** `POST /lineage/links`, `GET /lineage/{type}/{id}`,
   `DELETE /lineage/links/{id}` and an episode's `evidence_ids` now answer 404 for an object
   of another agent (the `X-Agent-Id` header), as for a missing one. Before, they read and
