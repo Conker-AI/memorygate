@@ -28,12 +28,13 @@ from app.services.briefing import build_briefing
 from app.services.conversation_memory import citations
 from app.services.lexical_retrieval import memory_candidates, prepare_query
 from app.services.memory_truth import mark_unsupported
+from app.services.memory_upkeep import stamp_recalled, upkeep_candidates
 from app.services.ollama_service import answer_with_context, ollama_health
 from app.services.pi_inference import CHOSEN_IN, last_answer, model_choice, pi_configured
 from app.services.processing_worker import requeue
 from app.services.qdrant_store import INDEX_UNREACHABLE, search_memory_embeddings, semantic_status
 from app.services.scoring import memory_rank_bonus
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from sqlalchemy import func, select
 
 router = APIRouter(prefix="/runtime", tags=["runtime"])
@@ -278,6 +279,7 @@ def agent_context(payload: AgentContextRequest, header_agent_id: str = Depends(g
             }),
         ))
         db.commit()
+        stamp_recalled(db, [item["id"] for item in context.get("memories") or []])
         if payload.compact:
             from app.services.memory_explorer import compact
             return compact(db, context, payload, agent_id, admin=_ == "admin")
@@ -334,6 +336,7 @@ def ask_memorygate(payload: MemoryQuestionRequest, header_agent_id: str = Depend
             }),
         ))
         db.commit()
+        stamp_recalled(db, [item["id"] for item in context.get("memories") or []])
         return {
             "question": payload.question, "answer": answer, "context": context,
             # Who wrote the answer, when Pi named them; None on the direct path.
@@ -341,6 +344,19 @@ def ask_memorygate(payload: MemoryQuestionRequest, header_agent_id: str = Depend
         }
     finally:
         db.close()
+
+
+@router.get("/memory-upkeep")
+def memory_upkeep(
+    agent_id: str = Depends(get_agent_id),
+    _: str = Depends(require_read_key),
+    unused_days: int = Query(90, ge=1, le=3650),
+    limit: int = Query(50, ge=1, le=500),
+):
+    """Upkeep candidates for the header's agent: duplicates, open conflicts, expired and unused
+    memories, each with ids and a reason. Reads only; nothing is changed or deleted."""
+    with SessionLocal() as db:
+        return upkeep_candidates(db, agent_id, unused_days=unused_days, limit=limit)
 
 
 @router.get("/jobs")
