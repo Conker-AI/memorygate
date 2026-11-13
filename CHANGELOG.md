@@ -6,6 +6,10 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **Editing an evidence source keeps its listener working.** New secrets on `POST /evidence/sources`
+  replaced the whole secret map, dropping the ingest key from `rotate-ingest-key`, so the listener
+  was cut off; the ingest key now stays. `POST /evidence` refuses a disabled source (409), and a
+  source's "last ingested" is the arrival time, not the event's own time.
 - **Merging entities keeps lineage and the graph whole.** The startup dedup and the manual
   merge (`POST /entity/merge`) now share one routine: lineage links to the removed entity move to
   the kept one, an edge between the two (a would-be self-loop) or one the kept entity already has

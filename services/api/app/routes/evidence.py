@@ -1,6 +1,6 @@
 import json
 import secrets
-from datetime import datetime
+from datetime import UTC, datetime
 
 from app.core.agent import get_agent_id
 from app.core.db import SessionLocal
@@ -89,7 +89,11 @@ def upsert_source(payload: EvidenceSourceUpsertRequest):
             row.description = payload.description.strip()
             row.config_json = json.dumps(payload.config)
             if payload.secrets:
-                row.secret_json = next_secret_json
+                # New secrets replace the old ones, but never the listener's ingest key, which
+                # only rotate-ingest-key sets; dropping it would cut the listener off.
+                current = json.loads(row.secret_json or "{}")
+                kept = {"ingest_key": current["ingest_key"]} if current.get("ingest_key") else {}
+                row.secret_json = json.dumps({**kept, **payload.secrets})
             row.enabled = payload.enabled
         db.commit()
         db.refresh(row)
@@ -139,6 +143,8 @@ def create_evidence(payload: EvidenceObjectCreateRequest, agent_id: str = Depend
         source = db.execute(select(EvidenceSource).where(EvidenceSource.source_key == source_key)).scalar_one_or_none()
         if source is None:
             raise HTTPException(404, f"Evidence source '{source_key}' not found")
+        if not source.enabled:
+            raise HTTPException(409, f"Evidence source '{source_key}' is disabled")
         occurred_at = parse_timestamp(payload.occurred_at, "occurred_at")
         row = EvidenceObject(
             agent_id=agent_id,
@@ -154,7 +160,8 @@ def create_evidence(payload: EvidenceObjectCreateRequest, agent_id: str = Depend
             occurred_at=occurred_at or datetime.utcnow(),
         )
         db.add(row)
-        source.last_ingested_at = row.occurred_at
+        # When it arrived, not when the event happened (which may be long ago or ahead).
+        source.last_ingested_at = datetime.now(UTC)
         db.commit()
         db.refresh(row)
         return _evidence_to_dict(row)
