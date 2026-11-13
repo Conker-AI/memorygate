@@ -6,6 +6,11 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **The briefing reads an emotional observation's time with or without a zone.** On SQLite
+  `observed_at` comes back without one, and comparing it with the aware "now" made
+  GET /briefing answer 500 for any agent with a recent emotional observation. A time without a
+  zone is now read as UTC (Postgres, which keeps the zone, was not affected).
+
 - **Two patterns that start alike stay two patterns.** A pattern was named by the first 60
   characters of its hypothesis, so two clusters sharing that beginning wrote into one pattern,
   each run replacing the other's observations and counting a new confirmation. A long hypothesis

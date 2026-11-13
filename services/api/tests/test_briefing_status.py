@@ -28,11 +28,6 @@ def db(tmp_path):
     engine.dispose()
 
 
-def naive_now() -> datetime:
-    # SQLite returns stored datetimes without a zone; compare like with like.
-    return datetime.now(UTC).replace(tzinfo=None)
-
-
 def test_watch_flags_skip_memories_that_left_recall(db):
     now = datetime.now(UTC)
     db.add(Memory(
@@ -49,9 +44,8 @@ def test_watch_flags_skip_memories_that_left_recall(db):
 
 
 @pytest.mark.parametrize("dropped_status", ["contradicted", "archived"])
-def test_emotional_state_skips_contradicted_and_archived_observations(db, monkeypatch, dropped_status):
-    monkeypatch.setattr(briefing, "_now", naive_now)
-    now = naive_now()
+def test_emotional_state_skips_contradicted_and_archived_observations(db, dropped_status):
+    now = datetime.now(UTC)
     db.add(Observation(
         agent_id="owner", signal_type="emotional", description="d", status="unconfirmed",
         hypothesis="calm", observed_at=now - timedelta(hours=3),
