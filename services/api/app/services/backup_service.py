@@ -82,7 +82,9 @@ def list_backups() -> list[dict]:
     if not destination.exists():
         return []
     files = []
-    for path in sorted(destination.glob("memorygate-*.json"), key=lambda item: item.stat().st_mtime, reverse=True):
+    # Files only, as the download accepts: a folder matching the pattern is not a backup.
+    backups = (path for path in destination.glob("memorygate-*.json") if path.is_file())
+    for path in sorted(backups, key=lambda item: item.stat().st_mtime, reverse=True):
         files.append({"filename": path.name, "size": path.stat().st_size, "created_at": datetime.utcfromtimestamp(path.stat().st_mtime).isoformat() + "Z"})
     return files
 

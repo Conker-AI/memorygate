@@ -60,6 +60,9 @@ a decision with visible consequences.
   call refused), evidence processing stored an empty `local_ai_proposal` analysis, so the
   evidence counted as analysed and was never analysed again. Now nothing is stored.
 
+- **The backup list names only backup files.** A folder in the backup directory whose name
+  matched the backup pattern was listed as a backup that the download then refused.
+
 - **A right key is stretched once, not on every request.** Each read request with a dashboard
   admin key set ran PBKDF2 for the admin miss and again for every read key before the match, so
   Pi paid that on every turn. A key that verified is now remembered for the process (by a
