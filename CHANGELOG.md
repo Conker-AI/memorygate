@@ -20,6 +20,11 @@ a decision with visible consequences.
   while the address is locked, and failures older than 15 minutes no longer count. Applies to
   the admin key, read keys, listener keys and the current-key confirmations.
 
+- **A memory that becomes a phase gets its two-week review date.** Editing a memory to a phase,
+  a duplicate write that upgrades one to a phase and a listener promotion classified as a phase
+  left the review date empty, so the startup catch-up later dated it from when the memory was
+  made, already in the past for an old one. Each now sets it to two weeks from the change.
+
 - **Editing an evidence source keeps its listener working.** New secrets on `POST /evidence/sources`
   replaced the whole secret map, dropping the ingest key from `rotate-ingest-key`, so the listener
   was cut off; the ingest key now stays. `POST /evidence` refuses a disabled source (409), and a
