@@ -1,9 +1,7 @@
 from app.core.db import SessionLocal
 from app.services.auth_settings_service import (
-    clear_failed_attempts,
-    get_lockout_status,
+    attempt,
     has_agent_key,
-    register_failed_attempt,
     verify_admin_key,
     verify_agent_access_key,
 )
@@ -17,15 +15,12 @@ def require_key(request: Request, x_memorygate_key: str | None = Header(None, al
     lock_scope = f"auth:{client_host}"
     db = SessionLocal()
     try:
-        remaining = get_lockout_status(lock_scope)
+        valid = verify_admin_key(db, x_memorygate_key)
+        remaining = attempt(lock_scope, valid)
         if remaining:
             raise HTTPException(429, f"Too many failed attempts. Try again in {remaining} seconds.")
-        if not verify_admin_key(db, x_memorygate_key):
-            remaining = register_failed_attempt(lock_scope)
-            if remaining:
-                raise HTTPException(429, f"Too many failed attempts. Try again in {remaining} seconds.")
+        if not valid:
             raise HTTPException(401, "missing or invalid X-MemoryGate-Key")
-        clear_failed_attempts(lock_scope)
         return "admin"
     finally:
         db.close()
@@ -42,18 +37,13 @@ def require_read_key(request: Request, x_memorygate_key: str | None = Header(Non
             lock_scope = f"read:{client_host}:{agent_id}"
         else:
             lock_scope = f"read-unknown-agent:{client_host}"
-        remaining = get_lockout_status(lock_scope)
+        tier = ("admin" if verify_admin_key(db, x_memorygate_key)
+                else "read" if verify_agent_access_key(db, x_memorygate_key, agent_id) else None)
+        remaining = attempt(lock_scope, tier is not None)
         if remaining:
             raise HTTPException(429, f"Too many failed attempts. Try again in {remaining} seconds.")
-        if verify_admin_key(db, x_memorygate_key):
-            clear_failed_attempts(lock_scope)
-            return "admin"
-        if verify_agent_access_key(db, x_memorygate_key, agent_id):
-            clear_failed_attempts(lock_scope)
-            return "read"
-        remaining = register_failed_attempt(lock_scope)
-        if remaining:
-            raise HTTPException(429, f"Too many failed attempts. Try again in {remaining} seconds.")
-        raise HTTPException(401, "missing or invalid read key")
+        if tier is None:
+            raise HTTPException(401, "missing or invalid read key")
+        return tier
     finally:
         db.close()
