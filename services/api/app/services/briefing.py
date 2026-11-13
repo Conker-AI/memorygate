@@ -64,12 +64,14 @@ def _active_streaks(db, agent_id: str) -> list[dict]:
         .where(Entity.agent_id == agent_id, EntityEvent.event_type == "streak", EntityEvent.created_at >= cutoff)
     ).all()
 
+    # A streak is one habit's: count its streak events and name it after the habit.
     counts: dict[str, int] = {}
-    for event, _entity in rows:
-        key = event.description or "streak"
-        counts[key] = counts.get(key, 0) + 1
+    names: dict[str, str] = {}
+    for _event, entity in rows:
+        counts[entity.id] = counts.get(entity.id, 0) + 1
+        names[entity.id] = entity.name or "streak"
 
-    return [{"name": name, "count": count} for name, count in counts.items() if count >= STREAK_THRESHOLD]
+    return [{"name": names[key], "count": count} for key, count in counts.items() if count >= STREAK_THRESHOLD]
 
 
 def _pending_clarifications(db, agent_id: str) -> list[dict]:

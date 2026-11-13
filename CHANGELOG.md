@@ -47,6 +47,10 @@ a decision with visible consequences.
   older id lists, so a link the owner deleted came back at the next start. The rebuild now runs
   once per install (a marker in `data_migration_steps`); the id lists stay what forgetting reads.
 
+- **A briefing streak belongs to one habit.** Streak events were grouped by their description,
+  so two habits that each logged "done" once made a streak neither had, and one habit with
+  differently worded events never reached one. They are now counted per habit and named after it.
+
 - **Memory search without the vector index matches words.** When the index was down or found
   nothing, `POST /memory/search` matched the whole query as one piece of text, so "release
   pipeline" found nothing in "the pipeline for the release". The fallback now uses recall's word
