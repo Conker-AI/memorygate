@@ -6,11 +6,6 @@ a decision with visible consequences.
 
 ## Unreleased
 
-- **The briefing shows only live evidence.** A watch memory that lost a conflict or was
-  marked unsupported stayed in the pre-session briefing for 14 days, and a contradicted or
-  archived emotional observation could still set its mood. Watch flags now come only from
-  active memories, and the mood ignores contradicted and archived observations.
-
 - **Two patterns that start alike stay two patterns.** A pattern was named by the first 60
   characters of its hypothesis, so two clusters sharing that beginning wrote into one pattern,
   each run replacing the other's observations and counting a new confirmation. A long hypothesis
@@ -55,6 +50,11 @@ a decision with visible consequences.
   removed with it (a repeated correction request would otherwise answer for a memory that no
   longer exists), and a dated reset takes the removed entities' ids out of the observations and
   patterns it keeps. Forget receipts stay, so a forgotten memory never returns.
+
+- **The briefing shows only live evidence.** A watch memory that lost a conflict or was
+  marked unsupported stayed in the pre-session briefing for 14 days, and a contradicted or
+  archived emotional observation could still set its mood. Watch flags now come only from
+  active memories, and the mood ignores contradicted and archived observations.
 
 - **The conflict check reads whole words and keeps the owner's words in recall.** It counted
   "not" inside "knot" or "cannot " and matched long words as substrings over the first eight
