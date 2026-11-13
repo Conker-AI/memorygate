@@ -69,6 +69,13 @@ a decision with visible consequences.
   limit, the Entities screen (662), is split (its three dialogs moved to
   `components/EntityModals.jsx`). No behaviour change.
 
+- **The classifier matches whole words.** A memory type came from substring hits, so "again"
+  in "against" made a memory `watch`, "sad" in "Sadie" or "crusade" made it `phase`, and "train"
+  in "constraint" counted as a domain word. Phrases now match as whole words (a curly apostrophe
+  counts as a straight one). One feeling word also fired two phase signals, because the two
+  emotion lists overlap; a phase now has two signals, a feeling and a timeframe, so "sad this
+  week" is `medium`, not `high`. The unused `NEGATION_WORDS` list is gone.
+
 - **Merging entities keeps lineage and the graph whole.** The startup dedup and the manual
   merge (`POST /entity/merge`) now share one routine: lineage links to the removed entity move to
   the kept one, an edge between the two (a would-be self-loop) or one the kept entity already has

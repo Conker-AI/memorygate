@@ -18,6 +18,9 @@ priority order. Confidence scales with how many signals fired: 1 -> low,
 2 -> medium, 3+ -> high.
 """
 
+import re
+from functools import cache
+
 # priority order used to break ties between types with equal signal counts
 TYPE_PRIORITY = ["watch", "fact", "phase"]
 
@@ -61,12 +64,17 @@ HARMFUL_BEHAVIOR_INDICATORS = ["again", "keep doing", "can't stop", "relapse", "
 SUPPORT_EMOTIONAL_WORDS = ["sad", "upset", "anxious", "stressed", "overwhelmed", "hurt", "struggling", "hard time"]
 SUPPORT_TIMEFRAMES = ["today", "right now", "this week"]
 
-# words that would negate an otherwise-matching contradiction signal
-NEGATION_WORDS = ["not", "no longer", "stopped", "don't", "never"]
+
+@cache
+def _phrase(phrase: str) -> re.Pattern:
+    # A whole word or phrase: no letter or digit right before or after it ("again" is not in
+    # "against", "sad" is not in "Sadie"). Spaces inside a phrase match any run of whitespace.
+    body = r"\s+".join(re.escape(part) for part in phrase.split())
+    return re.compile(rf"(?<![^\W_]){body}(?![^\W_])")
 
 
 def _count_hits(lower: str, phrases: list[str]) -> int:
-    return sum(1 for p in phrases if p in lower)
+    return sum(1 for p in phrases if _phrase(p).search(lower))
 
 
 def _score_preference(lower: str) -> int:
@@ -80,9 +88,9 @@ def _score_preference(lower: str) -> int:
 
 
 def _score_identity(lower: str) -> int:
-    if any(w in lower for w in TEMPORARY_LANGUAGE):
+    if _count_hits(lower, TEMPORARY_LANGUAGE):
         return 0
-    return sum(1 for p in IDENTITY_PHRASES if p in lower)
+    return _count_hits(lower, IDENTITY_PHRASES)
 
 
 def _score_humor(lower: str) -> int:
@@ -98,26 +106,16 @@ def _score_fact(lower: str) -> int:
     return _score_preference(lower) + _score_identity(lower) + _score_humor(lower)
 
 
-def _score_temporary(lower: str) -> int:
-    signals = 0
-    if _count_hits(lower, TEMPORARY_TIMEFRAMES) > 0:
-        signals += 1
-    if _count_hits(lower, EMOTIONAL_LANGUAGE) > 0:
-        signals += 1
-    return signals
-
-
-def _score_support(lower: str) -> int:
-    signals = 0
-    if _count_hits(lower, SUPPORT_EMOTIONAL_WORDS) > 0:
-        signals += 1
-    if _count_hits(lower, SUPPORT_TIMEFRAMES) > 0:
-        signals += 1
-    return signals
-
-
 def _score_phase(lower: str) -> int:
-    return _score_temporary(lower) + _score_support(lower)
+    # Two independent signals: a feeling word, and a word that says it is for now. The two old
+    # lists of each overlap ("sad", "right now" sit in both), so they are joined, and one word
+    # fires one signal, not two.
+    signals = 0
+    if _count_hits(lower, EMOTIONAL_LANGUAGE + SUPPORT_EMOTIONAL_WORDS) > 0:
+        signals += 1
+    if _count_hits(lower, TEMPORARY_TIMEFRAMES + SUPPORT_TIMEFRAMES) > 0:
+        signals += 1
+    return signals
 
 
 def _score_watch(lower: str, source_type: str) -> int:
@@ -138,7 +136,7 @@ def _confidence_for(signal_count: int) -> str:
 
 
 def classify_memory(text: str, source_type: str = "user") -> dict:
-    lower = text.lower()
+    lower = text.lower().replace(chr(0x2019), "'")  # a curly apostrophe (typed on a phone) counts as a straight one
 
     scores = {
         "watch": _score_watch(lower, source_type),
