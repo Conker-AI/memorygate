@@ -11,6 +11,12 @@ a decision with visible consequences.
   the cut text. Now a skill whose title and body exceed 8192 bytes is refused (422) on create and
   edit, and reads return the stored text. In `/context/skills` a skill that does not fit what is
   left is skipped instead of ending the list, so smaller skills after it are still delivered.
+
+- **The 600-line check covers the dashboard.** `scripts/check_file_sizes.py` skipped `.jsx`
+  (the dashboard's own files) and missed a last line with no newline; the one file over the
+  limit, the Entities screen (662), is split (its three dialogs moved to
+  `components/EntityModals.jsx`). No behaviour change.
+
 - **Merging entities keeps lineage and the graph whole.** The startup dedup and the manual
   merge (`POST /entity/merge`) now share one routine: lineage links to the removed entity move to
   the kept one, an edge between the two (a would-be self-loop) or one the kept entity already has
