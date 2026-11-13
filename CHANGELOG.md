@@ -81,6 +81,10 @@ a decision with visible consequences.
   read every observation or pattern of the agent and filtered in Python. Status, text and entity
   filters now narrow in SQL, the exact checks stay, and search stops at its 50 results.
 
+- **Creating an observation no longer reads every unconfirmed one.** The observation budget
+  loaded all unconfirmed observations of the agent on each create; it now counts them in SQL and
+  loads only the ones it archives (most exposed first, oldest first among equals).
+
 - **Deleting an entity takes what refers to it.** `DELETE /entity/{id}` used to remove only the
   entity row; its history snapshots (old names, notes and attributes), events, edges and lineage
   links stayed, and observations and patterns kept its id. Now they go with it (each link leaves
@@ -93,10 +97,6 @@ a decision with visible consequences.
   below one already stored counts as one. Lowering the cap archives enough of the most-exposed
   unconfirmed observations in one call (it used to archive one per create), inside the create's
   own transaction.
-
-- **Creating an observation no longer reads every unconfirmed one.** The observation budget
-  loaded all unconfirmed observations of the agent on each create; it now counts them in SQL and
-  loads only the ones it archives (most exposed first, oldest first among equals).
 
 - **Remembering no longer reads every memory.** The duplicate check and the conflict check each
   loaded every active memory of the agent. Both now narrow in SQL (rows containing the statement,
