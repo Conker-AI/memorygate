@@ -90,6 +90,10 @@ a decision with visible consequences.
   unconfirmed observations in one call (it used to archive one per create), inside the create's
   own transaction.
 
+- **Remembering no longer reads every memory.** The duplicate check and the conflict check each
+  loaded every active memory of the agent. Both now narrow in SQL (rows containing the statement,
+  rows sharing a long word) and keep the exact whole-word checks.
+
 - **The 600-line check covers the dashboard.** `scripts/check_file_sizes.py` skipped `.jsx`
   (the dashboard's own files) and missed a last line with no newline; the one file over the
   limit, the Entities screen (662), is split (its three dialogs moved to

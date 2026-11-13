@@ -14,6 +14,7 @@ from app.models.audit import MemoryAudit
 from app.models.memory import Memory
 from app.models.memory_correction import MemoryCorrection
 from app.services.classifier import classify_memory
+from app.services.lexical_retrieval import escape_like
 from app.services.memory_truth import add_revision, detect_conflicts
 from app.services.qdrant_store import upsert_memory_embedding
 from app.services.vector_outbox import enqueue_upsert, reconcile_one
@@ -75,11 +76,14 @@ def remember(agent_id, request_id, statement, origin="owner"):
             if prior is not None:
                 return _view(prior, prior.previous_revision == 0)
             normalized = statement.strip().lower()
+            # SQL narrows to rows containing the statement; the exact check stays in Python.
             existing = next(
                 (
                     row
                     for row in db.execute(
-                        select(Memory).where(Memory.agent_id == agent_id, Memory.status == "active")
+                        select(Memory).where(
+                            Memory.agent_id == agent_id, Memory.status == "active",
+                            Memory.text.ilike(f"%{escape_like(normalized)}%", escape="/"))
                     ).scalars()
                     if row.text.strip().lower() == normalized
                 ),
