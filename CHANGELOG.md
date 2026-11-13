@@ -6,6 +6,26 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **A lockout stops wrong keys, never the right one.** After five wrong keys from one address,
+  every key from that address was refused for 300 s, so one misconfigured caller behind a proxy
+  or the host network locked out the rest, and failures never expired. Now the key is checked
+  first: a right key always passes (and clears the count), a wrong one is counted and refused
+  while the address is locked, and failures older than 15 minutes no longer count. Applies to
+  the admin key, read keys, listener keys and the current-key confirmations.
+
+- **Editing an evidence source keeps its listener working.** New secrets on `POST /evidence/sources`
+  replaced the whole secret map, dropping the ingest key from `rotate-ingest-key`, so the listener
+  was cut off; the ingest key now stays. `POST /evidence` refuses a disabled source (409), and a
+  source's "last ingested" is the arrival time, not the event's own time.
+
+- **No model answer, no AI analysis.** When no model answered (Pi down, local model off, hosted
+  call refused), evidence processing stored an empty `local_ai_proposal` analysis, so the
+  evidence counted as analysed and was never analysed again. Now nothing is stored.
+
+- **The audit list is bounded.** `GET /audit` returned every row ever written; it now returns the
+  newest `limit` rows (default 500, at most 2000). `/audit/metrics` counts with GROUP BY instead of
+  loading every row of the window.
+
 - **The conflict check reads whole words and keeps the owner's words in recall.** It counted
   "not" inside "knot" or "cannot " and matched long words as substrings over the first eight
   only. Now it compares whole words ("not", "never", "no longer", "stopped", "cannot", "-n't"
@@ -13,11 +33,23 @@ a decision with visible consequences.
   `user` or `owner_statement`) is no longer taken out of recall because of one that is not: the
   conflict is still recorded, and only the other memory goes to review.
 
+- **A write is not lost to a memory under review.** `POST /memory/write` took a memory with the
+  same text as its duplicate whatever its status, so a write equal to a memory under review or
+  expired answered ok with `duplicate_of` and nothing became active; it also looked only at the
+  newest 100. Now only an active memory of the agent counts, however old, and two writes of one
+  text are serialised (Postgres).
+
 - **"Don't remember" keeps no words.** A conversation message the owner asked not to keep
   ("don't remember ...", "не запоминай ...") used to be stored word for word as evidence (only
   the memory was skipped). Its evidence now holds no text (`normalized_payload` is
   `{"withheld": "owner_declined"}`, empty summary); the receipt and the analysis still record
   that it was declined. Messages filtered for low value keep their words as before.
+
+- **A skill is delivered whole or refused, and one big skill no longer hides the rest.** A skill
+  body was accepted up to 12000 characters but cut to 8192 bytes on every read, so an edit saved
+  the cut text. Now a skill whose title and body exceed 8192 bytes is refused (422) on create and
+  edit, and reads return the stored text. In `/context/skills` a skill that does not fit what is
+  left is skipped instead of ending the list, so smaller skills after it are still delivered.
 
 - **Deleting an entity takes what refers to it.** `DELETE /entity/{id}` used to remove only the
   entity row; its history snapshots (old names, notes and attributes), events, edges and lineage
@@ -25,16 +57,39 @@ a decision with visible consequences.
   a `link` receipt), and recovery replay of an `entity` receipt removes the same set from a
   restored backup.
 
+- **An observation cap of zero no longer breaks observation create.** `PUT /config/{agent}`
+  accepted any `max_observations`, so 0 or less made every create answer 500 (`max()` of an
+  empty list). The config now takes 1..100000 and thresholds 0..1 (422 otherwise), and a cap
+  below one already stored counts as one. Lowering the cap archives enough of the most-exposed
+  unconfirmed observations in one call (it used to archive one per create), inside the create's
+  own transaction.
+
 - **The 600-line check covers the dashboard.** `scripts/check_file_sizes.py` skipped `.jsx`
   (the dashboard's own files) and missed a last line with no newline; the one file over the
   limit, the Entities screen (662), is split (its three dialogs moved to
   `components/EntityModals.jsx`). No behaviour change.
+
+- **The classifier matches whole words.** A memory type came from substring hits, so "again"
+  in "against" made a memory `watch`, "sad" in "Sadie" or "crusade" made it `phase`, and "train"
+  in "constraint" counted as a domain word. Phrases now match as whole words (a curly apostrophe
+  counts as a straight one). One feeling word also fired two phase signals, because the two
+  emotion lists overlap; a phase now has two signals, a feeling and a timeframe, so "sad this
+  week" is `medium`, not `high`. The unused `NEGATION_WORDS` list is gone.
 
 - **Merging entities keeps lineage and the graph whole.** The startup dedup and the manual
   merge (`POST /entity/merge`) now share one routine: lineage links to the removed entity move to
   the kept one, an edge between the two (a would-be self-loop) or one the kept entity already has
   goes, the removed entity's vector is queued for deletion (the startup dedup left it in Qdrant),
   and a malformed tags or attributes value no longer stops startup.
+
+- **Patterns can be deleted, and a deleted observation leaves them.** There was no way to delete
+  a pattern, and deleting an observation left its id, its lineage links and every pattern built
+  from it. `DELETE /pattern/{id}` now deletes a pattern of the calling agent (404 for another
+  agent's) with its lineage links and a `pattern` deletion receipt. Deleting an observation
+  removes its lineage links, its id in other observations and in patterns, and a pattern left
+  with no observation (with its receipt). Recovery replay of `observation` and `pattern`
+  receipts removes the same set from a restored backup. A pattern that still has other
+  observations keeps its text.
 
 - **Lineage stays inside one agent.** `POST /lineage/links`, `GET /lineage/{type}/{id}`,
   `DELETE /lineage/links/{id}` and an episode's `evidence_ids` now answer 404 for an object

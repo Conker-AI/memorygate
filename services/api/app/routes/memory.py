@@ -18,6 +18,7 @@ from app.schemas.memory import (
 from app.services.agent_config_service import get_or_create_config
 from app.services.classifier import CURRENT_MEMORY_TYPES, classify_memory, normalize_memory_type
 from app.services.lexical_retrieval import escape_like, memory_candidates, prepare_query
+from app.services.memory_text_lock import lock_memory_text
 from app.services.memory_truth import add_revision, detect_conflicts
 from app.services.qdrant_store import (
     INDEX_UNREACHABLE,
@@ -245,23 +246,23 @@ def write_memory(payload: MemoryWriteRequest, header_agent_id: str = Depends(get
         final_do_not_generalize = payload.do_not_generalize if payload.do_not_generalize is not None else False
         final_review_by = _default_review_by(final_memory_type, parse_timestamp(payload.review_by, "review_by"))
 
-        normalized_text = payload.text.strip().lower()
-        existing = db.execute(
+        # Exact duplicate: the same text as an active memory of this agent, however old. A memory
+        # under review or expired is not a duplicate (the write would be lost); two writes of
+        # one text are serialised until this transaction commits.
+        lock_memory_text(db, agent_id, payload.text)
+        duplicate = db.execute(
             select(Memory)
-            .where(Memory.agent_id == agent_id)
-            .order_by(Memory.created_at.desc())
-            .limit(100)
-        ).scalars().all()
-
-        # exact duplicate
-        for row in existing:
-            if row.text.strip().lower() == normalized_text:
-                return _upgrade_existing_memory(
-                    db, row, payload,
-                    final_memory_type,
-                    final_confidence,
-                    final_summary,
-                )
+            .where(Memory.agent_id == agent_id, Memory.status == "active",
+                   func.lower(func.trim(Memory.text)) == payload.text.strip().lower())
+            .order_by(Memory.created_at.asc())
+        ).scalars().first()
+        if duplicate is not None:
+            return _upgrade_existing_memory(
+                db, duplicate, payload,
+                final_memory_type,
+                final_confidence,
+                final_summary,
+            )
 
         # Novelty check via vector similarity, scoped to this agent. Without a
         # working vector path there is no near-duplicate signal at all, so the

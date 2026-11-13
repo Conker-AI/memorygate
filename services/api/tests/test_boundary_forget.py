@@ -9,7 +9,7 @@ explorer, the correction capability's own read, and a backup exported through th
 import json
 
 import pytest
-from memory_stack import OWNER, request_id
+from memory_stack import OWNER, holds_word, request_id
 from memory_stack import stack as stack
 
 SECRET = "My spare house key hides under the blue flowerpot by the gate"
@@ -214,7 +214,7 @@ def test_a_memory_from_chat_stays_forgotten_and_its_message_can_be_forgotten_too
     # words too (Pi keeps the transcript). Pi can still forget the message afterwards,
     # and then nothing of it is left anywhere.
     assert "gym" not in json.dumps(stack.library(object_type="evidence"))
-    assert "gym" not in stack.stored_text()
+    assert not holds_word(stack.stored_text(), "gym")
     assert stack.unsay("msg_bike")["state"] == "deleted"
     assert "gym" not in json.dumps(stack.library())
-    assert "gym" not in stack.stored_text() and "gym" not in stack.backup()
+    assert not holds_word(stack.stored_text(), "gym") and not holds_word(stack.backup(), "gym")

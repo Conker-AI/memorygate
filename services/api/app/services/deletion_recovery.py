@@ -11,12 +11,14 @@ from app.models.episode_object import EpisodeObject
 from app.models.memory import Memory
 from app.models.object_link import ObjectLink
 from app.models.observation import Observation
+from app.models.pattern import Pattern
 from app.models.session_transcript import SessionTranscript
 from app.services import conversation_memory, listener_forgetting
 from app.services.entity_forgetting import erase_dependents
+from app.services.observation_forgetting import erase_observation_dependents, erase_pattern
 from sqlalchemy import select
 
-MODELS = {"memory": Memory, "entity": Entity, "observation": Observation,
+MODELS = {"memory": Memory, "entity": Entity, "observation": Observation, "pattern": Pattern,
           "episode": EpisodeObject, "link": ObjectLink, "transcript": SessionTranscript}
 
 
@@ -124,6 +126,11 @@ def replay(receipts, target_sessions):
             record(db, agent_id, kind, identity)
             if kind == "entity":
                 erase_dependents(db, identity)
+            if kind == "observation":
+                erase_observation_dependents(db, identity)
+            if kind == "pattern":
+                erase_pattern(db, identity)
+                row = None
             if row is not None:
                 if kind == "episode":
                     links = list(db.scalars(select(ObjectLink).where(

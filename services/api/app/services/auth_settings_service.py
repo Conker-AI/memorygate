@@ -15,6 +15,8 @@ _PBKDF2_ROUNDS = 200_000
 _SINGLETON_ID = "singleton"
 _MAX_FAILED_ATTEMPTS = 5
 _LOCKOUT_SECONDS = 300
+# Failures older than this no longer count toward a lockout.
+_FAILURE_WINDOW_SECONDS = 900
 _attempt_state: dict[str, dict[str, float | int]] = {}
 
 # An environment key is a machine secret, so it is held to a length floor rather
@@ -222,16 +224,29 @@ def get_lockout_status(scope: str) -> int:
 
 def register_failed_attempt(scope: str) -> int:
     now = time.time()
-    state = _attempt_state.get(scope, {"count": 0, "locked_until": 0.0})
+    state = _attempt_state.get(scope, {"count": 0, "first_at": now, "locked_until": 0.0})
     locked_until = float(state.get("locked_until", 0))
     if locked_until <= now:
+        if now - float(state.get("first_at", now)) > _FAILURE_WINDOW_SECONDS:
+            state["count"], state["first_at"] = 0, now
         state["count"] = int(state.get("count", 0)) + 1
         state["locked_until"] = 0.0
     if int(state["count"]) >= _MAX_FAILED_ATTEMPTS:
-        state["count"] = 0
+        state["count"], state["first_at"] = 0, now
         state["locked_until"] = now + _LOCKOUT_SECONDS
     _attempt_state[scope] = state
     return get_lockout_status(scope)
+
+
+def attempt(scope: str, valid: bool) -> int:
+    """Seconds the caller must wait, or 0. Called after the key was checked: a valid key
+    always passes and clears the count, so a caller that shares an address with someone
+    sending wrong keys is never locked out; a wrong key counts, and is refused while the
+    scope is locked. Failures older than the window no longer count."""
+    if valid:
+        clear_failed_attempts(scope)
+        return 0
+    return get_lockout_status(scope) or register_failed_attempt(scope)
 
 
 def clear_failed_attempts(scope: str) -> None:
