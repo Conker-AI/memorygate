@@ -12,6 +12,12 @@ a decision with visible consequences.
   first: a right key always passes (and clears the count), a wrong one is counted and refused
   while the address is locked, and failures older than 15 minutes no longer count. Applies to
   the admin key, read keys, listener keys and the current-key confirmations.
+
+- **The 600-line check covers the dashboard.** `scripts/check_file_sizes.py` skipped `.jsx`
+  (the dashboard's own files) and missed a last line with no newline; the one file over the
+  limit, the Entities screen (662), is split (its three dialogs moved to
+  `components/EntityModals.jsx`). No behaviour change.
+
 - **Merging entities keeps lineage and the graph whole.** The startup dedup and the manual
   merge (`POST /entity/merge`) now share one routine: lineage links to the removed entity move to
   the kept one, an edge between the two (a would-be self-loop) or one the kept entity already has
