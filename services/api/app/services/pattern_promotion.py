@@ -8,6 +8,7 @@ real semantic clustering, so exact-normalized-text grouping is the
 rule-based stand-in. A group of 3+ becomes (or reinforces) a candidate
 pattern; candidates promote to active at confirmation_count >= 5.
 """
+import hashlib
 import json
 from datetime import UTC, datetime
 
@@ -33,9 +34,48 @@ def _normalize(text: str) -> str:
     return " ".join(text.strip().lower().split())
 
 
+LABEL_CHARS = 60
+# An observation the owner contradicted, or one archived, no longer supports a pattern.
+NOT_QUALIFYING = {"contradicted", "archived"}
+
+
+def _legacy_name_for(signal_type: str, hypothesis_norm: str) -> str:
+    """How patterns were named before: by the first 60 characters only."""
+    return f"{signal_type}: {hypothesis_norm[:LABEL_CHARS] if hypothesis_norm else 'unlabeled'}"
+
+
 def _pattern_name_for(signal_type: str, hypothesis_norm: str) -> str:
-    label = hypothesis_norm[:60] if hypothesis_norm else "unlabeled"
-    return f"{signal_type}: {label}"
+    """The pattern's identity. A hypothesis longer than the label keeps its first 60
+    characters for reading, plus a short hash of the whole text, so two hypotheses that
+    share a beginning are two patterns, not one that each overwrites."""
+    if len(hypothesis_norm) <= LABEL_CHARS:
+        return _legacy_name_for(signal_type, hypothesis_norm)
+    digest = hashlib.sha256(hypothesis_norm.encode()).hexdigest()[:8]
+    return f"{signal_type}: {hypothesis_norm[:LABEL_CHARS]}... #{digest}"
+
+
+def _existing_pattern(db, agent_id: str, sig_type: str, hypothesis_norm: str, observation_ids: list[str]):
+    pattern_name = _pattern_name_for(sig_type, hypothesis_norm)
+    existing = db.execute(
+        select(Pattern).where(Pattern.agent_id == agent_id, Pattern.pattern_name == pattern_name)
+    ).scalars().first()
+    legacy_name = _legacy_name_for(sig_type, hypothesis_norm)
+    if existing or legacy_name == pattern_name:
+        return existing
+    # A pattern made under the old 60-character name belongs to this cluster only if it holds
+    # this cluster's observations; it takes the new name, so another cluster with the same
+    # beginning gets its own pattern.
+    for legacy in db.execute(
+        select(Pattern).where(Pattern.agent_id == agent_id, Pattern.pattern_name == legacy_name)
+    ).scalars():
+        try:
+            held = set(json.loads(legacy.observation_ids_json or "[]"))
+        except (TypeError, ValueError):
+            continue
+        if held & set(observation_ids):
+            legacy.pattern_name = pattern_name
+            return legacy
+    return None
 
 
 def maybe_promote(pattern: Pattern) -> None:
@@ -52,7 +92,8 @@ def promote_from_observations(db, agent_id: str, signal_type: str | None = None)
         stmt = stmt.where(Observation.signal_type == signal_type)
     rows = db.execute(stmt).scalars().all()
 
-    qualifying = [r for r in rows if r.status == "confirmed" or r.confirmation_count >= 2]
+    qualifying = [r for r in rows if r.status not in NOT_QUALIFYING
+                  and (r.status == "confirmed" or r.confirmation_count >= 2)]
     if not qualifying:
         return []
 
@@ -71,9 +112,7 @@ def promote_from_observations(db, agent_id: str, signal_type: str | None = None)
         pattern_name = _pattern_name_for(sig_type, hypothesis_norm)
         observation_ids = [m.id for m in members]
 
-        existing = db.execute(
-            select(Pattern).where(Pattern.agent_id == agent_id, Pattern.pattern_name == pattern_name)
-        ).scalars().first()
+        existing = _existing_pattern(db, agent_id, sig_type, hypothesis_norm, observation_ids)
 
         if existing:
             new_size = len(members)
