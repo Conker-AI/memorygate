@@ -6,6 +6,10 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **A deleted lineage link stays deleted.** Every start rebuilt the lineage links held in the
+  older id lists, so a link the owner deleted came back at the next start. The rebuild now runs
+  once per install (a marker in `data_migration_steps`); the id lists stay what forgetting reads.
+
 - **Two patterns that start alike stay two patterns.** A pattern was named by the first 60
   characters of its hypothesis, so two clusters sharing that beginning wrote into one pattern,
   each run replacing the other's observations and counting a new confirmation. A long hypothesis

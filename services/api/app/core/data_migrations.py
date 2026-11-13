@@ -197,8 +197,33 @@ def _merge_duplicate_entities(conn) -> None:
         merge_duplicate_groups(db)
 
 
+_LINK_BACKFILL_STEP = "object_links_backfill"
+
+
 def _backfill_object_links(conn) -> None:
-    """Materialize relationships already embedded in legacy JSON arrays."""
+    """Materialize relationships already embedded in legacy JSON arrays, once per install.
+
+    Running it at every start re-created links the owner deleted. The JSON arrays stay the
+    record forgetting reads; the marker row in data_migration_steps says the step ran. An
+    install whose earlier start already backfilled (links created_by 'migration') is marked
+    without a new pass.
+    """
+    conn.execute(text("CREATE TABLE IF NOT EXISTS data_migration_steps (name TEXT PRIMARY KEY)"))
+    if conn.execute(text(
+        "SELECT 1 FROM data_migration_steps WHERE name = :name"
+    ), {"name": _LINK_BACKFILL_STEP}).first() is not None:
+        return
+    already_backfilled = _table_exists(conn, "object_links") and conn.execute(text(
+        "SELECT 1 FROM object_links WHERE created_by = 'migration' LIMIT 1"
+    )).first() is not None
+    if not already_backfilled:
+        _insert_backfilled_links(conn)
+    conn.execute(text(
+        "INSERT INTO data_migration_steps (name) VALUES (:name) ON CONFLICT (name) DO NOTHING"
+    ), {"name": _LINK_BACKFILL_STEP})
+
+
+def _insert_backfilled_links(conn) -> None:
     specs = (
         ("analysis_objects", "evidence_ids_json", "evidence", "analysis", "analyzed_into"),
         ("patterns", "observation_ids_json", "observation", "pattern", "supports"),
