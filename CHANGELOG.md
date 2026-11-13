@@ -50,6 +50,11 @@ a decision with visible consequences.
   `user` or `owner_statement`) is no longer taken out of recall because of one that is not: the
   conflict is still recorded, and only the other memory goes to review.
 
+- **Health checks the model in use.** The local model's health reported the env default
+  (`OLLAMA_MODEL`), while calls send the model stored in the runtime setting, so after the owner
+  changed the model the status could say ready while every call failed. Health now names and
+  checks the stored model.
+
 - **A write is not lost to a memory under review.** `POST /memory/write` took a memory with the
   same text as its duplicate whatever its status, so a write equal to a memory under review or
   expired answered ok with `duplicate_of` and nothing became active; it also looked only at the

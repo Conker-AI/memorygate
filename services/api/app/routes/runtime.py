@@ -20,6 +20,7 @@ from app.models.vector_outbox import VectorOutbox
 from app.schemas.explorer import ExploreRequest, LibraryRequest
 from app.schemas.runtime import AgentContextRequest, IngestEventRequest, MemoryQuestionRequest
 from app.services import listener_forgetting
+from app.services.ai_runtime_service import get_runtime_config
 from app.services.auth_settings_service import (
     attempt,
 )
@@ -360,7 +361,13 @@ def runtime_health(_: str = Depends(require_key)):
     choice = model_choice()
     if choice["managed_by"] == "pi":
         choice["last_answer"] = last_answer() or _last_stored_answer()
-    return {"ollama": ollama_health(), "model_choice": choice}
+        return {"ollama": ollama_health(), "model_choice": choice}
+    db = SessionLocal()
+    try:
+        model = get_runtime_config(db)["model"]  # what MemoryGate's own calls send
+    finally:
+        db.close()
+    return {"ollama": ollama_health(model), "model_choice": choice}
 
 
 def _last_stored_answer() -> dict | None:

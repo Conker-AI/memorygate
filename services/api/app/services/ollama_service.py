@@ -99,12 +99,15 @@ def answer_with_context(question: str, context: dict) -> str | None:
         return None
 
 
-def ollama_health() -> dict:
+def ollama_health(model: str | None = None) -> dict:
+    """Probe Ollama for `model`: the model calls send (the stored runtime setting, passed in by
+    callers that read it), else the env default."""
+    model = model or OLLAMA_MODEL
     try:
         with httpx.Client(timeout=3, trust_env=False, follow_redirects=False) as client:
             response = client.get(f"{OLLAMA_URL}/api/tags")
             response.raise_for_status()
         models = [item.get("name") for item in response.json().get("models", [])]
-        return {"enabled": OLLAMA_ENABLED, "available": True, "model": OLLAMA_MODEL, "model_ready": OLLAMA_MODEL in models, "models": models}
+        return {"enabled": OLLAMA_ENABLED, "available": True, "model": model, "model_ready": model in models, "models": models}
     except httpx.HTTPError:
-        return {"enabled": OLLAMA_ENABLED, "available": False, "model": OLLAMA_MODEL, "model_ready": False, "models": []}
+        return {"enabled": OLLAMA_ENABLED, "available": False, "model": model, "model_ready": False, "models": []}
