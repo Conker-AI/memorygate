@@ -81,6 +81,10 @@ a decision with visible consequences.
   read every observation or pattern of the agent and filtered in Python. Status, text and entity
   filters now narrow in SQL, the exact checks stay, and search stops at its 50 results.
 
+- **Creating an observation no longer reads every unconfirmed one.** The observation budget
+  loaded all unconfirmed observations of the agent on each create; it now counts them in SQL and
+  loads only the ones it archives (most exposed first, oldest first among equals).
+
 - **Deleting an entity takes what refers to it.** `DELETE /entity/{id}` used to remove only the
   entity row; its history snapshots (old names, notes and attributes), events, edges and lineage
   links stayed, and observations and patterns kept its id. Now they go with it (each link leaves
