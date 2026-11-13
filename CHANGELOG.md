@@ -6,10 +6,6 @@ a decision with visible consequences.
 
 ## Unreleased
 
-- **A deleted lineage link stays deleted.** Every start rebuilt the lineage links held in the
-  older id lists, so a link the owner deleted came back at the next start. The rebuild now runs
-  once per install (a marker in `data_migration_steps`); the id lists stay what forgetting reads.
-
 - **Two patterns that start alike stay two patterns.** A pattern was named by the first 60
   characters of its hypothesis, so two clusters sharing that beginning wrote into one pattern,
   each run replacing the other's observations and counting a new confirmation. A long hypothesis
@@ -36,6 +32,10 @@ a decision with visible consequences.
   It changes nothing. Recall (`/runtime/context`, `/runtime/ask`) now stamps a new
   `last_recalled_at` column on the memories it returns, at most once an hour, best effort and
   without bumping the revision; memories recalled before this release read "never recalled".
+
+- **A deleted lineage link stays deleted.** Every start rebuilt the lineage links held in the
+  older id lists, so a link the owner deleted came back at the next start. The rebuild now runs
+  once per install (a marker in `data_migration_steps`); the id lists stay what forgetting reads.
 
 - **Memory search without the vector index matches words.** When the index was down or found
   nothing, `POST /memory/search` matched the whole query as one piece of text, so "release
