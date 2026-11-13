@@ -9,7 +9,7 @@ everything active in the key's namespace - never another agent's, whichever path
 import json
 
 import pytest
-from memory_stack import READ_KEY
+from memory_stack import READ_KEY, holds_word
 from memory_stack import stack as stack
 
 TEA = "I prefer green tea in the afternoon"
@@ -147,7 +147,7 @@ def test_a_read_key_cannot_switch_namespace(seeded):
     assert (
         stack.http.put("/runtime/conversation/msg_x", headers=read, json=ingest).status_code == 401
     )
-    assert "chess" not in stack.stored_text()
+    assert not holds_word(stack.stored_text(), "chess")
 
 
 def test_all_scope_stays_inside_the_keys_namespace(seeded):
