@@ -6,6 +6,14 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **Memory upkeep candidates (read-only).** `GET /runtime/memory-upkeep` (read key or admin key,
+  the header's agent only) lists exact and near duplicates, open contradictions, memories past
+  `valid_until` or their review date, and active memories not recalled for `unused_days`
+  (default 90), each with the ids and a reason; `limit` caps each group, `total` counts all.
+  It changes nothing. Recall (`/runtime/context`, `/runtime/ask`) now stamps a new
+  `last_recalled_at` column on the memories it returns, at most once an hour, best effort and
+  without bumping the revision; memories recalled before this release read "never recalled".
+
 - **Two patterns that start alike stay two patterns.** A pattern was named by the first 60
   characters of its hypothesis, so two clusters sharing that beginning wrote into one pattern,
   each run replacing the other's observations and counting a new confirmation. A long hypothesis
