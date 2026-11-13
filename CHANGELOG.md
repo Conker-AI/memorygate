@@ -165,6 +165,15 @@ a decision with visible consequences.
   same key): the evidence, its analyses, links, job results and the listener memories it alone
   supported go; recovery replays the erase (`listener_evidence` receipts). New endpoint, no change
   to existing ones. Pi uses it when the owner deletes an imported chat.
+- **Forgetting a memory takes the evidence only it used.** Evidence no other memory relies on is
+  tombstoned with it; evidence another memory still uses stays. (#54)
+- **A memory forget blanks only its own agent's episodes**, never another agent's episode that
+  shared the evidence; a regression test runs every forget path. (#55)
+- **Repository tooling, no behaviour change.** The shared .editorconfig, pre-commit hooks,
+  CODEOWNERS and Renovate config; a pyright type check (model datetimes typed as Python datetimes,
+  62 -> 5 errors, the baseline may only shrink); refusal tests for the pattern, observation,
+  entity and lineage routes, so CI fails below 84% coverage (was 76%); leak checks match whole
+  words, not letters inside random key hashes. (#53, #57, #58, #74)
 
 ## 0.8.2
 
