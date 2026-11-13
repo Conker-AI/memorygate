@@ -1,6 +1,7 @@
 import hmac
 import json
 from datetime import UTC, datetime
+from typing import Literal
 
 from app.core.agent import get_agent_id, resolve_agent_id
 from app.core.auth import require_key, require_read_key
@@ -27,6 +28,7 @@ from app.services.auth_settings_service import (
 from app.services.briefing import build_briefing
 from app.services.conversation_memory import citations
 from app.services.lexical_retrieval import memory_candidates, prepare_query
+from app.services.memory_beliefs import InvalidCursor, list_beliefs
 from app.services.memory_truth import mark_unsupported
 from app.services.memory_upkeep import stamp_recalled, upkeep_candidates
 from app.services.ollama_service import answer_with_context, ollama_health
@@ -357,6 +359,26 @@ def memory_upkeep(
     memories, each with ids and a reason. Reads only; nothing is changed or deleted."""
     with SessionLocal() as db:
         return upkeep_candidates(db, agent_id, unused_days=unused_days, limit=limit)
+
+
+@router.get("/memory-beliefs")
+def memory_beliefs(
+    agent_id: str = Depends(get_agent_id),
+    _: str = Depends(require_read_key),
+    origin: Literal["stated", "concluded", "all"] = Query("all"),
+    state: Literal["current", "needs_review", "all"] = Query("all"),
+    memory_type: Literal["fact", "phase", "context", "watch"] | None = Query(None),
+    limit: int = Query(50, ge=1, le=100),
+    after: str | None = Query(None, min_length=1, max_length=600),
+):
+    """What Conker believes about the owner (R-M5): the header's agent's current memories with
+    origin, confidence, evidence counts, lineage and open conflicts. Reads only."""
+    with SessionLocal() as db:
+        try:
+            return list_beliefs(db, agent_id, origin=origin, state=state, memory_type=memory_type,
+                                limit=limit, after=after)
+        except InvalidCursor:
+            raise HTTPException(status_code=422, detail="Invalid cursor") from None
 
 
 @router.get("/jobs")
