@@ -1,5 +1,8 @@
+from datetime import UTC, datetime
+
 from app.core import auth
 from app.core.db import Base
+from app.models.memory import Memory
 from app.routes import skills
 from app.routes.skills import context_router, router
 from app.services.auth_settings_service import create_agent_access_key, set_admin_key
@@ -82,3 +85,38 @@ def test_inactive_skill_is_hidden_from_context(tmp_path, monkeypatch):
     assert context.status_code == 200
     assert context.json()["results"] == []
     assert client.delete(f"/skills/{created['id']}", headers=headers).status_code == 200
+
+
+def test_a_skill_too_big_to_deliver_whole_is_refused_not_cut(tmp_path, monkeypatch):
+    client, _ = make_client(tmp_path, monkeypatch)
+    headers = {"X-Agent-Id": "hermes"}
+    big = "x" * (skills.MAX_SKILL_BYTES + 1)
+
+    refused = client.post("/skills", headers=headers, json={"title": "Big", "body": big})
+    assert refused.status_code == 422
+    assert client.get("/skills", headers=headers).json()["results"] == []
+
+    small = client.post("/skills", headers=headers, json={"title": "Small", "body": "short"}).json()["skill"]
+    grown = client.patch(f"/skills/{small['id']}", headers=headers, json={"body": big})
+    assert grown.status_code == 422
+    assert client.get(f"/skills/{small['id']}", headers=headers).json()["body"] == "short"
+
+
+def test_one_skill_that_does_not_fit_does_not_drop_the_smaller_ones_after_it(tmp_path, monkeypatch):
+    client, read_key = make_client(tmp_path, monkeypatch)
+    headers = {"X-Agent-Id": "hermes"}
+    half = "y" * (skills.MAX_SKILL_BYTES // 2)
+    made = [client.post("/skills", headers=headers, json={"title": title, "body": body, "linked_tools": ["pay"]})
+            .json()["skill"]["id"] for title, body in (("Small", "check the amount"), ("Half", half), ("Other half", half))]
+    # Newest first: Other half, then Half, then Small.
+    with skills.SessionLocal() as db:
+        for age, skill_id in enumerate(reversed(made)):
+            db.get(Memory, skill_id).updated_at = datetime(2026, 1, 10 - age, tzinfo=UTC)
+        db.commit()
+
+    context = client.get("/context/skills?tool=pay", headers={**headers, "X-MemoryGate-Key": read_key}).json()
+
+    # One half fits, the other half then does not, and the small one is still delivered.
+    titles = [item["title"] for item in context["results"]]
+    assert "Small" in titles and len(titles) == 2
+    assert context["bytes"] <= skills.MAX_SKILL_BYTES

@@ -6,6 +6,11 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **A skill is delivered whole or refused, and one big skill no longer hides the rest.** A skill
+  body was accepted up to 12000 characters but cut to 8192 bytes on every read, so an edit saved
+  the cut text. Now a skill whose title and body exceed 8192 bytes is refused (422) on create and
+  edit, and reads return the stored text. In `/context/skills` a skill that does not fit what is
+  left is skipped instead of ending the list, so smaller skills after it are still delivered.
 - **Merging entities keeps lineage and the graph whole.** The startup dedup and the manual
   merge (`POST /entity/merge`) now share one routine: lineage links to the removed entity move to
   the kept one, an edge between the two (a would-be self-loop) or one the kept entity already has
