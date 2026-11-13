@@ -6,10 +6,6 @@ a decision with visible consequences.
 
 ## Unreleased
 
-- **Remembering no longer reads every memory.** The duplicate check and the conflict check each
-  loaded every active memory of the agent. Both now narrow in SQL (rows containing the statement,
-  rows sharing a long word) and keep the exact whole-word checks.
-
 - **A lockout stops wrong keys, never the right one.** After five wrong keys from one address,
   every key from that address was refused for 300 s, so one misconfigured caller behind a proxy
   or the host network locked out the rest, and failures never expired. Now the key is checked
@@ -67,6 +63,10 @@ a decision with visible consequences.
   below one already stored counts as one. Lowering the cap archives enough of the most-exposed
   unconfirmed observations in one call (it used to archive one per create), inside the create's
   own transaction.
+
+- **Remembering no longer reads every memory.** The duplicate check and the conflict check each
+  loaded every active memory of the agent. Both now narrow in SQL (rows containing the statement,
+  rows sharing a long word) and keep the exact whole-word checks.
 
 - **The 600-line check covers the dashboard.** `scripts/check_file_sizes.py` skipped `.jsx`
   (the dashboard's own files) and missed a last line with no newline; the one file over the
