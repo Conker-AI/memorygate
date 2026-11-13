@@ -218,10 +218,11 @@ def test_a_wrong_current_key_deletes_nothing_and_writes_no_backup(sessions, monk
         assert db.query(Memory).count() == 2
 
 
-def test_five_wrong_keys_lock_the_reset_even_for_the_right_key(sessions, monkeypatch):
+def test_five_wrong_keys_lock_out_wrong_keys_but_never_the_right_one(sessions, monkeypatch):
     client = _client(sessions, monkeypatch)
-    codes = [_reset(client, f"wrong-{n}").status_code for n in range(5)]
-    assert codes == [403, 403, 403, 403, 429]
-    assert _reset(client, ADMIN_KEY).status_code == 429
+    codes = [_reset(client, f"wrong-{n}").status_code for n in range(6)]
+    assert codes == [403, 403, 403, 403, 429, 429]
     with sessions() as db:
         assert db.query(Memory).count() == 2
+    # Someone else's wrong keys from the same address never lock out the owner's right key.
+    assert _reset(client, ADMIN_KEY).status_code == 200
