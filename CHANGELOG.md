@@ -50,6 +50,11 @@ a decision with visible consequences.
   `user` or `owner_statement`) is no longer taken out of recall because of one that is not: the
   conflict is still recorded, and only the other memory goes to review.
 
+- **Health checks the model in use.** The local model's health reported the env default
+  (`OLLAMA_MODEL`), while calls send the model stored in the runtime setting, so after the owner
+  changed the model the status could say ready while every call failed. Health now names and
+  checks the stored model.
+
 - **A write is not lost to a memory under review.** `POST /memory/write` took a memory with the
   same text as its duplicate whatever its status, so a write equal to a memory under review or
   expired answered ok with `duplicate_of` and nothing became active; it also looked only at the
@@ -72,6 +77,10 @@ a decision with visible consequences.
   edit, and reads return the stored text. In `/context/skills` a skill that does not fit what is
   left is skipped instead of ending the list, so smaller skills after it are still delivered.
 
+- **Observation and pattern search no longer load every row.** Search (and pattern promotion)
+  read every observation or pattern of the agent and filtered in Python. Status, text and entity
+  filters now narrow in SQL, the exact checks stay, and search stops at its 50 results.
+
 - **Deleting an entity takes what refers to it.** `DELETE /entity/{id}` used to remove only the
   entity row; its history snapshots (old names, notes and attributes), events, edges and lineage
   links stayed, and observations and patterns kept its id. Now they go with it (each link leaves
@@ -88,6 +97,10 @@ a decision with visible consequences.
 - **Creating an observation no longer reads every unconfirmed one.** The observation budget
   loaded all unconfirmed observations of the agent on each create; it now counts them in SQL and
   loads only the ones it archives (most exposed first, oldest first among equals).
+
+- **Remembering no longer reads every memory.** The duplicate check and the conflict check each
+  loaded every active memory of the agent. Both now narrow in SQL (rows containing the statement,
+  rows sharing a long word) and keep the exact whole-word checks.
 
 - **The 600-line check covers the dashboard.** `scripts/check_file_sizes.py` skipped `.jsx`
   (the dashboard's own files) and missed a last line with no newline; the one file over the

@@ -5,7 +5,8 @@ from datetime import UTC, datetime
 from app.models.memory import Memory
 from app.models.memory_conflict import MemoryConflict
 from app.models.memory_revision import MemoryRevision
-from sqlalchemy import select
+from app.services.lexical_retrieval import escape_like
+from sqlalchemy import or_, select
 
 
 def snapshot(memory: Memory) -> dict:
@@ -53,7 +54,12 @@ def detect_conflicts(db, memory: Memory) -> list[MemoryConflict]:
     terms = _long_terms(words)
     if not terms:
         return []
-    matches = db.execute(select(Memory).where(Memory.agent_id == memory.agent_id, Memory.id != memory.id, Memory.status == "active")).scalars().all()
+    # Only memories sharing a long term can conflict; SQL narrows to them (a substring match),
+    # the whole-word count below decides.
+    shares_a_term = or_(*(Memory.text.ilike(f"%{escape_like(term)}%", escape="/") for term in terms))
+    matches = db.execute(select(Memory).where(
+        Memory.agent_id == memory.agent_id, Memory.id != memory.id, Memory.status == "active",
+        shares_a_term)).scalars().all()
     created = []
     for other in matches:
         other_words = _words(other.text)

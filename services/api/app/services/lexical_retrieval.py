@@ -41,6 +41,11 @@ def _matches(columns, text):
     return or_(*(column.ilike(_pattern(text), escape="/") for column in columns))
 
 
+def matches_any(columns, text: str):
+    """SQL: `text` appears in any of `columns`, case-insensitive (ASCII only on SQLite)."""
+    return _matches(columns, text)
+
+
 @dataclass(frozen=True)
 class LexicalQuery:
     terms: tuple[str, ...]

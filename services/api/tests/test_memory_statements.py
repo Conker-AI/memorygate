@@ -125,3 +125,28 @@ def test_needs_the_correction_capability(setup):
     assert put(http, headers={**HEADERS, "X-Agent-Id": "other"}).status_code == 403
     with sessions() as db:
         assert db.scalar(select(func.count()).select_from(Memory)) == 0
+
+
+def test_remembering_reads_only_memories_that_could_match(setup):
+    """Dedup and the conflict check narrow in SQL; an unrelated corpus is never loaded."""
+    from sqlalchemy import event
+
+    http, sessions, _calls = setup
+    with sessions() as db:
+        db.add_all([Memory(agent_id="owner", text=f"Unrelated note number {n} about lunch.")
+                    for n in range(200)])
+        db.add(Memory(agent_id="owner", text="The physics exam is not on Thursday."))
+        db.commit()
+    loaded = []
+
+    def count(_session, instance):
+        if isinstance(instance, Memory):
+            loaded.append(instance.text)
+
+    event.listen(sessions, "loaded_as_persistent", count)
+    try:
+        assert put(http).status_code == 200
+    finally:
+        event.remove(sessions, "loaded_as_persistent", count)
+    assert "Unrelated note number 7 about lunch." not in loaded
+    assert len(loaded) <= 5
