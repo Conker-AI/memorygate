@@ -38,8 +38,6 @@ def _parse_tags(row: Memory) -> dict:
 def _row_to_skill(row: Memory, include_body: bool = True) -> dict:
     tags = _parse_tags(row)
     body = row.text
-    if len(body.encode("utf-8")) > MAX_SKILL_BYTES:
-        body = body.encode("utf-8")[:MAX_SKILL_BYTES].decode("utf-8", errors="ignore")
     result = {
         "id": row.id,
         "agent_id": row.agent_id,
@@ -53,6 +51,14 @@ def _row_to_skill(row: Memory, include_body: bool = True) -> dict:
     if include_body:
         result["body"] = body
     return result
+
+
+def _require_fits(title: str, body: str) -> None:
+    """A skill is delivered whole or not at all, so its title and body must fit the budget
+    one tool's skills share; a longer one is refused instead of being cut on every read."""
+    size = len((title + body).encode("utf-8"))
+    if size > MAX_SKILL_BYTES:
+        raise HTTPException(422, f"Skill title and body are {size} bytes; the limit is {MAX_SKILL_BYTES}.")
 
 
 def _require_skill(row: Memory | None, agent_id: str) -> Memory:
@@ -78,6 +84,7 @@ def list_skills(agent_id: str = Depends(get_agent_id)):
 @router.post("")
 def create_skill(payload: SkillWriteRequest, header_agent_id: str = Depends(get_agent_id)):
     agent_id = resolve_agent_id(header_agent_id, payload.agent_id)
+    _require_fits(payload.title, payload.body)
     db = SessionLocal()
     try:
         row = Memory(
@@ -137,6 +144,7 @@ def update_skill(skill_id: str, payload: SkillPatchRequest, agent_id: str = Depe
             row.summary = payload.title
         if payload.body is not None:
             row.text = payload.body
+        _require_fits(row.summary, row.text)
         if payload.linked_tools is not None:
             tags["linked_tools"] = payload.linked_tools
         if payload.version is not None:
@@ -205,7 +213,8 @@ def context_skills(tool: str = Query(min_length=1, max_length=200), agent_id: st
             item = _row_to_skill(row)
             size = len((item["title"] + item["body"]).encode("utf-8"))
             if total + size > MAX_SKILL_BYTES:
-                break
+                # This one does not fit what is left; a smaller one after it still may.
+                continue
             total += size
             matches.append(item)
         return {"results": matches, "tool": tool, "bytes": total}
