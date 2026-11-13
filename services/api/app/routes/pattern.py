@@ -14,6 +14,7 @@ from app.schemas.pattern import (
     PatternSearchRequest,
     PatternUpdateRequest,
 )
+from app.services.lexical_retrieval import matches_any
 from app.services.observation_forgetting import erase_pattern
 from app.services.pattern_promotion import (
     DEPRECATE_AT_CONTRADICTIONS,
@@ -23,6 +24,7 @@ from app.services.pattern_promotion import (
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 
+SEARCH_LIMIT = 50
 router = APIRouter(prefix="/pattern", tags=["pattern"])
 
 def _pattern_to_dict(row: Pattern) -> dict:
@@ -99,12 +101,21 @@ def search_patterns(payload: PatternSearchRequest, header_agent_id: str = Depend
     agent_id = resolve_agent_id(header_agent_id, payload.agent_id)
     db = SessionLocal()
     try:
-        rows = db.execute(
-            select(Pattern).where(Pattern.agent_id == agent_id).order_by(Pattern.updated_at.desc())
-        ).scalars().all()
+        # SQL narrows; the exact checks below decide; stream until 50 results.
+        stmt = select(Pattern).where(Pattern.agent_id == agent_id)
+        if payload.status:
+            stmt = stmt.where(Pattern.status == payload.status)
+        if payload.entity_id:
+            stmt = stmt.where(Pattern.applies_to_entity_ids_json.contains(payload.entity_id, autoescape=True))
+        if payload.query:
+            stmt = stmt.where(matches_any((Pattern.pattern_name, Pattern.description, Pattern.interpretation,
+                                           Pattern.recommended_action, Pattern.status), payload.query))
+        rows = db.execute(stmt.order_by(Pattern.updated_at.desc()).execution_options(yield_per=100)).scalars()
         results = []
 
         for row in rows:
+            if len(results) == SEARCH_LIMIT:
+                break
             item = _pattern_to_dict(row)
 
             if payload.status and item["status"] != payload.status:
@@ -125,7 +136,7 @@ def search_patterns(payload: PatternSearchRequest, header_agent_id: str = Depend
 
             results.append(item)
 
-        return {"results": results[:50]}
+        return {"results": results}
     finally:
         db.close()
 
@@ -230,9 +241,13 @@ def promote_pattern(payload: PatternPromoteRequest, header_agent_id: str = Depen
     agent_id = resolve_agent_id(header_agent_id, payload.agent_id)
     db = SessionLocal()
     try:
-        obs_rows = db.execute(
-            select(Observation).where(Observation.agent_id == agent_id).order_by(Observation.observed_at.desc())
-        ).scalars().all()
+        stmt = select(Observation).where(Observation.agent_id == agent_id)
+        if payload.entity_id:
+            stmt = stmt.where(Observation.entity_ids_json.contains(payload.entity_id, autoescape=True))
+        if payload.query:
+            stmt = stmt.where(matches_any((Observation.description, Observation.raw_context, Observation.hypothesis,
+                                           Observation.signal_type, Observation.status), payload.query))
+        obs_rows = db.execute(stmt.order_by(Observation.observed_at.desc())).scalars().all()
         matched = []
 
         for row in obs_rows:

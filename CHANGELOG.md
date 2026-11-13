@@ -77,6 +77,10 @@ a decision with visible consequences.
   edit, and reads return the stored text. In `/context/skills` a skill that does not fit what is
   left is skipped instead of ending the list, so smaller skills after it are still delivered.
 
+- **Observation and pattern search no longer load every row.** Search (and pattern promotion)
+  read every observation or pattern of the agent and filtered in Python. Status, text and entity
+  filters now narrow in SQL, the exact checks stay, and search stops at its 50 results.
+
 - **Deleting an entity takes what refers to it.** `DELETE /entity/{id}` used to remove only the
   entity row; its history snapshots (old names, notes and attributes), events, edges and lineage
   links stayed, and observations and patterns kept its id. Now they go with it (each link leaves
