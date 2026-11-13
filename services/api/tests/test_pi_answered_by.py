@@ -200,13 +200,12 @@ def test_unusable_names_are_dropped_and_the_answer_is_kept(stack, pi, named, sto
 # --- No name to give ----------------------------------------------------------------
 
 
-def test_pi_without_an_answer_stores_a_proposal_that_names_nobody(stack, pi):
+def test_pi_without_an_answer_stores_no_proposal_and_names_nobody(stack, pi):
     pi.reply = (503, {"detail": {"code": "no_model", "message": "No model for this role"}})
     assert process(stack)["status"] == "completed"
 
-    proposal = analyses(stack)["local_ai_proposal"]
-    assert proposal["output_summary"] == ""
-    assert (proposal["model"], proposal["provider"]) == (None, None)
+    # No answer is no analysis: nothing is stored as a model's proposal.
+    assert "local_ai_proposal" not in analyses(stack)
     assert model_choice(stack)["last_answer"] is None
 
 

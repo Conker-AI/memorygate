@@ -11,6 +11,10 @@ a decision with visible consequences.
   was cut off; the ingest key now stays. `POST /evidence` refuses a disabled source (409), and a
   source's "last ingested" is the arrival time, not the event's own time.
 
+- **No model answer, no AI analysis.** When no model answered (Pi down, local model off, hosted
+  call refused), evidence processing stored an empty `local_ai_proposal` analysis, so the
+  evidence counted as analysed and was never analysed again. Now nothing is stored.
+
 - **The conflict check reads whole words and keeps the owner's words in recall.** It counted
   "not" inside "knot" or "cannot " and matched long words as substrings over the first eight
   only. Now it compares whole words ("not", "never", "no longer", "stopped", "cannot", "-n't"
