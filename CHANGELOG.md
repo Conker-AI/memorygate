@@ -10,6 +10,12 @@ a decision with visible consequences.
   call refused), evidence processing stored an empty `local_ai_proposal` analysis, so the
   evidence counted as analysed and was never analysed again. Now nothing is stored.
 
+- **"Don't remember" keeps no words.** A conversation message the owner asked not to keep
+  ("don't remember ...", "не запоминай ...") used to be stored word for word as evidence (only
+  the memory was skipped). Its evidence now holds no text (`normalized_payload` is
+  `{"withheld": "owner_declined"}`, empty summary); the receipt and the analysis still record
+  that it was declined. Messages filtered for low value keep their words as before.
+
 - **Deleting an entity takes what refers to it.** `DELETE /entity/{id}` used to remove only the
   entity row; its history snapshots (old names, notes and attributes), events, edges and lineage
   links stayed, and observations and patterns kept its id. Now they go with it (each link leaves
