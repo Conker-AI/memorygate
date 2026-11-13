@@ -6,6 +6,11 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **Merging entities keeps lineage and the graph whole.** The startup dedup and the manual
+  merge (`POST /entity/merge`) now share one routine: lineage links to the removed entity move to
+  the kept one, an edge between the two (a would-be self-loop) or one the kept entity already has
+  goes, the removed entity's vector is queued for deletion (the startup dedup left it in Qdrant),
+  and a malformed tags or attributes value no longer stops startup.
 - **No more transcript archive writes** (contract change). Transcripts live only in Pi
   (ADR-0002), and nothing in Conker wrote here, so `POST /transcripts` and the SoulGate
   flags (`POST /transcripts/{id}/reprocess`, `/mark-processed`, `processed_by_soulgate` in
