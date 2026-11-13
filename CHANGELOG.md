@@ -13,6 +13,13 @@ a decision with visible consequences.
   emotion lists overlap; a phase now has two signals, a feeling and a timeframe, so "sad this
   week" is `medium`, not `high`. The unused `NEGATION_WORDS` list is gone.
 
+- **The conflict check reads whole words and keeps the owner's words in recall.** It counted
+  "not" inside "knot" or "cannot " and matched long words as substrings over the first eight
+  only. Now it compares whole words ("not", "never", "no longer", "stopped", "cannot", "-n't"
+  and at least two shared words over four letters). A memory in the owner's own words (source
+  `user` or `owner_statement`) is no longer taken out of recall because of one that is not: the
+  conflict is still recorded, and only the other memory goes to review.
+
 - **"Don't remember" keeps no words.** A conversation message the owner asked not to keep
   ("don't remember ...", "не запоминай ...") used to be stored word for word as evidence (only
   the memory was skipped). Its evidence now holds no text (`normalized_payload` is

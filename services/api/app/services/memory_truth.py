@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import UTC, datetime
 
 from app.models.memory import Memory
@@ -18,20 +19,46 @@ def add_revision(db, memory: Memory, reason: str, changed_by: str = "system") ->
     db.add(MemoryRevision(memory_id=memory.id, changed_by=changed_by, reason=reason, snapshot_json=json.dumps(snapshot(memory))))
 
 
+# Memories in the owner's own words (an approved statement, or what they said in a chat).
+OWNER_SOURCES = {"user", "owner_statement"}
+_NEGATIONS = {"not", "never", "stopped", "cannot"}
+_APOSTROPHE = chr(0x2019)  # right single quotation mark, as in don't typed on a phone
+_WORD = re.compile(r"[^\W_]+(?:['" + _APOSTROPHE + r"][^\W_]+)*")
+
+
+def _words(text: str) -> list[str]:
+    return _WORD.findall(text.lower())
+
+
+def _negated(words: list[str]) -> bool:
+    joined = " ".join(words)
+    return (any(word in _NEGATIONS or word.endswith(("n't", "n" + _APOSTROPHE + "t")) for word in words)
+            or " no longer " in f" {joined} ")
+
+
+def _long_terms(words: list[str]) -> set[str]:
+    return {word for word in words if len(word) > 4}
+
+
 def detect_conflicts(db, memory: Memory) -> list[MemoryConflict]:
-    """Conservative lexical conflict detector; ambiguous cases stay untouched."""
-    lower = memory.text.lower()
-    negated = any(token in lower for token in ("not ", "no longer", "never ", "stopped "))
-    terms = [term for term in lower.replace(".", " ").split() if len(term) > 4][:8]
+    """Conservative lexical conflict detector; ambiguous cases stay untouched.
+
+    Two memories conflict when exactly one of them negates ("not", "never", "no longer",
+    "stopped", "-n't") and they share at least two whole words longer than four letters.
+    Both go to review, except that a memory in the owner's own words is never taken out of
+    recall because of one that is not: then only the other one goes to review.
+    """
+    words = _words(memory.text)
+    negated = _negated(words)
+    terms = _long_terms(words)
     if not terms:
         return []
     matches = db.execute(select(Memory).where(Memory.agent_id == memory.agent_id, Memory.id != memory.id, Memory.status == "active")).scalars().all()
     created = []
     for other in matches:
-        other_lower = other.text.lower()
-        overlap = sum(1 for term in terms if term in other_lower)
-        other_negated = any(token in other_lower for token in ("not ", "no longer", "never ", "stopped "))
-        if overlap < 2 or negated == other_negated:
+        other_words = _words(other.text)
+        overlap = len(terms & _long_terms(other_words))
+        if overlap < 2 or negated == _negated(other_words):
             continue
         exists = db.execute(select(MemoryConflict).where(
             MemoryConflict.memory_id == memory.id,
@@ -44,10 +71,11 @@ def detect_conflicts(db, memory: Memory) -> list[MemoryConflict]:
             db.add(row)
             # A contradiction is not silently promoted into agent context. Both
             # records remain auditable and require an explicit administrator decision.
-            if memory.status == "active":
+            owner_new, owner_other = memory.source_type in OWNER_SOURCES, other.source_type in OWNER_SOURCES
+            if memory.status == "active" and not (owner_new and not owner_other):
                 memory.status = "needs_review"
                 add_revision(db, memory, "possible contradiction detected", "conflict_detector")
-            if other.status == "active":
+            if other.status == "active" and not (owner_other and not owner_new):
                 other.status = "needs_review"
                 add_revision(db, other, "possible contradiction detected", "conflict_detector")
             created.append(row)
