@@ -6,6 +6,11 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **A reset leaves no trace of what it removed.** Correction receipts naming a removed memory are
+  removed with it (a repeated correction request would otherwise answer for a memory that no
+  longer exists), and a dated reset takes the removed entities' ids out of the observations and
+  patterns it keeps. Forget receipts stay, so a forgotten memory never returns.
+
 - **A lockout stops wrong keys, never the right one.** After five wrong keys from one address,
   every key from that address was refused for 300 s, so one misconfigured caller behind a proxy
   or the host network locked out the rest, and failures never expired. Now the key is checked
