@@ -11,6 +11,14 @@ a decision with visible consequences.
   of another agent (the `X-Agent-Id` header), as for a missing one. Before, they read and
   linked any agent's objects by id.
 
+- **No more transcript archive writes** (contract change). Transcripts live only in Pi
+  (ADR-0002), and nothing in Conker wrote here, so `POST /transcripts` and the SoulGate
+  flags (`POST /transcripts/{id}/reprocess`, `/mark-processed`, `processed_by_soulgate` in
+  replies) are gone. Rows already stored can still be listed and read, and now deleted:
+  `DELETE /transcripts/{id}` (admin key, the agent's own row) leaves a content-free
+  `transcript` deletion receipt, so recovery replay keeps it deleted after a restore. The
+  dashboard's Sessions screen has Delete instead of "Re-process with SoulGate".
+
 - **Each tag gets a GitHub Release page and an SBOM.** The Release page's notes are the
   version's CHANGELOG section. Every image carries an SPDX SBOM (BuildKit attestation) inside
   the image index, and the signed build provenance covers that index digest. Check one with

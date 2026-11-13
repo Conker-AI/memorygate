@@ -8,7 +8,7 @@ from sqlalchemy import select
 router = APIRouter(prefix="/audit", tags=["audit"])
 
 READ_ACTIONS = {"runtime_context", "runtime_ask", "read"}
-WRITE_ACTIONS = {"write", "upgrade", "edit", "delete", "transcript_write"}
+WRITE_ACTIONS = {"write", "upgrade", "edit", "delete", "transcript_write", "transcript_delete"}
 
 @router.get("")
 def list_audit():

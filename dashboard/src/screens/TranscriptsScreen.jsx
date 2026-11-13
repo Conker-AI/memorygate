@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Search, Loader2, RefreshCw, CheckCircle2, Circle } from 'lucide-react';
+import { ArrowLeft, Search, Loader2, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useAgent } from '../context/AgentContext';
 import { timeAgo } from '../lib/timeAgo';
@@ -49,7 +49,7 @@ export default function TranscriptsScreen() {
   const [selectedId, setSelectedId] = useState(null);
   const [full, setFull] = useState(null);
   const [query, setQuery] = useState('');
-  const [reprocessing, setReprocessing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const load = () => {
     setTranscripts(null);
@@ -66,14 +66,16 @@ export default function TranscriptsScreen() {
 
   const turns = useMemo(() => (full ? parseTranscript(full.transcript) : []), [full]);
 
-  const reprocess = async () => {
-    setReprocessing(true);
+  // Transcripts live only in Pi; these are legacy rows, so the archive can only be emptied.
+  const remove = async () => {
+    if (!window.confirm('Delete this transcript? Its text is removed for good.')) return;
+    setDeleting(true);
     try {
-      const res = await api.post(`/transcripts/${selectedId}/reprocess`, {}, undefined, agentId);
-      setFull((prev) => ({ ...prev, processed_by_soulgate: res.transcript.processed_by_soulgate }));
-      setTranscripts((prev) => prev.map((t) => (t.id === selectedId ? { ...t, processed_by_soulgate: res.transcript.processed_by_soulgate } : t)));
+      await api.del(`/transcripts/${selectedId}`, undefined, agentId);
+      setTranscripts((prev) => prev.filter((t) => t.id !== selectedId));
+      setSelectedId(null);
     } finally {
-      setReprocessing(false);
+      setDeleting(false);
     }
   };
 
@@ -93,16 +95,10 @@ export default function TranscriptsScreen() {
                 <h1 className="text-lg font-medium text-text">Session {full.session_id || full.id.slice(0, 8)}</h1>
                 <p className="text-xs text-muted">
                   {full.session_start ? timeAgo(full.session_start) : 'unknown start'} · {full.word_count} words
-                  {' · '}
-                  {full.processed_by_soulgate ? (
-                    <span className="inline-flex items-center gap-1 text-status-positive"><CheckCircle2 size={11} /> processed</span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 text-muted"><Circle size={11} /> unprocessed</span>
-                  )}
                 </p>
               </div>
-              <Button variant="secondary" disabled={reprocessing} onClick={reprocess}>
-                <RefreshCw size={14} className={reprocessing ? 'animate-spin' : ''} /> Re-process with SoulGate
+              <Button variant="secondary" disabled={deleting} onClick={remove}>
+                <Trash2 size={14} /> Delete
               </Button>
             </div>
 
@@ -134,12 +130,13 @@ export default function TranscriptsScreen() {
 
   return (
     <div className="p-5 md:p-8">
-      <h1 className="mb-5 text-lg font-medium text-text">Transcripts</h1>
+      <h1 className="mb-1 text-lg font-medium text-text">Transcripts</h1>
+      <p className="mb-5 text-xs text-muted">Older sessions kept from before Conker. New chats are kept only in Conker, not here.</p>
 
       {transcripts === null ? (
         <div className="flex items-center gap-2 text-sm text-muted"><Loader2 size={14} className="animate-spin" /> Loading…</div>
       ) : transcripts.length === 0 ? (
-        <p className="text-sm text-muted">No transcripts archived yet.</p>
+        <p className="text-sm text-muted">No transcripts stored.</p>
       ) : (
         <div className="overflow-hidden rounded-lg border border-border bg-surface">
           <table className="w-full text-sm">
@@ -148,7 +145,6 @@ export default function TranscriptsScreen() {
                 <th className="px-4 py-3 text-left">Date</th>
                 <th className="px-4 py-3 text-left">Session</th>
                 <th className="px-4 py-3 text-left">Words</th>
-                <th className="px-4 py-3 text-left">Processed</th>
               </tr>
             </thead>
             <tbody>
@@ -157,13 +153,6 @@ export default function TranscriptsScreen() {
                   <td className="px-4 py-3 text-text">{t.session_start ? timeAgo(t.session_start) : timeAgo(t.created_at)}</td>
                   <td className="px-4 py-3 text-muted">{t.session_id || t.id.slice(0, 8)}</td>
                   <td className="px-4 py-3 text-muted">{t.word_count}</td>
-                  <td className="px-4 py-3">
-                    {t.processed_by_soulgate ? (
-                      <span className="inline-flex items-center gap-1 text-status-positive"><CheckCircle2 size={13} /> yes</span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 text-muted"><Circle size={13} /> no</span>
-                    )}
-                  </td>
                 </tr>
               ))}
             </tbody>

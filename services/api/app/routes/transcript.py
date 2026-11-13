@@ -1,13 +1,22 @@
+"""Legacy transcript archive: read and delete only.
+
+Transcripts live only in Pi (ADR-0002); MemoryGate gets derived evidence. The archive
+is left from the SoulGate era, so it takes no new transcripts. The rows already there
+can be listed, read and deleted. A delete removes the lineage links naming it and leaves
+content-free deletion receipts, so restoring an older backup does not bring the
+transcript back (deletion_recovery.replay).
+"""
+
 import json
 
-from app.core.agent import get_agent_id, resolve_agent_id
+from app.core.agent import get_agent_id
 from app.core.db import SessionLocal
-from app.core.timestamps import parse_timestamp
 from app.models.audit import MemoryAudit
+from app.models.deletion_receipt import record
+from app.models.object_link import ObjectLink
 from app.models.session_transcript import SessionTranscript
-from app.schemas.transcript import TranscriptCreateRequest
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
 router = APIRouter(prefix="/transcripts", tags=["transcripts"])
 
@@ -20,7 +29,6 @@ def _summary_dict(row: SessionTranscript) -> dict:
         "session_start": row.session_start.isoformat() if row.session_start else None,
         "session_end": row.session_end.isoformat() if row.session_end else None,
         "word_count": row.word_count,
-        "processed_by_soulgate": row.processed_by_soulgate,
         "created_at": row.created_at.isoformat() if row.created_at else None,
     }
 
@@ -29,36 +37,6 @@ def _get_owned_transcript(db, transcript_id: str, agent_id: str) -> SessionTrans
     if not row or row.agent_id != agent_id:
         raise HTTPException(404, "Transcript not found")
     return row
-
-@router.post("")
-def create_transcript(payload: TranscriptCreateRequest, header_agent_id: str = Depends(get_agent_id)):
-    agent_id = resolve_agent_id(header_agent_id, payload.agent_id)
-    db = SessionLocal()
-    try:
-        row = SessionTranscript(
-            agent_id=agent_id,
-            session_id=payload.session_id,
-            transcript=payload.transcript,
-            session_start=parse_timestamp(payload.session_start, "session_start"),
-            session_end=parse_timestamp(payload.session_end, "session_end"),
-            word_count=payload.word_count if payload.word_count is not None else len(payload.transcript.split()),
-        )
-        db.add(row)
-        db.commit()
-        db.refresh(row)
-        db.add(MemoryAudit(
-            action="transcript_write",
-            memory_id=None,
-            payload_json=json.dumps({
-                "agent_id": agent_id,
-                "session_id": payload.session_id,
-                "word_count": row.word_count,
-            }),
-        ))
-        db.commit()
-        return {"status": "ok", "transcript": _summary_dict(row)}
-    finally:
-        db.close()
 
 @router.get("/{agent_id}")
 def list_transcripts(agent_id: str):
@@ -80,34 +58,26 @@ def get_full_transcript(transcript_id: str, agent_id: str = Depends(get_agent_id
     finally:
         db.close()
 
-@router.post("/{transcript_id}/reprocess")
-def reprocess_transcript(transcript_id: str, agent_id: str = Depends(get_agent_id)):
-    """Flips processed_by_soulgate back to false so SoulGate's own worker
-    picks this transcript up again on its next pass - MemoryGate is just the
-    archive, it doesn't invoke SoulGate itself."""
+@router.delete("/{transcript_id}")
+def delete_transcript(transcript_id: str, agent_id: str = Depends(get_agent_id)):
     db = SessionLocal()
     try:
         row = _get_owned_transcript(db, transcript_id, agent_id)
-        row.processed_by_soulgate = False
+        record(db, agent_id, "transcript", row.id)
+        links = db.execute(select(ObjectLink).where(or_(
+            (ObjectLink.source_type == "transcript") & (ObjectLink.source_id == row.id),
+            (ObjectLink.target_type == "transcript") & (ObjectLink.target_id == row.id),
+        ))).scalars().all()
+        for link in links:
+            record(db, "", "link", link.id)
+            db.delete(link)
+        db.add(MemoryAudit(
+            action="transcript_delete",
+            memory_id=None,
+            payload_json=json.dumps({"agent_id": agent_id, "transcript_id": row.id}),
+        ))
+        db.delete(row)
         db.commit()
-        db.refresh(row)
-        return {"status": "ok", "transcript": _summary_dict(row)}
-    finally:
-        db.close()
-
-@router.post("/{transcript_id}/mark-processed")
-def mark_transcript_processed(transcript_id: str, agent_id: str = Depends(get_agent_id)):
-    """SoulGate calls this once it's done extracting memories/observations
-    from a transcript. Nothing else in this codebase ever sets
-    processed_by_soulgate=true - without this endpoint the flag can never
-    leave its false default, and a transcript SoulGate already processed
-    would look eligible for reprocessing (duplicate extraction) forever."""
-    db = SessionLocal()
-    try:
-        row = _get_owned_transcript(db, transcript_id, agent_id)
-        row.processed_by_soulgate = True
-        db.commit()
-        db.refresh(row)
-        return {"status": "ok", "transcript": _summary_dict(row)}
+        return {"status": "ok"}
     finally:
         db.close()
