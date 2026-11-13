@@ -45,19 +45,27 @@ def _link_to_dict(row: ObjectLink) -> dict:
     }
 
 
-def _require_object(db, object_type: str, object_id: str):
+def _require_object(db, object_type: str, object_id: str, agent_id: str):
+    """The object, when it exists and belongs to `agent_id`; another agent's object is not found."""
     model = OBJECT_MODELS.get(object_type)
     if model is None:
         raise HTTPException(422, f"Unknown object type '{object_type}'")
     row = db.get(model, object_id)
-    if row is None:
+    if row is None or row.agent_id != agent_id:
         raise HTTPException(404, f"{object_type} object '{object_id}' not found")
     return row
 
 
-def _create_link(db, payload: ObjectLinkCreateRequest) -> ObjectLink:
-    _require_object(db, payload.source_type, payload.source_id)
-    _require_object(db, payload.target_type, payload.target_id)
+def _belongs_elsewhere(db, object_type: str, object_id: str, agent_id: str) -> bool:
+    """True when the object exists and is another agent's (a missing end is nobody's)."""
+    model = OBJECT_MODELS.get(object_type)
+    row = db.get(model, object_id) if model is not None else None
+    return row is not None and row.agent_id != agent_id
+
+
+def _create_link(db, payload: ObjectLinkCreateRequest, agent_id: str) -> ObjectLink:
+    _require_object(db, payload.source_type, payload.source_id, agent_id)
+    _require_object(db, payload.target_type, payload.target_id, agent_id)
     existing = db.execute(select(ObjectLink).where(
         ObjectLink.source_type == payload.source_type,
         ObjectLink.source_id == payload.source_id,
@@ -115,7 +123,7 @@ def create_episode(payload: EpisodeCreateRequest, header_agent_id: str = Depends
                 source_type="evidence", source_id=evidence_id,
                 target_type="episode", target_id=row.id,
                 relationship="grouped_into", created_by="user",
-            ))
+            ), agent_id)
         db.commit()
         db.refresh(row)
         return {"status": "ok", "episode": _episode_to_dict(row)}
@@ -171,10 +179,10 @@ def delete_episode(episode_id: str, agent_id: str = Depends(get_agent_id)):
 
 
 @router.post("/links")
-def create_link(payload: ObjectLinkCreateRequest):
+def create_link(payload: ObjectLinkCreateRequest, agent_id: str = Depends(get_agent_id)):
     db = SessionLocal()
     try:
-        row = _create_link(db, payload)
+        row = _create_link(db, payload, agent_id)
         db.commit()
         db.refresh(row)
         return {"status": "ok", "link": _link_to_dict(row)}
@@ -183,11 +191,13 @@ def create_link(payload: ObjectLinkCreateRequest):
 
 
 @router.delete("/links/{link_id}")
-def delete_link(link_id: str):
+def delete_link(link_id: str, agent_id: str = Depends(get_agent_id)):
     db = SessionLocal()
     try:
         row = db.get(ObjectLink, link_id)
-        if not row:
+        if not row or any(_belongs_elsewhere(db, kind, identity, agent_id) for kind, identity in (
+            (row.source_type, row.source_id), (row.target_type, row.target_id),
+        )):
             raise HTTPException(404, "Lineage link not found")
         from app.models.deletion_receipt import record
         record(db, "", "link", row.id)
@@ -199,10 +209,10 @@ def delete_link(link_id: str):
 
 
 @router.get("/{object_type}/{object_id}")
-def get_object_lineage(object_type: str, object_id: str):
+def get_object_lineage(object_type: str, object_id: str, agent_id: str = Depends(get_agent_id)):
     db = SessionLocal()
     try:
-        _require_object(db, object_type, object_id)
+        _require_object(db, object_type, object_id, agent_id)
         rows = db.execute(select(ObjectLink).where(or_(
             (ObjectLink.source_type == object_type) & (ObjectLink.source_id == object_id),
             (ObjectLink.target_type == object_type) & (ObjectLink.target_id == object_id),
