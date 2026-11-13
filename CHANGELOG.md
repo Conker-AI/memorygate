@@ -6,12 +6,6 @@ a decision with visible consequences.
 
 ## Unreleased
 
-- **A trigger matches whole words only.** A session context counted an exposure for an
-  observation when any trigger word longer than three letters appeared anywhere, so "when"
-  or the "work" inside "network" could wear an observation down to archived. The trigger
-  phrase and its words now match only as whole words, and common words such as "when" or
-  "about" no longer count.
-
 - **Two patterns that start alike stay two patterns.** A pattern was named by the first 60
   characters of its hypothesis, so two clusters sharing that beginning wrote into one pattern,
   each run replacing the other's observations and counting a new confirmation. A long hypothesis
@@ -90,6 +84,12 @@ a decision with visible consequences.
   the cut text. Now a skill whose title and body exceed 8192 bytes is refused (422) on create and
   edit, and reads return the stored text. In `/context/skills` a skill that does not fit what is
   left is skipped instead of ending the list, so smaller skills after it are still delivered.
+
+- **A trigger matches whole words only.** A session context counted an exposure for an
+  observation when any trigger word longer than three letters appeared anywhere, so "when"
+  or the "work" inside "network" could wear an observation down to archived. The trigger
+  phrase and its words now match only as whole words, and common words such as "when" or
+  "about" no longer count.
 
 - **Observation and pattern search no longer load every row.** Search (and pattern promotion)
   read every observation or pattern of the agent and filtered in Python. Status, text and entity
