@@ -6,6 +6,9 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **Coverage floor 88 -> 92.** CI measured 93.91% on main (642 tests), so the floor goes up
+  without new tests; it may only rise.
+
 - **What Conker believes about you (read-only).** `GET /runtime/memory-beliefs` (read key or
   admin key, the header's agent only) lists the agent's current memories, active or waiting for
   review, never skills or forgotten ones. Each item has `origin` (`stated` by the owner or
