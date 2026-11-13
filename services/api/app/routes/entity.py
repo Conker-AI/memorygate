@@ -13,6 +13,7 @@ from app.schemas.entity import (
     EntityUpdateRequest,
 )
 from app.services.entity_dedup import find_duplicate, merge_entities
+from app.services.entity_forgetting import erase_dependents
 from app.services.lexical_retrieval import escape_like
 from app.services.vector_outbox import enqueue_delete, enqueue_upsert, reconcile_one
 from fastapi import APIRouter, Depends, HTTPException
@@ -162,6 +163,7 @@ def delete_entity(entity_id: str, agent_id: str = Depends(get_agent_id)):
         from app.models.deletion_receipt import record
         record(db, agent_id, "entity", row.id)
         enqueue_delete(db, "entity", row.id, agent_id=agent_id)
+        erase_dependents(db, row.id)
         db.delete(row)
         db.commit()
         indexing = reconcile_one("entity", entity_id, sessions=SessionLocal)
