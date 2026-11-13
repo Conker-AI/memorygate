@@ -11,6 +11,12 @@ a decision with visible consequences.
   the kept one, an edge between the two (a would-be self-loop) or one the kept entity already has
   goes, the removed entity's vector is queued for deletion (the startup dedup left it in Qdrant),
   and a malformed tags or attributes value no longer stops startup.
+
+- **Lineage stays inside one agent.** `POST /lineage/links`, `GET /lineage/{type}/{id}`,
+  `DELETE /lineage/links/{id}` and an episode's `evidence_ids` now answer 404 for an object
+  of another agent (the `X-Agent-Id` header), as for a missing one. Before, they read and
+  linked any agent's objects by id.
+
 - **No more transcript archive writes** (contract change). Transcripts live only in Pi
   (ADR-0002), and nothing in Conker wrote here, so `POST /transcripts` and the SoulGate
   flags (`POST /transcripts/{id}/reprocess`, `/mark-processed`, `processed_by_soulgate` in
