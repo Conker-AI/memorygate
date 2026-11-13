@@ -35,7 +35,11 @@ def _attrs(entity: Entity) -> dict:
 def _emotional_state(db, agent_id: str) -> tuple[str | None, str | None]:
     row = db.execute(
         select(Observation)
-        .where(Observation.agent_id == agent_id, Observation.signal_type == "emotional")
+        .where(
+            Observation.agent_id == agent_id,
+            Observation.signal_type == "emotional",
+            Observation.status.notin_(("contradicted", "archived")),
+        )
         .order_by(Observation.observed_at.desc())
         .limit(1)
     ).scalars().first()
@@ -159,7 +163,12 @@ def _watch_flags(db, agent_id: str) -> list[str]:
     cutoff = _now() - timedelta(days=WATCH_FLAG_WINDOW_DAYS)
     rows = db.execute(
         select(Memory)
-        .where(Memory.agent_id == agent_id, Memory.memory_type == "watch", Memory.created_at >= cutoff)
+        .where(
+            Memory.agent_id == agent_id,
+            Memory.memory_type == "watch",
+            Memory.status == "active",
+            Memory.created_at >= cutoff,
+        )
         .order_by(Memory.created_at.desc())
         .limit(5)
     ).scalars().all()

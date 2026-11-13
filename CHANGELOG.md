@@ -67,6 +67,11 @@ a decision with visible consequences.
   longer exists), and a dated reset takes the removed entities' ids out of the observations and
   patterns it keeps. Forget receipts stay, so a forgotten memory never returns.
 
+- **The briefing shows only live evidence.** A watch memory that lost a conflict or was
+  marked unsupported stayed in the pre-session briefing for 14 days, and a contradicted or
+  archived emotional observation could still set its mood. Watch flags now come only from
+  active memories, and the mood ignores contradicted and archived observations.
+
 - **The conflict check reads whole words and keeps the owner's words in recall.** It counted
   "not" inside "knot" or "cannot " and matched long words as substrings over the first eight
   only. Now it compares whole words ("not", "never", "no longer", "stopped", "cannot", "-n't"
