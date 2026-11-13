@@ -6,6 +6,9 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **The backup list names only backup files.** A folder in the backup directory whose name
+  matched the backup pattern was listed as a backup that the download then refused.
+
 - **Two patterns that start alike stay two patterns.** A pattern was named by the first 60
   characters of its hypothesis, so two clusters sharing that beginning wrote into one pattern,
   each run replacing the other's observations and counting a new confirmation. A long hypothesis
