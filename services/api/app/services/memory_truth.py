@@ -41,13 +41,15 @@ def _long_terms(words: list[str]) -> set[str]:
     return {word for word in words if len(word) > 4}
 
 
-def detect_conflicts(db, memory: Memory) -> list[MemoryConflict]:
+def detect_conflicts(db, memory: Memory, *, newest_owner_wins: bool = False) -> list[MemoryConflict]:
     """Conservative lexical conflict detector; ambiguous cases stay untouched.
 
     Two memories conflict when exactly one of them negates ("not", "never", "no longer",
     "stopped", "-n't") and they share at least two whole words longer than four letters.
     Both go to review, except that a memory in the owner's own words is never taken out of
-    recall because of one that is not: then only the other one goes to review.
+    recall because of one that is not: then only the other one goes to review. With
+    newest_owner_wins (an owner's remember), a new owner-worded memory also stays active
+    against an older owner-worded one, which alone goes to review.
     """
     words = _words(memory.text)
     negated = _negated(words)
@@ -78,7 +80,7 @@ def detect_conflicts(db, memory: Memory) -> list[MemoryConflict]:
             # A contradiction is not silently promoted into agent context. Both
             # records remain auditable and require an explicit administrator decision.
             owner_new, owner_other = memory.source_type in OWNER_SOURCES, other.source_type in OWNER_SOURCES
-            if memory.status == "active" and not (owner_new and not owner_other):
+            if memory.status == "active" and not (owner_new and (not owner_other or newest_owner_wins)):
                 memory.status = "needs_review"
                 add_revision(db, memory, "possible contradiction detected", "conflict_detector")
             if other.status == "active" and not (owner_other and not owner_new):

@@ -101,6 +101,12 @@ a decision with visible consequences.
   and nothing more, so older ones could not be listed, reviewed or deleted through them. Both take
   `limit` (1-500, default 100) and `offset`.
 
+- **The owner's correction stays in recall.** When the owner remembered a fact that contradicts
+  an older one in his own words, both went to review and recall lost the old and the new fact
+  under a "remembered" receipt. Now the newest owner statement stays active and only the older
+  one goes to review; Conker-written statements keep the old rule. The remember receipt also
+  carries `memory_status`, so a caller can tell a memory that waits for review.
+
 - **"Don't remember" keeps no words.** A conversation message the owner asked not to keep
   ("don't remember ...", "не запоминай ...") used to be stored word for word as evidence (only
   the memory was skipped). Its evidence now holds no text (`normalized_payload` is

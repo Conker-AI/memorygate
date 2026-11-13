@@ -34,7 +34,9 @@ def _reconcile_index_intent(operation, memory_id, *args, **kwargs):
     return reconcile_one("memory", memory_id, sessions=SessionLocal, operation_override=operation)
 
 
-def _view(row, created):
+def _view(row, created, memory_status):
+    """memory_status is the memory's own status: "needs_review" means it is kept but out of
+    recall until reviewed; None once the memory is gone."""
     return {
         "request_id": row.request_id,
         "memory_id": row.memory_id,
@@ -43,7 +45,13 @@ def _view(row, created):
         "revision": row.revision,
         "status": "remembered" if created else "already_remembered",
         "indexing": row.indexing,
+        "memory_status": memory_status,
     }
+
+
+def _replay(db, prior):
+    memory = db.get(Memory, prior.memory_id)
+    return _view(prior, prior.previous_revision == 0, getattr(memory, "status", None))
 
 
 def _prior(db, agent_id, request_id, digest):
@@ -74,7 +82,7 @@ def remember(agent_id, request_id, statement, origin="owner"):
                 db.execute(text("BEGIN IMMEDIATE"))
             prior = _prior(db, agent_id, request_id, digest)
             if prior is not None:
-                return _view(prior, prior.previous_revision == 0)
+                return _replay(db, prior)
             normalized = statement.strip().lower()
             # SQL narrows to rows containing the statement; the exact check stays in Python.
             existing = next(
@@ -101,7 +109,7 @@ def remember(agent_id, request_id, statement, origin="owner"):
                 )
                 db.add(receipt)
                 db.commit()
-                return _view(receipt, False)
+                return _view(receipt, False, existing.status)
             # The classifier only picks the type; the stated words stay the text and the summary.
             kind = classify_memory(statement, source_type)["memory_type"]
             memory = Memory(
@@ -118,7 +126,7 @@ def remember(agent_id, request_id, statement, origin="owner"):
             db.add(memory)
             db.flush()
             add_revision(db, memory, reason, changed_by)
-            detect_conflicts(db, memory)
+            detect_conflicts(db, memory, newest_owner_wins=(origin == "owner"))
             receipt = MemoryCorrection(
                 agent_id=agent_id,
                 request_id=request_id,
@@ -147,13 +155,13 @@ def remember(agent_id, request_id, statement, origin="owner"):
                 db, "memory", memory.id, statement, agent_id=agent_id, payload=index_payload
             )
             db.commit()
-            result = _view(receipt, True)
+            result = _view(receipt, True, memory.status)
     except IntegrityError:
         # A concurrent identical request won the receipt; this one rolled back entirely.
         with SessionLocal() as db:
             prior = _prior(db, agent_id, request_id, digest)
             if prior is not None:
-                return _view(prior, prior.previous_revision == 0)
+                return _replay(db, prior)
         raise HTTPException(409, "Request identity changed") from None
 
     # Indexing runs after the authoritative commit; a replay never repeats it.
