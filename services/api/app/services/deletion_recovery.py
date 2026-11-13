@@ -11,11 +11,12 @@ from app.models.episode_object import EpisodeObject
 from app.models.memory import Memory
 from app.models.object_link import ObjectLink
 from app.models.observation import Observation
+from app.models.session_transcript import SessionTranscript
 from app.services import conversation_memory, listener_forgetting
 from sqlalchemy import select
 
 MODELS = {"memory": Memory, "entity": Entity, "observation": Observation,
-          "episode": EpisodeObject, "link": ObjectLink}
+          "episode": EpisodeObject, "link": ObjectLink, "transcript": SessionTranscript}
 
 
 def reconcile_indexes(target_sessions, client, collections):

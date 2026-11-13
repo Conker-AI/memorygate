@@ -6,8 +6,8 @@ import pytest
 from app.core.agent import get_agent_id
 from app.core.db import Base
 from app.core.timestamps import parse_timestamp
-from app.models.session_transcript import SessionTranscript
-from app.routes import transcript as transcript_routes
+from app.models.episode_object import EpisodeObject
+from app.routes import lineage as lineage_routes
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
@@ -36,31 +36,31 @@ def test_bad_text_is_a_422_naming_the_field():
     assert "session_start" in raised.value.detail
 
 
-def test_transcript_route_rejects_a_bad_time_and_keeps_a_good_one(tmp_path, monkeypatch):
+def test_episode_route_rejects_a_bad_time_and_keeps_a_good_one(tmp_path, monkeypatch):
     engine = create_engine(
         "sqlite:///" + str(tmp_path / "timestamps.db"), connect_args=dict(check_same_thread=False)
     )
     Base.metadata.create_all(bind=engine)
     Session = sessionmaker(bind=engine, autoflush=False, autocommit=False)
-    monkeypatch.setattr(transcript_routes, "SessionLocal", Session)
+    monkeypatch.setattr(lineage_routes, "SessionLocal", Session)
     app = FastAPI()
-    app.include_router(transcript_routes.router)
+    app.include_router(lineage_routes.router)
     app.dependency_overrides[get_agent_id] = lambda: "default"
     client = TestClient(app)
 
-    body = dict(session_id="s1", transcript="hello world", session_start="yesterday")
-    response = client.post("/transcripts", json=body)
+    body = dict(title="Trip", occurred_start="yesterday")
+    response = client.post("/lineage/episodes", json=body)
     assert response.status_code == 422
-    assert "session_start" in response.json()["detail"]
+    assert "occurred_start" in response.json()["detail"]
     with Session() as db:
-        assert db.execute(select(SessionTranscript)).scalars().all() == []
+        assert db.execute(select(EpisodeObject)).scalars().all() == []
 
-    good = dict(body, session_start="2026-10-31T09:00:00Z", session_end="2026-10-31T10:00:00Z")
-    response = client.post("/transcripts", json=good)
+    good = dict(body, occurred_start="2026-10-31T09:00:00Z", occurred_end="2026-10-31T10:00:00Z")
+    response = client.post("/lineage/episodes", json=good)
     assert 200 <= response.status_code < 300
     # SQLite stores the datetime without its offset, so the read-back is naive.
-    assert response.json()["transcript"]["session_start"] == "2026-10-31T09:00:00"
+    assert response.json()["episode"]["occurred_start"] == "2026-10-31T09:00:00"
     with Session() as db:
-        stored = db.execute(select(SessionTranscript)).scalars().all()
+        stored = db.execute(select(EpisodeObject)).scalars().all()
     assert len(stored) == 1
     engine.dispose()

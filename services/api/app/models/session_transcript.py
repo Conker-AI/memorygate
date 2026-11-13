@@ -7,11 +7,10 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 
 class SessionTranscript(Base):
-    """The 'remember everything' layer - full session transcripts, stored
-    verbatim and never touched by the signal filter or deleted by anything
-    in this service. The signal filter only ever decides what earns
-    fast-path index access (memories/observations); this is the archive
-    everything else can be reconstructed from."""
+    """Legacy SoulGate-era transcript archive, read and delete only.
+
+    Transcripts live only in Pi (ADR-0002), so nothing writes new rows here;
+    routes/transcript.py lists, reads and deletes the rows already stored."""
     __tablename__ = "session_transcripts"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
