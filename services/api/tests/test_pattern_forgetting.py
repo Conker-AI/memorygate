@@ -37,7 +37,7 @@ def _seed(db):
 def _assert_forgotten(db):
     assert db.get(Observation, "obs_1") is None
     assert db.get(Pattern, "pat_only") is None  # its only observation is gone
-    assert db.get(Pattern, "pat_both").observation_ids_json == '["obs_2"]'
+    assert db.get(Pattern, "pat_both") is None  # its text may carry what obs_1 said
     assert db.get(Observation, "obs_2").related_observation_ids_json == "[]"
     assert db.get(Pattern, "pat_other") is None  # deleted by hand
     assert db.scalars(select(ObjectLink)).all() == []
@@ -78,7 +78,7 @@ def test_a_restored_backup_replays_the_observation_and_pattern_deletes(stack, tm
     _forget(stack)
     with stack.sessions() as db:
         receipts = recovery.evidence(db)
-    assert {("owner", "pattern", "pat_only"), ("owner", "pattern", "pat_other")} <= set(receipts)
+    assert {("owner", "pattern", p) for p in ("pat_only", "pat_both", "pat_other")} <= set(receipts)
 
     engine = create_engine(f"sqlite:///{tmp_path / 'restored.db'}")
     Base.metadata.create_all(engine)

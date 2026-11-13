@@ -15,6 +15,8 @@ def erase_links(db, kind: str, object_id: str) -> None:
         (ObjectLink.target_type == kind) & (ObjectLink.target_id == object_id),
     ))).all()
     for link in links:
+        if link in db.deleted:  # already erased from its other end in this delete
+            continue
         record(db, "", "link", link.id)
         db.delete(link)
 
