@@ -110,6 +110,12 @@ a decision with visible consequences.
   emotion lists overlap; a phase now has two signals, a feeling and a timeframe, so "sad this
   week" is `medium`, not `high`. The unused `NEGATION_WORDS` list is gone.
 
+- **A deleted observation takes the patterns built on it.** A pattern that still named other
+  observations kept its name, description and interpretation, which may carry what the deleted
+  observation said. Now every pattern that names it goes, each with a deletion receipt (so a
+  restored backup forgets them too); promotion builds a pattern again from the observations left
+  when they still qualify.
+
 - **Merging entities keeps lineage and the graph whole.** The startup dedup and the manual
   merge (`POST /entity/merge`) now share one routine: lineage links to the removed entity move to
   the kept one, an edge between the two (a would-be self-loop) or one the kept entity already has
