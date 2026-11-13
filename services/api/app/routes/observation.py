@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 
 from app.core.agent import get_agent_id, resolve_agent_id
 from app.core.db import SessionLocal
+from app.models.entity import Entity
 from app.models.observation import Observation
 from app.schemas.observation import (
     ObservationArchiveRequest,
@@ -14,6 +15,7 @@ from app.schemas.observation import (
     ObservationUpdateRequest,
 )
 from app.services.agent_config_service import get_or_create_config
+from app.services.known_ids import require_known
 from app.services.lexical_retrieval import matches_any
 from app.services.observation_forgetting import erase_observation_dependents
 from app.services.observation_lifecycle import apply_session_context, enforce_budget, find_duplicate
@@ -73,6 +75,8 @@ def create_observation(payload: ObservationCreateRequest, header_agent_id: str =
         config = get_or_create_config(db, agent_id)
         enforce_budget(db, agent_id, config.max_observations)
 
+        require_known(db, Entity, agent_id, payload.entity_ids, "entity_ids")
+        require_known(db, Observation, agent_id, payload.related_observation_ids, "related_observation_ids")
         row = Observation(
             agent_id=agent_id,
             session_id=payload.session_id,
@@ -242,6 +246,7 @@ def update_observation(observation_id: str, payload: ObservationUpdateRequest, a
         if payload.needs_clarification is not None:
             row.needs_clarification = payload.needs_clarification
         if payload.related_observation_ids is not None:
+            require_known(db, Observation, agent_id, payload.related_observation_ids, "related_observation_ids")
             row.related_observation_ids_json = json.dumps(payload.related_observation_ids)
 
         db.commit()

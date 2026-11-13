@@ -6,6 +6,7 @@ left it. Confidence is capped, promotion and deprecation follow the documented c
 promote request without enough matching observations creates no pattern.
 """
 
+from app.models.entity import Entity
 from app.services.pattern_promotion import (
     DEPRECATE_AT_CONTRADICTIONS,
     MAX_PATTERN_CONFIDENCE,
@@ -198,6 +199,10 @@ def test_promote_without_enough_matching_observations_creates_no_pattern(stack):
 
 
 def test_promote_groups_only_the_matching_observations_of_the_caller(stack):
+    with stack.sessions() as db:  # observations may only name entities that exist
+        db.add_all([Entity(id=key, agent_id="owner", entity_type="place", name=key)
+                    for key in ("ent_office", "ent_home", "ent_river")])
+        db.commit()
     tea = [
         observe(stack, "Drinks green tea at noon", entity_ids=["ent_office"]),
         observe(stack, "Drinks green tea after dinner", entity_ids=["ent_home", "ent_office"]),
@@ -223,6 +228,9 @@ def test_promote_groups_only_the_matching_observations_of_the_caller(stack):
 
 
 def test_pattern_search_and_lists_filter_by_status_entity_words_and_agent(stack):
+    with stack.sessions() as db:  # patterns may only name entities that exist
+        db.add(Entity(id="ent_a", agent_id="owner", entity_type="place", name="ent_a"))
+        db.commit()
     tea = make_pattern(
         stack, "green tea", interpretation="calms down", applies_to_entity_ids=["ent_a"]
     )

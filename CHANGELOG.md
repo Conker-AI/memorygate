@@ -103,6 +103,11 @@ a decision with visible consequences.
   limit, the Entities screen (662), is split (its three dialogs moved to
   `components/EntityModals.jsx`). No behaviour change.
 
+- **Id lists name only rows that exist.** Observation and pattern create and update stored any
+  ids in `entity_ids`, `related_observation_ids`, `observation_ids` and `applies_to_entity_ids`,
+  so a deleted or another agent's id could be written back. Such a request is now refused (422
+  `unknown_ids`, naming the ids) and stores nothing.
+
 - **The classifier matches whole words.** A memory type came from substring hits, so "again"
   in "against" made a memory `watch`, "sad" in "Sadie" or "crusade" made it `phase`, and "train"
   in "constraint" counted as a domain word. Phrases now match as whole words (a curly apostrophe

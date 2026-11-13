@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from app.core.agent import get_agent_id, resolve_agent_id
 from app.core.db import SessionLocal
 from app.models.deletion_receipt import record
+from app.models.entity import Entity
 from app.models.observation import Observation
 from app.models.pattern import Pattern
 from app.schemas.pattern import (
@@ -14,6 +15,7 @@ from app.schemas.pattern import (
     PatternSearchRequest,
     PatternUpdateRequest,
 )
+from app.services.known_ids import require_known
 from app.services.lexical_retrieval import matches_any
 from app.services.observation_forgetting import erase_pattern
 from app.services.pattern_promotion import (
@@ -60,6 +62,8 @@ def create_pattern(payload: PatternCreateRequest, header_agent_id: str = Depends
     agent_id = resolve_agent_id(header_agent_id, payload.agent_id)
     db = SessionLocal()
     try:
+        require_known(db, Observation, agent_id, payload.observation_ids, "observation_ids")
+        require_known(db, Entity, agent_id, payload.applies_to_entity_ids, "applies_to_entity_ids")
         row = Pattern(
             agent_id=agent_id,
             pattern_name=payload.pattern_name,
@@ -180,6 +184,7 @@ def update_pattern(pattern_id: str, payload: PatternUpdateRequest, agent_id: str
         if payload.description is not None:
             row.description = payload.description
         if payload.observation_ids is not None:
+            require_known(db, Observation, agent_id, payload.observation_ids, "observation_ids")
             row.observation_ids_json = json.dumps(payload.observation_ids)
         if payload.instance_count is not None:
             row.instance_count = payload.instance_count
@@ -194,6 +199,7 @@ def update_pattern(pattern_id: str, payload: PatternUpdateRequest, agent_id: str
         if payload.recommended_action is not None:
             row.recommended_action = payload.recommended_action
         if payload.applies_to_entity_ids is not None:
+            require_known(db, Entity, agent_id, payload.applies_to_entity_ids, "applies_to_entity_ids")
             row.applies_to_entity_ids_json = json.dumps(payload.applies_to_entity_ids)
         if payload.context_conditions is not None:
             row.context_conditions_json = json.dumps(payload.context_conditions)
