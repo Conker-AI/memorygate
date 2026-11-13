@@ -439,11 +439,14 @@ def search_memory(payload: MemorySearchRequest, header_agent_id: str = Depends(g
         db.close()
 
 @router.get("")
-def list_memory(agent_id: str = Depends(get_agent_id)):
+def list_memory(agent_id: str = Depends(get_agent_id), limit: int = Query(default=100, ge=1, le=500),
+                offset: int = Query(default=0, ge=0)):
+    """Newest first; `offset` pages to older memories (the id breaks ties, so pages are stable)."""
     db = SessionLocal()
     try:
         rows = db.execute(
-            select(Memory).where(Memory.agent_id == agent_id).order_by(Memory.created_at.desc()).limit(100)
+            select(Memory).where(Memory.agent_id == agent_id)
+            .order_by(Memory.created_at.desc(), Memory.id.desc()).limit(limit).offset(offset)
         ).scalars().all()
         return [_row_to_dict(row) for row in rows]
     finally:
