@@ -6,6 +6,10 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **Remembering no longer reads every memory.** The duplicate check and the conflict check each
+  loaded every active memory of the agent. Both now narrow in SQL (rows containing the statement,
+  rows sharing a long word) and keep the exact whole-word checks.
+
 - **A lockout stops wrong keys, never the right one.** After five wrong keys from one address,
   every key from that address was refused for 300 s, so one misconfigured caller behind a proxy
   or the host network locked out the rest, and failures never expired. Now the key is checked
