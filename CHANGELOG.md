@@ -11,6 +11,7 @@ a decision with visible consequences.
   or the "work" inside "network" could wear an observation down to archived. The trigger
   phrase and its words now match only as whole words, and common words such as "when" or
   "about" no longer count.
+
 - **Two patterns that start alike stay two patterns.** A pattern was named by the first 60
   characters of its hypothesis, so two clusters sharing that beginning wrote into one pattern,
   each run replacing the other's observations and counting a new confirmation. A long hypothesis
