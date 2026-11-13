@@ -38,6 +38,11 @@ a decision with visible consequences.
   newest `limit` rows (default 500, at most 2000). `/audit/metrics` counts with GROUP BY instead of
   loading every row of the window.
 
+- **A reset leaves no trace of what it removed.** Correction receipts naming a removed memory are
+  removed with it (a repeated correction request would otherwise answer for a memory that no
+  longer exists), and a dated reset takes the removed entities' ids out of the observations and
+  patterns it keeps. Forget receipts stay, so a forgotten memory never returns.
+
 - **The conflict check reads whole words and keeps the owner's words in recall.** It counted
   "not" inside "knot" or "cannot " and matched long words as substrings over the first eight
   only. Now it compares whole words ("not", "never", "no longer", "stopped", "cannot", "-n't"

@@ -9,6 +9,7 @@ from app.models.episode_object import EpisodeObject
 from app.models.evidence_object import EvidenceObject
 from app.models.memory import Memory
 from app.models.memory_conflict import MemoryConflict
+from app.models.memory_correction import MemoryCorrection
 from app.models.memory_revision import MemoryRevision
 from app.models.object_link import ObjectLink
 from app.models.observation import Observation
@@ -16,6 +17,7 @@ from app.models.pattern import Pattern
 from app.models.processing_job import ProcessingJob
 from app.models.session_transcript import SessionTranscript
 from app.services.backup_service import create_backup
+from app.services.lineage_forgetting import strip_id
 from app.services.vector_outbox import enqueue_delete
 from sqlalchemy import select
 
@@ -68,6 +70,18 @@ def reset_memory(db, reset_from: datetime | None = None) -> dict:
         row for row in db.scalars(select(ConversationReceipt).where(ConversationReceipt.state != "deleted"))
         if row.id in removed_ids or row.memory_id in removed_ids
     ]
+
+    # A correction receipt replays its answer for a repeated request id, so one naming a removed
+    # memory would report a correction of a memory that no longer exists. Forget receipts stay
+    # (tombstones), like the forgetting conversation receipts above.
+    selected["corrections"] = list(db.scalars(
+        select(MemoryCorrection).where(MemoryCorrection.memory_id.in_(memory_ids)))) if memory_ids else []
+
+    # A dated reset keeps older observations and patterns; they must not name removed entities.
+    if reset_from is not None:
+        for entity_id in entity_ids:
+            strip_id(db, "observations", "entity_ids_json", entity_id)
+            strip_id(db, "patterns", "applies_to_entity_ids_json", entity_id)
 
     # Linked history must not survive as orphaned records after a reset.
     for model, field in ((MemoryRevision, "memory_id"), (MemoryConflict, "memory_id"), (MemoryConflict, "conflicting_memory_id"),
