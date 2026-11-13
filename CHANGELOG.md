@@ -38,6 +38,10 @@ a decision with visible consequences.
   `last_recalled_at` column on the memories it returns, at most once an hour, best effort and
   without bumping the revision; memories recalled before this release read "never recalled".
 
+- **A deleted lineage link stays deleted.** Every start rebuilt the lineage links held in the
+  older id lists, so a link the owner deleted came back at the next start. The rebuild now runs
+  once per install (a marker in `data_migration_steps`); the id lists stay what forgetting reads.
+
 - **Memory search without the vector index matches words.** When the index was down or found
   nothing, `POST /memory/search` matched the whole query as one piece of text, so "release
   pipeline" found nothing in "the pipeline for the release". The fallback now uses recall's word
