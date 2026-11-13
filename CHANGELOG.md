@@ -6,6 +6,10 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **Observation and pattern search no longer load every row.** Search (and pattern promotion)
+  read every observation or pattern of the agent and filtered in Python. Status, text and entity
+  filters now narrow in SQL, the exact checks stay, and search stops at its 50 results.
+
 - **A lockout stops wrong keys, never the right one.** After five wrong keys from one address,
   every key from that address was refused for 300 s, so one misconfigured caller behind a proxy
   or the host network locked out the rest, and failures never expired. Now the key is checked
