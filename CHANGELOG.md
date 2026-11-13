@@ -6,6 +6,12 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **The conflict check reads whole words and keeps the owner's words in recall.** It counted
+  "not" inside "knot" or "cannot " and matched long words as substrings over the first eight
+  only. Now it compares whole words ("not", "never", "no longer", "stopped", "cannot", "-n't"
+  and at least two shared words over four letters). A memory in the owner's own words (source
+  `user` or `owner_statement`) is no longer taken out of recall because of one that is not: the
+  conflict is still recorded, and only the other memory goes to review.
 - **Merging entities keeps lineage and the graph whole.** The startup dedup and the manual
   merge (`POST /entity/merge`) now share one routine: lineage links to the removed entity move to
   the kept one, an edge between the two (a would-be self-loop) or one the kept entity already has
