@@ -6,6 +6,10 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **The 600-line check covers the dashboard.** `scripts/check_file_sizes.py` skipped `.jsx`
+  (the dashboard's own files) and missed a last line with no newline; the one file over the
+  limit, the Entities screen (662), is split (its three dialogs moved to
+  `components/EntityModals.jsx`). No behaviour change.
 - **No more transcript archive writes** (contract change). Transcripts live only in Pi
   (ADR-0002), and nothing in Conker wrote here, so `POST /transcripts` and the SoulGate
   flags (`POST /transcripts/{id}/reprocess`, `/mark-processed`, `processed_by_soulgate` in
