@@ -118,12 +118,6 @@ def embed_text(text: str) -> list[float]:
     return embed_texts([text])[0]
 
 
-def provider_dimension() -> int | None:
-    """The sidecar's vector width, or None if it cannot be reached."""
-    provider = _probe()
-    return provider.get("dimension")
-
-
 def embedding_health() -> dict:
     """Coarse provider status for `/health`. Never raises, never guesses."""
     provider = _probe()
