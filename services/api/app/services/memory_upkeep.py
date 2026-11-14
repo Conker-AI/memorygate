@@ -73,7 +73,8 @@ def _live_rows(db, agent_id: str):
     ).exists()
     return db.execute(
         select(Memory.id, Memory.text, Memory.status, Memory.created_at, Memory.valid_until,
-               Memory.review_by, Memory.last_recalled_at)
+               Memory.review_by, Memory.last_recalled_at, Memory.revision, Memory.memory_type,
+               Memory.source_type)
         .where(Memory.agent_id == agent_id, Memory.status.in_(LIVE_STATUSES), ~forgotten)
         .order_by(Memory.created_at.desc(), Memory.id.desc())
         .limit(MAX_SCAN + 1)
@@ -148,22 +149,39 @@ def _capped(items: list[dict], limit: int) -> dict:
     return {"items": items[:limit], "total": len(items)}
 
 
+def _named(rows, groups: list[dict]) -> dict:
+    """Each memory a listed item names, with what the owner needs to act on it: its words, and
+    the revision the correction and forget routes take as `expected_revision`."""
+    wanted = {memory_id for group in groups for item in group["items"] for memory_id in item["ids"]}
+    return {
+        row.id: {"text": row.text, "revision": row.revision, "memory_type": row.memory_type,
+                 "source_type": row.source_type,
+                 "state": "current" if row.status == "active" else "needs_review"}
+        for row in rows if row.id in wanted
+    }
+
+
 def upkeep_candidates(db, agent_id: str, *, unused_days: int, limit: int,
                       now: datetime | None = None) -> dict:
-    """Candidates by kind; each item has `ids` and `reason`. Reads only."""
+    """Candidates by kind; each item has `ids` and `reason`, and `memories` holds every listed
+    memory's text and revision, so one call is enough to show and act on them. Reads only."""
     now = now or datetime.now(UTC)
     rows = _live_rows(db, agent_id)
     truncated = len(rows) > MAX_SCAN
     rows = rows[:MAX_SCAN]
     exact = _exact_duplicates(rows)
-    return {
-        "agent_id": agent_id,
-        "checked_at": now.isoformat(),
-        "memories_checked": len(rows),
-        "truncated": truncated,
+    kinds = {
         "exact_duplicates": _capped(exact, limit),
         "near_duplicates": _capped(_near_duplicates(rows, exact), limit),
         "contradictions": _capped(_contradictions(db, agent_id, {row.id for row in rows}), limit),
         "expired": _capped(_expired(rows, now), limit),
         "not_recalled": _capped(_not_recalled(rows, now, unused_days), limit),
+    }
+    return {
+        "agent_id": agent_id,
+        "checked_at": now.isoformat(),
+        "memories_checked": len(rows),
+        "truncated": truncated,
+        **kinds,
+        "memories": _named(rows, list(kinds.values())),
     }
