@@ -6,6 +6,15 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **A memory reset no longer works row by row.** `POST /memory-reset` read every row into memory and
+  deleted and queued each one on its own (about 4 statements per memory and entity, so 450 of each took
+  1,845 statements). It now selects ids only and deletes, strips and queues vector deletes in chunks
+  of 100-500 ids (63 statements for the same reset). The removed counts, the backup, the receipts
+  that survive and the dated-reset rules are unchanged, and a dated reset strips removed entity ids
+  from kept observations and patterns in one pass instead of one scan per entity. A test now names
+  every table as removed, kept (with a reason) or rewritten, so a table added later cannot be missed.
+  (MG2-F45)
+
 - **Upkeep candidates come with their words.** `GET /runtime/memory-upkeep` adds `memories`,
   keyed by id, for every memory a listed item names. Each entry has `text`, `revision` (what the
   correction and forget routes take), `memory_type`, `source_type` and `state`. A caller can show
