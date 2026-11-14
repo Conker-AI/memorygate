@@ -206,3 +206,33 @@ def test_recall_restamps_at_most_once_an_hour(stack):
         recent, old = db.get(Memory, "m-1").last_recalled_at, db.get(Memory, "m-2").last_recalled_at
     assert recent.replace(tzinfo=UTC) == NOW - timedelta(minutes=10)
     assert old.replace(tzinfo=UTC) == NOW
+
+
+def test_every_listed_memory_comes_with_its_text_and_revision(stack):
+    add(stack, "m-a", "I take the early train to work on Mondays", last_recalled_at=NOW,
+        memory_type="fact", source_type="user")
+    add(stack, "m-b", "i take the early train to work on mondays", last_recalled_at=NOW,
+        status="needs_review")
+    add(stack, "m-quiet", "The plants get water on Sundays", last_recalled_at=NOW,
+        created_at=NOW - timedelta(days=2))
+    add(stack, "x-1", "I take the early train to work on Mondays", agent=OTHER)
+
+    result = upkeep(stack).json()
+
+    assert set(result["memories"]) == {"m-a", "m-b"}
+    assert result["memories"]["m-a"] == {
+        "text": "I take the early train to work on Mondays", "revision": 1, "memory_type": "fact",
+        "source_type": "user", "state": "current"}
+    assert result["memories"]["m-b"]["revision"] == 1
+    assert result["memories"]["m-b"]["state"] == "needs_review"
+    assert "x-1" not in result["memories"]
+
+
+def test_memories_names_only_what_the_limit_kept(stack):
+    for index, value in enumerate(("The cellar door sticks", "Bread rises overnight", "Kites need wind")):
+        add(stack, f"m-{index}", value)
+
+    result = upkeep(stack, limit=1).json()
+
+    assert result["not_recalled"]["total"] == 3
+    assert set(result["memories"]) == {result["not_recalled"]["items"][0]["ids"][0]}

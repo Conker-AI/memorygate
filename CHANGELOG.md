@@ -6,6 +6,12 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **Upkeep candidates come with their words.** `GET /runtime/memory-upkeep` adds `memories`,
+  keyed by id, for every memory a listed item names. Each entry has `text`, `revision` (what the
+  correction and forget routes take), `memory_type`, `source_type` and `state`. A caller can show
+  and act on a candidate in one call instead of one read per id. Ids past `limit` are not
+  included.
+
 - **Coverage floor 88 -> 92.** CI measured 93.91% on main (642 tests), so the floor goes up
   without new tests; it may only rise.
 
