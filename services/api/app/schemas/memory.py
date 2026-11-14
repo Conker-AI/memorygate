@@ -28,14 +28,3 @@ class MemoryPatchRequest(BaseModel):
 
 class ConflictResolveRequest(BaseModel):
     winner_memory_id: str = Field(min_length=1)
-
-class MemoryResponse(BaseModel):
-    id: str
-    text: str
-    summary: str
-    memory_type: str
-    source_type: str
-    confidence: str
-    do_not_generalize: bool
-    review_by: str | None
-    tags: list[str]

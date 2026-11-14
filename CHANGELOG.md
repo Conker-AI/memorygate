@@ -6,6 +6,8 @@ a decision with visible consequences.
 
 ## Unreleased
 
+- **Dead code removed.** `MemoryResponse` (schemas), `provider_dimension` (embeddings) and `delete_embeddings` (qdrant_store) had no caller; a reset already queues vector deletes through the outbox. Found with vulture and checked by name over the whole repository.
+
 - **Tests: evidence, runtime job and skill refusals; coverage floor 92 -> 94.** Ten tests through the HTTP API: a missing or foreign source, job, evidence or skill is 404, a disabled source is 409, a patch keeps the fields it was not given, and an old skill whose tags were a plain list still reads. No app change. Coverage 94% -> 95% locally.
 - **A memory reset no longer works row by row.** `POST /memory-reset` read every row into memory and
   deleted and queued each one on its own (about 4 statements per memory and entity, so 450 of each took

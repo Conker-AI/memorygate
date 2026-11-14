@@ -8,7 +8,6 @@ from qdrant_client.models import (
     FieldCondition,
     Filter,
     MatchValue,
-    PointIdsList,
     PointStruct,
     VectorParams,
 )
@@ -267,18 +266,6 @@ def delete_entity_embedding(entity_id: str) -> None:
     if ENTITY_COLLECTION not in {collection.name for collection in client.get_collections().collections}:
         return
     client.delete(collection_name=ENTITY_COLLECTION, points_selector=[entity_id])
-
-
-def delete_embeddings(memory_ids: list[str], observation_ids: list[str], entity_ids: list[str]) -> None:
-    """Best-effort cleanup used by administrative resets after Postgres is committed."""
-    client = get_qdrant_client()
-    for collection, ids in (
-        (QDRANT_COLLECTION, memory_ids),
-        (OBSERVATION_COLLECTION, observation_ids),
-        (ENTITY_COLLECTION, entity_ids),
-    ):
-        if ids:
-            client.delete(collection_name=collection, points_selector=PointIdsList(points=list(ids)))
 
 
 def find_similar_entities(
