@@ -72,7 +72,7 @@ def _enqueue_deletes(db, kind: str, rows: list[tuple[str, str]]) -> None:
     multi-row statement per chunk (the generation counter still rises on a repeat)."""
     insert = sqlite_insert if db.get_bind().dialect.name == "sqlite" else pg_insert
     now = datetime.now(UTC)
-    for chunk in _chunks(rows, 100):
+    for chunk in _chunks(rows, 50):
         values = [{
             "id": str(uuid5(NAMESPACE_URL, f"memorygate-vector:{kind}:{object_id}")),
             "agent_id": agent_id, "object_kind": kind, "object_id": object_id,
