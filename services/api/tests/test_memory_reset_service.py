@@ -189,6 +189,25 @@ def test_a_dated_reset_keeps_receipts_for_the_older_knowledge_it_keeps(sessions,
         assert db.query(ConversationReceipt).count() == 2 and db.query(Memory).count() == 1
 
 
+def test_a_dated_reset_drops_only_the_receipts_of_the_memories_it_removes(sessions):
+    with sessions() as db:
+        _seed(db, OLD)
+        _seed(db, NEW)
+        db.add_all([
+            ConversationReceipt(id="r-old", agent_id="owner", message_id="msg-old", state="admitted", memory_id="m-old"),
+            ConversationReceipt(id="r-new", agent_id="owner", message_id="msg-new", state="admitted", memory_id="m-new"),
+            ConversationReceipt(id="r-gone", agent_id="owner", message_id="msg-gone", state="deleted", memory_id="m-new"),
+        ])
+        db.commit()
+        result = reset_memory(db, CUTOFF)
+
+    assert result["removed"]["receipts"] == 1
+    with sessions() as db:
+        # the kept memory's receipt stays, the removed memory's goes, the tombstone is never touched
+        assert sorted(db.scalars(select(ConversationReceipt.id))) == ["r-gone", "r-old"]
+        assert sorted(row.id for row in db.scalars(select(Memory))) == ["m-old", "m2-old"]
+
+
 # --- The route refuses before anything is touched ----------------------------
 
 
