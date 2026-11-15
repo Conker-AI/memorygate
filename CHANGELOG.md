@@ -6,9 +6,9 @@ a decision with visible consequences.
 
 ## Unreleased
 
-- **Dead code removed.** `MemoryResponse` (schemas), `provider_dimension` (embeddings) and `delete_embeddings` (qdrant_store) had no caller; a reset already queues vector deletes through the outbox. Found with vulture and checked by name over the whole repository.
+- **Dead code removed.** `MemoryResponse` (schemas), `provider_dimension` (embeddings) and `delete_embeddings` (qdrant_store) had no caller; a reset already queues vector deletes through the outbox. Found with vulture and checked by name over the whole repository. (#106)
 
-- **Tests: evidence, runtime job and skill refusals; coverage floor 92 -> 94.** Ten tests through the HTTP API: a missing or foreign source, job, evidence or skill is 404, a disabled source is 409, a patch keeps the fields it was not given, and an old skill whose tags were a plain list still reads. No app change. Coverage 94% -> 95% locally.
+- **Tests: evidence, runtime job and skill refusals; coverage floor 92 -> 94.** Ten tests through the HTTP API: a missing or foreign source, job, evidence or skill is 404, a disabled source is 409, a patch keeps the fields it was not given, and an old skill whose tags were a plain list still reads. No app change. Coverage 94% -> 95% locally. (#105)
 - **A memory reset no longer works row by row.** `POST /memory-reset` read every row into memory and
   deleted and queued each one on its own (about 4 statements per memory and entity, so 450 of each took
   1,845 statements). It now selects ids only and deletes, strips and queues vector deletes in chunks
@@ -16,16 +16,16 @@ a decision with visible consequences.
   that survive and the dated-reset rules are unchanged, and a dated reset strips removed entity ids
   from kept observations and patterns in one pass instead of one scan per entity. A test now names
   every table as removed, kept (with a reason) or rewritten, so a table added later cannot be missed.
-  (MG2-F45)
+  (MG2-F45) (#104)
 
 - **Upkeep candidates come with their words.** `GET /runtime/memory-upkeep` adds `memories`,
   keyed by id, for every memory a listed item names. Each entry has `text`, `revision` (what the
   correction and forget routes take), `memory_type`, `source_type` and `state`. A caller can show
   and act on a candidate in one call instead of one read per id. Ids past `limit` are not
-  included.
+  included. (#103)
 
 - **Coverage floor 88 -> 92.** CI measured 93.91% on main (642 tests), so the floor goes up
-  without new tests; it may only rise.
+  without new tests; it may only rise. (#102)
 
 - **What Conker believes about you (read-only).** `GET /runtime/memory-beliefs` (read key or
   admin key, the header's agent only) lists the agent's current memories, active or waiting for
@@ -35,7 +35,7 @@ a decision with visible consequences.
   support), up to five lineage sources that open with `/runtime/explore`, and the open conflicts
   whose other side is also a belief. Filters: `origin`, `state`, `memory_type`. Paging: `limit`
   up to 100 and an `after` cursor that stays stable when a row is corrected between pages.
-  `total` and `counts` cover every page. The route changes nothing, not even the recall stamp.
+  `total` and `counts` cover every page. The route changes nothing, not even the recall stamp. (#101)
 
 ## 0.9.0
 
