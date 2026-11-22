@@ -10,7 +10,7 @@ import json
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
-from app.routes import memory as memory_routes
+from app.routes import memory_conflicts
 from memory_stack import holds_word, request_id
 from memory_stack import stack as stack
 
@@ -190,7 +190,7 @@ def test_concurrent_resolutions_do_not_both_win(stack, monkeypatch):
     old, new, conflict_id = contradiction(stack)
     # Both requests read the conflict before either writes: the race a double click makes.
     barrier, waited = threading.Barrier(2, timeout=30), set()
-    original = memory_routes.add_revision
+    original = memory_conflicts.add_revision
 
     def after_both_read(db, memory, reason, changed_by="system"):
         if id(db) not in waited:
@@ -198,7 +198,7 @@ def test_concurrent_resolutions_do_not_both_win(stack, monkeypatch):
             barrier.wait()
         return original(db, memory, reason, changed_by)
 
-    monkeypatch.setattr(memory_routes, "add_revision", after_both_read)
+    monkeypatch.setattr(memory_conflicts, "add_revision", after_both_read)
 
     def resolve(winner):
         return stack.http.post(
