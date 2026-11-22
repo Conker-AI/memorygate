@@ -96,9 +96,9 @@ def _pending_clarifications(db, agent_id: str) -> list[dict]:
             select(Observation)
             .where(
                 Observation.agent_id == agent_id,
-                Observation.needs_clarification == True,
+                Observation.needs_clarification == True,  # noqa: E712
                 Observation.status == "unconfirmed",
-            )  # noqa: E712
+            )
             .order_by(Observation.hypothesis_confidence.desc(), Observation.observed_at.desc())
             .limit(2)
         )
