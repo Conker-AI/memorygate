@@ -45,6 +45,7 @@ ignore = [
 exclude = [
     "services/api/app/services/backup_service.py",
     "services/api/app/routes/memory.py",
+    "services/api/app/routes/memory_conflicts.py",
     "services/api/app/routes/runtime.py",
     "services/api/tests/test_briefing_and_pattern_routes.py",
 ]

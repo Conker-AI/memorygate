@@ -1,16 +1,15 @@
 import json
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 from app.core.agent import get_agent_id, resolve_agent_id
 from app.core.db import SessionLocal
 from app.core.timestamps import parse_timestamp
 from app.models.audit import MemoryAudit
 from app.models.memory import Memory
-from app.models.memory_conflict import MemoryConflict
-from app.models.memory_revision import MemoryRevision
 from app.models.vector_outbox import VectorOutbox
+from app.routes.memory_conflicts import router as _memory_conflicts_router
+from app.routes.memory_rows import _default_review_by, _merge_tags, _row_to_dict
 from app.schemas.memory import (
-    ConflictResolveRequest,
     MemoryPatchRequest,
     MemorySearchRequest,
     MemoryWriteRequest,
@@ -37,8 +36,6 @@ from sqlalchemy.orm.exc import StaleDataError
 
 router = APIRouter(prefix="/memory", tags=["memory"])
 
-PHASE_REVIEW_WINDOW = timedelta(days=14)
-
 
 def _reconcile_index_intent(operation, memory_id, *args, **kwargs):
     """Compatibility seam that now drains an already-durable intent."""
@@ -49,105 +46,9 @@ def _reconcile_index_intent(operation, memory_id, *args, **kwargs):
         operation_override=operation,
     )
 
-def _default_review_by(memory_type: str, review_by: datetime | None) -> datetime | None:
-    if review_by is not None:
-        return review_by
-    if memory_type == "phase":
-        return datetime.now(UTC) + PHASE_REVIEW_WINDOW
-    return None
 
-def _row_to_dict(row, score=None):
-    tags = json.loads(row.tags_json)
-    if isinstance(tags, dict):
-        tags = tags.get("tags", [])
-    result = {
-        "id": row.id,
-        "revision": row.revision,
-        "agent_id": row.agent_id,
-        "text": row.text,
-        "summary": row.summary,
-        "memory_type": row.memory_type,
-        "source_type": row.source_type,
-        "confidence": row.confidence,
-        "do_not_generalize": row.do_not_generalize,
-        "review_by": row.review_by.isoformat() if row.review_by else None,
-        "tags": tags,
-        "status": row.status,
-        "valid_from": row.valid_from.isoformat() if row.valid_from else None,
-        "valid_until": row.valid_until.isoformat() if row.valid_until else None,
-        "created_at": row.created_at.isoformat() if row.created_at else None,
-        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
-    }
-    if score is not None:
-        result["similarity"] = score
-    return result
+router.include_router(_memory_conflicts_router)
 
-def _merge_tags(old_tags: list[str], new_tags: list[str]) -> list[str]:
-    merged = []
-    seen = set()
-    for tag in old_tags + new_tags:
-        if tag not in seen:
-            seen.add(tag)
-            merged.append(tag)
-    return merged
-
-
-@router.get("/conflicts")
-def list_conflicts(agent_id: str = Depends(get_agent_id)):
-    db = SessionLocal()
-    try:
-        rows = db.execute(select(MemoryConflict).where(MemoryConflict.agent_id == agent_id).order_by(MemoryConflict.created_at.desc())).scalars().all()
-        return {"results": [{"id": row.id, "memory_id": row.memory_id, "conflicting_memory_id": row.conflicting_memory_id,
-                              "reason": row.reason, "confidence": row.confidence, "status": row.status,
-                              "created_at": row.created_at.isoformat() if row.created_at else None} for row in rows]}
-    finally:
-        db.close()
-
-
-@router.get("/{memory_id}/revisions")
-def memory_revisions(memory_id: str, agent_id: str = Depends(get_agent_id)):
-    db = SessionLocal()
-    try:
-        memory = db.get(Memory, memory_id)
-        if not memory or memory.agent_id != agent_id:
-            raise HTTPException(404, "Memory not found")
-        rows = db.execute(select(MemoryRevision).where(MemoryRevision.memory_id == memory_id).order_by(MemoryRevision.created_at.desc())).scalars().all()
-        return {"results": [{"id": row.id, "changed_by": row.changed_by, "reason": row.reason,
-                              "snapshot": json.loads(row.snapshot_json or "{}"), "created_at": row.created_at.isoformat() if row.created_at else None} for row in rows]}
-    finally:
-        db.close()
-
-
-@router.post("/conflicts/{conflict_id}/resolve")
-def resolve_conflict(conflict_id: str, payload: ConflictResolveRequest, agent_id: str = Depends(get_agent_id)):
-    db = SessionLocal()
-    try:
-        conflict = db.get(MemoryConflict, conflict_id)
-        if not conflict or conflict.agent_id != agent_id:
-            raise HTTPException(404, "Conflict not found")
-        if payload.winner_memory_id not in (conflict.memory_id, conflict.conflicting_memory_id):
-            raise HTTPException(422, "Winner must be one of the conflicted memories")
-        winner = db.get(Memory, payload.winner_memory_id)
-        loser = db.get(Memory, conflict.conflicting_memory_id if payload.winner_memory_id == conflict.memory_id else conflict.memory_id)
-        if winner:
-            winner.status = "active"
-            winner.valid_until = None
-            add_revision(db, winner, "selected during conflict resolution", "user")
-        if loser:
-            loser.status = "needs_review"
-            loser.valid_until = datetime.now(UTC)
-            add_revision(db, loser, "not selected during conflict resolution", "user")
-        conflict.status = "resolved"
-        conflict.resolved_by = "user"
-        conflict.resolved_at = datetime.now(UTC)
-        db.commit()
-        return {"status": "ok", "winner_memory_id": payload.winner_memory_id}
-    except StaleDataError:
-        # Another resolution or edit changed one of these memories first; that one stands.
-        db.rollback()
-        raise HTTPException(409, {"code": "revision_conflict", "message": "Memory changed; reload before resolving."}) from None
-    finally:
-        db.close()
 
 def _upgrade_existing_memory(db, row, payload, final_memory_type, final_confidence, final_summary):
     old_tags = json.loads(row.tags_json)
