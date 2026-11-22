@@ -6,6 +6,12 @@ a decision with visible consequences.
 
 ## Unreleased
 
+## 0.10.1
+
+- **Internal refactor, no behaviour change.** Entity and memory routes were split into smaller modules. (#112)
+- **Style:** the code is formatted with `ruff format`, checked in CI and pre-commit. (#111)
+- **CI:** gitleaks secret scan; AGENTS.md for any AI model working in the repo. (#109, #110)
+
 ## 0.10.0
 
 - **Dead code removed.** `MemoryResponse` (schemas), `provider_dimension` (embeddings) and `delete_embeddings` (qdrant_store) had no caller; a reset already queues vector deletes through the outbox. Found with vulture and checked by name over the whole repository. (#106)
