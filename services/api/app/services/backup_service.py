@@ -1,5 +1,4 @@
 """Safe, portable logical backups for MemoryGate's user memory data."""
-
 import hashlib
 import json
 import os
@@ -28,47 +27,19 @@ from app.models.session_transcript import SessionTranscript
 from app.models.vector_outbox import VectorOutbox
 from sqlalchemy import select
 
-_MODELS = (
-    Memory,
-    Entity,
-    EntityEdge,
-    EntityEvent,
-    EntityHistory,
-    Observation,
-    Pattern,
-    SessionTranscript,
-    EvidenceSource,
-    EvidenceObject,
-    EpisodeObject,
-    AnalysisObject,
-    ObjectLink,
-    ProcessingJob,
-    MemoryRevision,
-    MemoryConflict,
-    ConversationReceipt,
-    DeletionReceipt,
-    RecoveryHold,
-    VectorOutbox,
-    # Correction and forget receipts answer a retried request after a restore; the
-    # audit trail is the history. All three hold ids, hashes or redacted payloads.
-    MemoryCorrection,
-    MemoryForget,
-    MemoryAudit,
-)
+_MODELS = (Memory, Entity, EntityEdge, EntityEvent, EntityHistory, Observation, Pattern,
+           SessionTranscript, EvidenceSource, EvidenceObject, EpisodeObject, AnalysisObject,
+           ObjectLink, ProcessingJob, MemoryRevision, MemoryConflict, ConversationReceipt,
+           DeletionReceipt, RecoveryHold, VectorOutbox,
+           # Correction and forget receipts answer a retried request after a restore; the
+           # audit trail is the history. All three hold ids, hashes or redacted payloads.
+           MemoryCorrection, MemoryForget, MemoryAudit)
 # Left out on purpose: credentials and keys (agent_access_keys, auth_settings,
 # bootstrap_authorities, ai_runtime_settings with its encrypted provider key), per-agent tuning
 # the owner sets again (agent_configs), and recovery_verifications, which only prove a check ran
 # on this database. tests/test_backup_coverage.py fails on any table in neither list.
-EXCLUDED = frozenset(
-    {
-        "agent_access_keys",
-        "auth_settings",
-        "bootstrap_authorities",
-        "ai_runtime_settings",
-        "agent_configs",
-        "recovery_verifications",
-    }
-)
+EXCLUDED = frozenset({"agent_access_keys", "auth_settings", "bootstrap_authorities",
+                      "ai_runtime_settings", "agent_configs", "recovery_verifications"})
 
 
 def _value(value):
@@ -81,14 +52,8 @@ def _rows(db, model):
     # Credential tables are intentionally not included. Listener source secrets are
     # also omitted so a stolen backup cannot be used as an ingest credential.
     excluded = {"secret_json"} if model is EvidenceSource else set()
-    return [
-        {
-            column.name: _value(getattr(row, column.name))
-            for column in model.__table__.columns
-            if column.name not in excluded
-        }
-        for row in db.execute(select(model)).scalars().all()
-    ]
+    return [{column.name: _value(getattr(row, column.name)) for column in model.__table__.columns if column.name not in excluded}
+            for row in db.execute(select(model)).scalars().all()]
 
 
 def create_backup(db) -> dict:
@@ -109,12 +74,7 @@ def create_backup(db) -> dict:
         handle.flush()
         os.fsync(handle.fileno())
     temp_path.replace(destination / filename)
-    return {
-        "filename": filename,
-        "size": len(encoded),
-        "sha256": digest,
-        "created_at": payload["created_at"],
-    }
+    return {"filename": filename, "size": len(encoded), "sha256": digest, "created_at": payload["created_at"]}
 
 
 def list_backups() -> list[dict]:
@@ -125,13 +85,7 @@ def list_backups() -> list[dict]:
     # Files only, as the download accepts: a folder matching the pattern is not a backup.
     backups = (path for path in destination.glob("memorygate-*.json") if path.is_file())
     for path in sorted(backups, key=lambda item: item.stat().st_mtime, reverse=True):
-        files.append(
-            {
-                "filename": path.name,
-                "size": path.stat().st_size,
-                "created_at": datetime.utcfromtimestamp(path.stat().st_mtime).isoformat() + "Z",
-            }
-        )
+        files.append({"filename": path.name, "size": path.stat().st_size, "created_at": datetime.utcfromtimestamp(path.stat().st_mtime).isoformat() + "Z"})
     return files
 
 
