@@ -40,12 +40,12 @@ ignore = [
 "services/api/app/services/signal_filter.py" = ["RUF001"]
 
 [format]
-# Formatting the first three grows them past the 600-line limit; the rest carry text anchors of the
+# Formatting backup_service.py and runtime.py grows them past the 600-line limit, and memory.py
+# (457 lines unformatted, about 548 formatted) is held under the split target; the rest carry text anchors of the
 # mutation drill (scripts/memory_mutation_drill.py). They join the format run when split or re-anchored.
 exclude = [
     "services/api/app/services/backup_service.py",
     "services/api/app/routes/memory.py",
-    "services/api/app/routes/memory_conflicts.py",
     "services/api/app/routes/runtime.py",
     "services/api/tests/test_briefing_and_pattern_routes.py",
 ]
