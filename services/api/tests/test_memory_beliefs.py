@@ -46,10 +46,23 @@ def by_id(result) -> dict:
 
 
 def test_stated_and_concluded_beliefs_are_told_apart(stack):
-    add(stack, "m-told", "I am allergic to peanuts", source_type="user", confidence="high", minutes=3)
+    add(
+        stack,
+        "m-told",
+        "I am allergic to peanuts",
+        source_type="user",
+        confidence="high",
+        minutes=3,
+    )
     add(stack, "m-said", "I live in Porto", source_type="owner_statement", minutes=2)
-    add(stack, "m-heard", "Likes to run before work", source_type="automatic_listener",
-        confidence="low", minutes=1)
+    add(
+        stack,
+        "m-heard",
+        "Likes to run before work",
+        source_type="automatic_listener",
+        confidence="low",
+        minutes=1,
+    )
     add(stack, "m-kept", "Prefers short answers", source_type="assistant")
 
     result = ok(stack)
@@ -57,8 +70,16 @@ def test_stated_and_concluded_beliefs_are_told_apart(stack):
     assert result["agent_id"] == OWNER
     assert [item["id"] for item in result["items"]] == ["m-told", "m-said", "m-heard", "m-kept"]
     items = by_id(result)
-    assert {key: items["m-told"][key] for key in ("origin", "source_type", "confidence", "state", "revision")} == {
-        "origin": "stated", "source_type": "user", "confidence": "high", "state": "current", "revision": 1}
+    assert {
+        key: items["m-told"][key]
+        for key in ("origin", "source_type", "confidence", "state", "revision")
+    } == {
+        "origin": "stated",
+        "source_type": "user",
+        "confidence": "high",
+        "state": "current",
+        "revision": 1,
+    }
     assert items["m-said"]["origin"] == "stated"
     assert items["m-heard"]["origin"] == "concluded" and items["m-heard"]["confidence"] == "low"
     assert items["m-kept"]["origin"] == "concluded"
@@ -79,8 +100,16 @@ def test_skills_forgotten_archived_and_other_agents_rows_are_not_beliefs(stack):
     add(stack, "m-gone", "A forgotten message's memory")
     add(stack, "x-1", "The companion's own note", agent=OTHER)
     with stack.sessions() as db:
-        db.add(ConversationReceipt(id="r-gone", agent_id=OWNER, session_id="s", message_id="msg",
-                                   state="deleted", memory_id="m-gone"))
+        db.add(
+            ConversationReceipt(
+                id="r-gone",
+                agent_id=OWNER,
+                session_id="s",
+                message_id="msg",
+                state="deleted",
+                memory_id="m-gone",
+            )
+        )
         db.commit()
 
     assert [item["id"] for item in ok(stack)["items"]] == ["m-own"]
@@ -90,10 +119,22 @@ def test_skills_forgotten_archived_and_other_agents_rows_are_not_beliefs(stack):
 
 def test_needs_review_is_listed_and_filtered(stack):
     add(stack, "m-now", "Works at the bakery", minutes=1)
-    add(stack, "m-doubt", "Works at the library", status="needs_review", source_type="automatic_listener",
-        valid_until=NOW - timedelta(days=1))
-    add(stack, "m-phase", "Training for a half marathon", memory_type="phase", minutes=2,
-        review_by=NOW + timedelta(days=14))
+    add(
+        stack,
+        "m-doubt",
+        "Works at the library",
+        status="needs_review",
+        source_type="automatic_listener",
+        valid_until=NOW - timedelta(days=1),
+    )
+    add(
+        stack,
+        "m-phase",
+        "Training for a half marathon",
+        memory_type="phase",
+        minutes=2,
+        review_by=NOW + timedelta(days=14),
+    )
 
     result = ok(stack)
     items = by_id(result)
@@ -116,13 +157,23 @@ def test_evidence_counts_and_lineage_follow_the_owner_message(stack):
     assert len(item["lineage"]) == 1 and item["lineage"][0]["withdrawn"] is False
     source = item["lineage"][0]
     # The lineage link opens with the same read key the list used.
-    explored = stack.runtime("explore", {"query": "explore", "object_type": source["object_type"],
-                                         "object_id": source["object_id"], "operation": "connections"})
+    explored = stack.runtime(
+        "explore",
+        {
+            "query": "explore",
+            "object_type": source["object_type"],
+            "object_id": source["object_id"],
+            "operation": "connections",
+        },
+    )
     assert explored.status_code == 200, explored.text
     assert explored.json()["object"]["id"] == source["object_id"]
 
-    invalidated = stack.http.post(f"/runtime/evidence/{receipt['id']}/invalidate", params={"reason": "wrong"},
-                                  headers=stack.admin_headers())
+    invalidated = stack.http.post(
+        f"/runtime/evidence/{receipt['id']}/invalidate",
+        params={"reason": "wrong"},
+        headers=stack.admin_headers(),
+    )
     assert invalidated.status_code == 200, invalidated.text
 
     after = by_id(ok(stack))[memory_id]
@@ -137,18 +188,39 @@ def test_open_conflicts_name_the_other_belief(stack):
     add(stack, "m-old", "I drink cocoa in the morning", status="archived")
     add(stack, "x-1", "The companion drinks nothing", agent=OTHER)
     with stack.sessions() as db:
-        db.add(MemoryConflict(id="c-open", agent_id=OWNER, memory_id="m-tea", conflicting_memory_id="m-coffee"))
-        db.add(MemoryConflict(id="c-done", agent_id=OWNER, memory_id="m-tea", conflicting_memory_id="m-coffee",
-                              status="resolved"))
-        db.add(MemoryConflict(id="c-gone", agent_id=OWNER, memory_id="m-tea", conflicting_memory_id="m-old"))
-        db.add(MemoryConflict(id="c-other", agent_id=OTHER, memory_id="x-1", conflicting_memory_id="m-tea"))
+        db.add(
+            MemoryConflict(
+                id="c-open", agent_id=OWNER, memory_id="m-tea", conflicting_memory_id="m-coffee"
+            )
+        )
+        db.add(
+            MemoryConflict(
+                id="c-done",
+                agent_id=OWNER,
+                memory_id="m-tea",
+                conflicting_memory_id="m-coffee",
+                status="resolved",
+            )
+        )
+        db.add(
+            MemoryConflict(
+                id="c-gone", agent_id=OWNER, memory_id="m-tea", conflicting_memory_id="m-old"
+            )
+        )
+        db.add(
+            MemoryConflict(
+                id="c-other", agent_id=OTHER, memory_id="x-1", conflicting_memory_id="m-tea"
+            )
+        )
         db.commit()
 
     items = by_id(ok(stack))
     assert items["m-tea"]["conflicts"] == [{"conflict_id": "c-open", "memory_id": "m-coffee"}]
     assert items["m-coffee"]["conflicts"] == [{"conflict_id": "c-open", "memory_id": "m-tea"}]
     # With only one side on the page, it still names its other side.
-    assert ok(stack, limit=1)["items"][0]["conflicts"] == [{"conflict_id": "c-open", "memory_id": "m-coffee"}]
+    assert ok(stack, limit=1)["items"][0]["conflicts"] == [
+        {"conflict_id": "c-open", "memory_id": "m-coffee"}
+    ]
 
 
 def test_paging_is_stable_when_a_belief_is_corrected_between_pages(stack):
@@ -197,7 +269,11 @@ def test_server_default_times_page_without_repeats(stack):
     # Rows saved without an explicit time take the database's own clock (whole seconds on SQLite).
     for memory_id in ("m-x", "m-y", "m-z"):
         with stack.sessions() as db:
-            db.add(Memory(id=memory_id, agent_id=OWNER, text=f"Clock row {memory_id}", memory_type="fact"))
+            db.add(
+                Memory(
+                    id=memory_id, agent_id=OWNER, text=f"Clock row {memory_id}", memory_type="fact"
+                )
+            )
             db.commit()
     seen, after = [], None
     for _ in range(5):
@@ -241,9 +317,17 @@ def test_refused_without_a_matching_key(stack):
 
 
 def test_bad_parameters_are_refused(stack):
-    for params in ({"limit": 0}, {"limit": 101}, {"origin": "everyone"}, {"state": "forgotten"},
-                   {"memory_type": "skill"}, {"after": ""}, {"after": "not-a-cursor"},
-                   {"after": "W10"}, {"after": "x" * 601}):
+    for params in (
+        {"limit": 0},
+        {"limit": 101},
+        {"origin": "everyone"},
+        {"state": "forgotten"},
+        {"memory_type": "skill"},
+        {"after": ""},
+        {"after": "not-a-cursor"},
+        {"after": "W10"},
+        {"after": "x" * 601},
+    ):
         response = beliefs(stack, **params)
         assert response.status_code == 422, (params, response.text)
 
@@ -255,7 +339,15 @@ def cursor(value) -> str:
 def test_a_crafted_cursor_is_refused_not_a_server_error(stack):
     add(stack, "m-1", "Something believed")
     moment = "2026-01-01T00:00:00"
-    for value in ([moment, chr(0xD800)], [moment, "m" + chr(0) + "x"], [moment, "../m"],
-                  [moment, "x" * 201], [moment, 7], ["soon", "m-1"], {"a": 1}, 5):
+    for value in (
+        [moment, chr(0xD800)],
+        [moment, "m" + chr(0) + "x"],
+        [moment, "../m"],
+        [moment, "x" * 201],
+        [moment, 7],
+        ["soon", "m-1"],
+        {"a": 1},
+        5,
+    ):
         response = beliefs(stack, after=cursor(value))
         assert response.status_code == 422, (repr(value), response.text)

@@ -19,10 +19,15 @@ def list_audit(limit: int = DEFAULT_LIMIT):
     """The newest audit rows, at most `limit` (1..2000): the table grows with every read."""
     db = SessionLocal()
     try:
-        rows = db.execute(
-            select(MemoryAudit).order_by(MemoryAudit.created_at.desc(), MemoryAudit.id.desc())
-            .limit(max(1, min(limit, MAX_LIMIT)))
-        ).scalars().all()
+        rows = (
+            db.execute(
+                select(MemoryAudit)
+                .order_by(MemoryAudit.created_at.desc(), MemoryAudit.id.desc())
+                .limit(max(1, min(limit, MAX_LIMIT)))
+            )
+            .scalars()
+            .all()
+        )
 
         return [
             {
@@ -45,7 +50,8 @@ def audit_metrics(hours: int = 24):
     db = SessionLocal()
     try:
         counts = db.execute(
-            select(MemoryAudit.action, func.count()).where(MemoryAudit.created_at >= cutoff)
+            select(MemoryAudit.action, func.count())
+            .where(MemoryAudit.created_at >= cutoff)
             .group_by(MemoryAudit.action)
         ).all()
         by_action: dict[str, int] = {}

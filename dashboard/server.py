@@ -3,6 +3,7 @@
 Run after `npm run build`:
     python server.py
 """
+
 from pathlib import Path
 
 import uvicorn

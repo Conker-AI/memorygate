@@ -12,15 +12,21 @@ class Observation(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     agent_id: Mapped[str] = mapped_column(String, default="default", index=True)
     session_id: Mapped[str] = mapped_column(String, default="", index=True)
-    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+    observed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )
 
-    signal_type: Mapped[str] = mapped_column(String, index=True)  # verbal / tonal / behavioral / physical / timing
+    signal_type: Mapped[str] = mapped_column(
+        String, index=True
+    )  # verbal / tonal / behavioral / physical / timing
     description: Mapped[str] = mapped_column(Text)
     raw_context: Mapped[str] = mapped_column(Text, default="")
 
     hypothesis: Mapped[str] = mapped_column(Text, default="")
     hypothesis_confidence: Mapped[float] = mapped_column(Float, default=0.5)
-    status: Mapped[str] = mapped_column(String, default="unconfirmed", index=True)  # unconfirmed / confirmed / contradicted / archived
+    status: Mapped[str] = mapped_column(
+        String, default="unconfirmed", index=True
+    )  # unconfirmed / confirmed / contradicted / archived
 
     confirmed_by: Mapped[str] = mapped_column(String, default="")
     entity_ids_json: Mapped[str] = mapped_column(Text, default="[]")

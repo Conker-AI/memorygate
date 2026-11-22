@@ -18,7 +18,9 @@ class SecurityAndRuntimeContractTests(unittest.TestCase):
         self.tmp_path = tmp_path
 
     def test_admin_key_policy_rejects_weak_values(self):
-        self.assertEqual(validate_new_admin_key("short"), "New key must be at least 14 characters long.")
+        self.assertEqual(
+            validate_new_admin_key("short"), "New key must be at least 14 characters long."
+        )
         self.assertIsNotNone(validate_new_admin_key("longpasswordwithoutdigits!"))
         self.assertIsNone(validate_new_admin_key("Correct-Horse-9-Battery"))
 
@@ -32,7 +34,6 @@ class SecurityAndRuntimeContractTests(unittest.TestCase):
         event = IngestEventRequest(content="webhook event")
         self.assertEqual(event.source_key, "")
         self.assertTrue(event.auto_process)
-
 
     def test_memory_write_contract_accepts_evidence_metadata(self):
         request = MemoryWriteRequest(
@@ -54,11 +55,17 @@ class SecurityAndRuntimeContractTests(unittest.TestCase):
         Session = sessionmaker(bind=engine)
         db = Session()
         try:
-            row = ensure_bootstrap_agent_access_key(db, "mg_read_test_bootstrap_key_123", "agent_pi_operator")
+            row = ensure_bootstrap_agent_access_key(
+                db, "mg_read_test_bootstrap_key_123", "agent_pi_operator"
+            )
             self.assertEqual(row.agent_id, "agent_pi_operator")
             self.assertNotIn("mg_read_test_bootstrap_key_123", row.key_hash)
-            self.assertTrue(verify_agent_access_key(db, "mg_read_test_bootstrap_key_123", "agent_pi_operator"))
-            self.assertFalse(verify_agent_access_key(db, "mg_read_test_bootstrap_key_123", "other_agent"))
+            self.assertTrue(
+                verify_agent_access_key(db, "mg_read_test_bootstrap_key_123", "agent_pi_operator")
+            )
+            self.assertFalse(
+                verify_agent_access_key(db, "mg_read_test_bootstrap_key_123", "other_agent")
+            )
         finally:
             db.close()
             engine.dispose()

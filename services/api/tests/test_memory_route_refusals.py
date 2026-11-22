@@ -253,7 +253,10 @@ def test_an_edit_of_confidence_flags_and_tags_is_saved_with_a_revision(stack):
     assert sorted(history) == ["before manual edit", "memory created"]
     # The revision is taken before the change: it holds the old values, not the new ones.
     kept = history["before manual edit"]
-    assert (kept["memory_type"], kept["confidence"]) == (before["memory_type"], before["confidence"])
+    assert (kept["memory_type"], kept["confidence"]) == (
+        before["memory_type"],
+        before["confidence"],
+    )
     assert kept["text"] == before["text"]
     assert response.json()["memory"] == after
 
@@ -368,7 +371,12 @@ def test_a_missing_or_foreign_backup_file_is_never_served(stack):
     # A folder with a backup's name is not a file. (The list still names it: not checked here.)
     (folder / "memorygate-dir.json").mkdir()
 
-    names = ("memorygate-missing.json", "secrets.json", "memorygate-notes.txt", "memorygate-dir.json")
+    names = (
+        "memorygate-missing.json",
+        "secrets.json",
+        "memorygate-notes.txt",
+        "memorygate-dir.json",
+    )
     for name in names:
         response = stack.get(f"/system/backups/{name}/download")
         assert response.status_code == 404, name
@@ -447,9 +455,7 @@ def test_openai_without_a_key_is_refused_and_stores_nothing(stack, monkeypatch):
 def test_an_unknown_provider_is_refused_and_stores_nothing(stack, monkeypatch):
     seeded_runtime(stack, monkeypatch)
 
-    response = put_runtime(
-        stack, {"current_key": ADMIN_KEY, "provider": "elsewhere", "model": "m"}
-    )
+    response = put_runtime(stack, {"current_key": ADMIN_KEY, "provider": "elsewhere", "model": "m"})
 
     assert response.status_code == 422
     assert response.json()["detail"][0]["loc"] == ["body", "provider"]

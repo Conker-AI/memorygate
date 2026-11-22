@@ -38,7 +38,9 @@ class _Tags:
 
 
 def test_health_checks_the_model_the_owner_chose(tmp_path, monkeypatch):
-    engine = create_engine(f"sqlite:///{tmp_path / 'h.db'}", connect_args={"check_same_thread": False})
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'h.db'}", connect_args={"check_same_thread": False}
+    )
     Base.metadata.create_all(engine)
     sessions = sessionmaker(engine, autoflush=False)
     for module in (system_routes, runtime_routes):

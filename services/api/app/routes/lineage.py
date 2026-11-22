@@ -66,13 +66,15 @@ def _belongs_elsewhere(db, object_type: str, object_id: str, agent_id: str) -> b
 def _create_link(db, payload: ObjectLinkCreateRequest, agent_id: str) -> ObjectLink:
     _require_object(db, payload.source_type, payload.source_id, agent_id)
     _require_object(db, payload.target_type, payload.target_id, agent_id)
-    existing = db.execute(select(ObjectLink).where(
-        ObjectLink.source_type == payload.source_type,
-        ObjectLink.source_id == payload.source_id,
-        ObjectLink.target_type == payload.target_type,
-        ObjectLink.target_id == payload.target_id,
-        ObjectLink.relationship == payload.relationship,
-    )).scalar_one_or_none()
+    existing = db.execute(
+        select(ObjectLink).where(
+            ObjectLink.source_type == payload.source_type,
+            ObjectLink.source_id == payload.source_id,
+            ObjectLink.target_type == payload.target_type,
+            ObjectLink.target_id == payload.target_id,
+            ObjectLink.relationship == payload.relationship,
+        )
+    ).scalar_one_or_none()
     if existing:
         return existing
     row = ObjectLink(
@@ -94,7 +96,16 @@ def _create_link(db, payload: ObjectLinkCreateRequest, agent_id: str) -> ObjectL
 def list_episodes(agent_id: str = Depends(get_agent_id), limit: int = 100):
     db = SessionLocal()
     try:
-        rows = db.execute(select(EpisodeObject).where(EpisodeObject.agent_id == agent_id).order_by(EpisodeObject.occurred_start.desc(), EpisodeObject.created_at.desc()).limit(max(1, min(limit, 300)))).scalars().all()
+        rows = (
+            db.execute(
+                select(EpisodeObject)
+                .where(EpisodeObject.agent_id == agent_id)
+                .order_by(EpisodeObject.occurred_start.desc(), EpisodeObject.created_at.desc())
+                .limit(max(1, min(limit, 300)))
+            )
+            .scalars()
+            .all()
+        )
         return {"results": [_episode_to_dict(row) for row in rows]}
     finally:
         db.close()
@@ -119,11 +130,18 @@ def create_episode(payload: EpisodeCreateRequest, header_agent_id: str = Depends
         db.add(row)
         db.flush()
         for evidence_id in dict.fromkeys(payload.evidence_ids):
-            _create_link(db, ObjectLinkCreateRequest(
-                source_type="evidence", source_id=evidence_id,
-                target_type="episode", target_id=row.id,
-                relationship="grouped_into", created_by="user",
-            ), agent_id)
+            _create_link(
+                db,
+                ObjectLinkCreateRequest(
+                    source_type="evidence",
+                    source_id=evidence_id,
+                    target_type="episode",
+                    target_id=row.id,
+                    relationship="grouped_into",
+                    created_by="user",
+                ),
+                agent_id,
+            )
         db.commit()
         db.refresh(row)
         return {"status": "ok", "episode": _episode_to_dict(row)}
@@ -132,7 +150,9 @@ def create_episode(payload: EpisodeCreateRequest, header_agent_id: str = Depends
 
 
 @router.patch("/episodes/{episode_id}")
-def update_episode(episode_id: str, payload: EpisodeUpdateRequest, agent_id: str = Depends(get_agent_id)):
+def update_episode(
+    episode_id: str, payload: EpisodeUpdateRequest, agent_id: str = Depends(get_agent_id)
+):
     db = SessionLocal()
     try:
         row = db.get(EpisodeObject, episode_id)
@@ -163,11 +183,22 @@ def delete_episode(episode_id: str, agent_id: str = Depends(get_agent_id)):
         if not row or row.agent_id != agent_id:
             raise HTTPException(404, "Episode not found")
         from app.models.deletion_receipt import record
+
         record(db, agent_id, "episode", row.id)
-        links = db.execute(select(ObjectLink).where(or_(
-            (ObjectLink.source_type == "episode") & (ObjectLink.source_id == episode_id),
-            (ObjectLink.target_type == "episode") & (ObjectLink.target_id == episode_id),
-        ))).scalars().all()
+        links = (
+            db.execute(
+                select(ObjectLink).where(
+                    or_(
+                        (ObjectLink.source_type == "episode")
+                        & (ObjectLink.source_id == episode_id),
+                        (ObjectLink.target_type == "episode")
+                        & (ObjectLink.target_id == episode_id),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
         for link in links:
             record(db, "", "link", link.id)
             db.delete(link)
@@ -195,11 +226,16 @@ def delete_link(link_id: str, agent_id: str = Depends(get_agent_id)):
     db = SessionLocal()
     try:
         row = db.get(ObjectLink, link_id)
-        if not row or any(_belongs_elsewhere(db, kind, identity, agent_id) for kind, identity in (
-            (row.source_type, row.source_id), (row.target_type, row.target_id),
-        )):
+        if not row or any(
+            _belongs_elsewhere(db, kind, identity, agent_id)
+            for kind, identity in (
+                (row.source_type, row.source_id),
+                (row.target_type, row.target_id),
+            )
+        ):
             raise HTTPException(404, "Lineage link not found")
         from app.models.deletion_receipt import record
+
         record(db, "", "link", row.id)
         db.delete(row)
         db.commit()
@@ -213,15 +249,35 @@ def get_object_lineage(object_type: str, object_id: str, agent_id: str = Depends
     db = SessionLocal()
     try:
         _require_object(db, object_type, object_id, agent_id)
-        rows = db.execute(select(ObjectLink).where(or_(
-            (ObjectLink.source_type == object_type) & (ObjectLink.source_id == object_id),
-            (ObjectLink.target_type == object_type) & (ObjectLink.target_id == object_id),
-        )).order_by(ObjectLink.created_at.asc())).scalars().all()
+        rows = (
+            db.execute(
+                select(ObjectLink)
+                .where(
+                    or_(
+                        (ObjectLink.source_type == object_type)
+                        & (ObjectLink.source_id == object_id),
+                        (ObjectLink.target_type == object_type)
+                        & (ObjectLink.target_id == object_id),
+                    )
+                )
+                .order_by(ObjectLink.created_at.asc())
+            )
+            .scalars()
+            .all()
+        )
         return {
             "object_type": object_type,
             "object_id": object_id,
-            "incoming": [_link_to_dict(row) for row in rows if row.target_type == object_type and row.target_id == object_id],
-            "outgoing": [_link_to_dict(row) for row in rows if row.source_type == object_type and row.source_id == object_id],
+            "incoming": [
+                _link_to_dict(row)
+                for row in rows
+                if row.target_type == object_type and row.target_id == object_id
+            ],
+            "outgoing": [
+                _link_to_dict(row)
+                for row in rows
+                if row.source_type == object_type and row.source_id == object_id
+            ],
         }
     finally:
         db.close()

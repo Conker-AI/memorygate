@@ -8,6 +8,7 @@ real semantic clustering, so exact-normalized-text grouping is the
 rule-based stand-in. A group of 3+ becomes (or reinforces) a candidate
 pattern; candidates promote to active at confirmation_count >= 5.
 """
+
 import hashlib
 import json
 from datetime import UTC, datetime
@@ -54,11 +55,19 @@ def _pattern_name_for(signal_type: str, hypothesis_norm: str) -> str:
     return f"{signal_type}: {hypothesis_norm[:LABEL_CHARS]}... #{digest}"
 
 
-def _existing_pattern(db, agent_id: str, sig_type: str, hypothesis_norm: str, observation_ids: list[str]):
+def _existing_pattern(
+    db, agent_id: str, sig_type: str, hypothesis_norm: str, observation_ids: list[str]
+):
     pattern_name = _pattern_name_for(sig_type, hypothesis_norm)
-    existing = db.execute(
-        select(Pattern).where(Pattern.agent_id == agent_id, Pattern.pattern_name == pattern_name)
-    ).scalars().first()
+    existing = (
+        db.execute(
+            select(Pattern).where(
+                Pattern.agent_id == agent_id, Pattern.pattern_name == pattern_name
+            )
+        )
+        .scalars()
+        .first()
+    )
     legacy_name = _legacy_name_for(sig_type, hypothesis_norm)
     if existing or legacy_name == pattern_name:
         return existing
@@ -92,8 +101,11 @@ def promote_from_observations(db, agent_id: str, signal_type: str | None = None)
         stmt = stmt.where(Observation.signal_type == signal_type)
     rows = db.execute(stmt).scalars().all()
 
-    qualifying = [r for r in rows if r.status not in NOT_QUALIFYING
-                  and (r.status == "confirmed" or r.confirmation_count >= 2)]
+    qualifying = [
+        r
+        for r in rows
+        if r.status not in NOT_QUALIFYING and (r.status == "confirmed" or r.confirmation_count >= 2)
+    ]
     if not qualifying:
         return []
 

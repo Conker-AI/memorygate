@@ -19,16 +19,27 @@ from sqlalchemy import select
 
 
 def _link(db, source_type, source_id, target_type, target_id, relationship, confidence=1.0):
-    existing = db.execute(select(ObjectLink).where(
-        ObjectLink.source_type == source_type, ObjectLink.source_id == source_id,
-        ObjectLink.target_type == target_type, ObjectLink.target_id == target_id,
-        ObjectLink.relationship == relationship,
-    )).scalar_one_or_none()
+    existing = db.execute(
+        select(ObjectLink).where(
+            ObjectLink.source_type == source_type,
+            ObjectLink.source_id == source_id,
+            ObjectLink.target_type == target_type,
+            ObjectLink.target_id == target_id,
+            ObjectLink.relationship == relationship,
+        )
+    ).scalar_one_or_none()
     if existing:
         return existing
-    row = ObjectLink(source_type=source_type, source_id=source_id, target_type=target_type,
-                     target_id=target_id, relationship=relationship, confidence=confidence,
-                     metadata_json="{}", created_by="runtime")
+    row = ObjectLink(
+        source_type=source_type,
+        source_id=source_id,
+        target_type=target_type,
+        target_id=target_id,
+        relationship=relationship,
+        confidence=confidence,
+        metadata_json="{}",
+        created_by="runtime",
+    )
     db.add(row)
     return row
 
@@ -58,67 +69,118 @@ def process_evidence(
     _commit_job(db, job, lease)
     try:
         cutoff = (evidence.occurred_at or datetime.now(UTC)) - timedelta(minutes=30)
-        episode = db.execute(select(EpisodeObject).where(
-            EpisodeObject.agent_id == evidence.agent_id,
-            EpisodeObject.status == "open",
-            EpisodeObject.occurred_start >= cutoff,
-        ).order_by(EpisodeObject.occurred_start.desc()).limit(1)).scalar_one_or_none()
+        episode = db.execute(
+            select(EpisodeObject)
+            .where(
+                EpisodeObject.agent_id == evidence.agent_id,
+                EpisodeObject.status == "open",
+                EpisodeObject.occurred_start >= cutoff,
+            )
+            .order_by(EpisodeObject.occurred_start.desc())
+            .limit(1)
+        ).scalar_one_or_none()
         if not episode:
             episode = EpisodeObject(
-                agent_id=evidence.agent_id, title=evidence.title or f"{evidence.source_type} activity",
-                summary=evidence.summary or content[:280], episode_type=evidence.source_type,
-                confidence=evidence.integrity_confidence, tags_json=evidence.tags_json,
-                occurred_start=evidence.occurred_at, occurred_end=evidence.occurred_at,
+                agent_id=evidence.agent_id,
+                title=evidence.title or f"{evidence.source_type} activity",
+                summary=evidence.summary or content[:280],
+                episode_type=evidence.source_type,
+                confidence=evidence.integrity_confidence,
+                tags_json=evidence.tags_json,
+                occurred_start=evidence.occurred_at,
+                occurred_end=evidence.occurred_at,
             )
             db.add(episode)
             db.flush()
         else:
-            if evidence.occurred_at is not None and (episode.occurred_end is None or evidence.occurred_at > episode.occurred_end):
+            if evidence.occurred_at is not None and (
+                episode.occurred_end is None or evidence.occurred_at > episode.occurred_end
+            ):
                 episode.occurred_end = evidence.occurred_at
-        _link(db, "evidence", evidence.id, "episode", episode.id, "grouped_into", evidence.integrity_confidence)
+        _link(
+            db,
+            "evidence",
+            evidence.id,
+            "episode",
+            episode.id,
+            "grouped_into",
+            evidence.integrity_confidence,
+        )
 
         job.stage = "analysis"
         _commit_job(db, job, lease)
         value = score_value(content)
         classification = classify_memory(content, "automatic_listener")
-        analysis = db.execute(select(AnalysisObject).where(
-            AnalysisObject.agent_id == evidence.agent_id,
-            AnalysisObject.analysis_type == "deterministic_signal_extraction",
-            AnalysisObject.evidence_ids_json == json.dumps([evidence.id]),
-        )).scalars().first()
+        analysis = (
+            db.execute(
+                select(AnalysisObject).where(
+                    AnalysisObject.agent_id == evidence.agent_id,
+                    AnalysisObject.analysis_type == "deterministic_signal_extraction",
+                    AnalysisObject.evidence_ids_json == json.dumps([evidence.id]),
+                )
+            )
+            .scalars()
+            .first()
+        )
         if not analysis:
             analysis = AnalysisObject(
-                agent_id=evidence.agent_id, analysis_type="deterministic_signal_extraction",
-                evidence_ids_json=json.dumps([evidence.id]), input_summary=content[:500],
+                agent_id=evidence.agent_id,
+                analysis_type="deterministic_signal_extraction",
+                evidence_ids_json=json.dumps([evidence.id]),
+                input_summary=content[:500],
                 output_summary=f"Value {value:.2f}; classified as {classification['memory_type']} ({classification['confidence']}).",
                 steps_json=json.dumps(["normalize", "value_score", "memory_classification"]),
                 confidence=min(evidence.integrity_confidence, 0.85 if value >= 0.3 else 0.6),
             )
             db.add(analysis)
             db.flush()
-        _link(db, "episode", episode.id, "analysis", analysis.id, "analyzed_into", analysis.confidence)
+        _link(
+            db, "episode", episode.id, "analysis", analysis.id, "analyzed_into", analysis.confidence
+        )
 
         job.stage = "local_ai"
         _commit_job(db, job, lease)
         ai_result = analyze_evidence(content, evidence.source_type)
-        ai_analysis = db.execute(select(AnalysisObject).where(
-            AnalysisObject.agent_id == evidence.agent_id,
-            AnalysisObject.analysis_type == "local_ai_proposal",
-            AnalysisObject.evidence_ids_json == json.dumps([evidence.id]),
-        )).scalars().first()
+        ai_analysis = (
+            db.execute(
+                select(AnalysisObject).where(
+                    AnalysisObject.agent_id == evidence.agent_id,
+                    AnalysisObject.analysis_type == "local_ai_proposal",
+                    AnalysisObject.evidence_ids_json == json.dumps([evidence.id]),
+                )
+            )
+            .scalars()
+            .first()
+        )
         if not ai_analysis and ai_result:
             ai_analysis = AnalysisObject(
-                agent_id=evidence.agent_id, analysis_type="local_ai_proposal",
-                evidence_ids_json=json.dumps([evidence.id]), input_summary=content[:500],
+                agent_id=evidence.agent_id,
+                analysis_type="local_ai_proposal",
+                evidence_ids_json=json.dumps([evidence.id]),
+                input_summary=content[:500],
                 output_summary=ai_result["summary"],
-                steps_json=json.dumps({"observations": ai_result["observations"], "memory_candidates": ai_result["memory_candidates"]}),
+                steps_json=json.dumps(
+                    {
+                        "observations": ai_result["observations"],
+                        "memory_candidates": ai_result["memory_candidates"],
+                    }
+                ),
                 confidence=min(evidence.integrity_confidence, 0.7),
-                model=ai_result.get("model"), provider=ai_result.get("provider"),
+                model=ai_result.get("model"),
+                provider=ai_result.get("provider"),
             )
             db.add(ai_analysis)
             db.flush()
         if ai_analysis:
-            _link(db, "episode", episode.id, "analysis", ai_analysis.id, "proposed_by", ai_analysis.confidence)
+            _link(
+                db,
+                "episode",
+                episode.id,
+                "analysis",
+                ai_analysis.id,
+                "proposed_by",
+                ai_analysis.confidence,
+            )
 
         memory = None
         indexing = {"status": "ok"}
@@ -126,14 +188,29 @@ def process_evidence(
             # Case-insensitive exact match: reuse the stored memory when the listener text is already there.
             # Serialise promotions and forgets of the same text until this transaction commits.
             lock_memory_text(db, evidence.agent_id, content)
-            memory = db.execute(select(Memory).where(Memory.agent_id == evidence.agent_id, Memory.text.ilike(escape_like(content.strip()), escape="/"))).scalars().first()
+            memory = (
+                db.execute(
+                    select(Memory).where(
+                        Memory.agent_id == evidence.agent_id,
+                        Memory.text.ilike(escape_like(content.strip()), escape="/"),
+                    )
+                )
+                .scalars()
+                .first()
+            )
             if not memory:
                 memory = Memory(
-                    agent_id=evidence.agent_id, text=content.strip(), summary=classification["summary"],
-                    memory_type=classification["memory_type"], source_type="automatic_listener",
-                    confidence=classification["confidence"], tags_json=evidence.tags_json,
+                    agent_id=evidence.agent_id,
+                    text=content.strip(),
+                    summary=classification["summary"],
+                    memory_type=classification["memory_type"],
+                    source_type="automatic_listener",
+                    confidence=classification["confidence"],
+                    tags_json=evidence.tags_json,
                     valid_from=datetime.now(UTC),
-                    review_by=datetime.now(UTC) + timedelta(days=14) if classification["memory_type"] == "phase" else None,
+                    review_by=datetime.now(UTC) + timedelta(days=14)
+                    if classification["memory_type"] == "phase"
+                    else None,
                 )
                 db.add(memory)
                 db.flush()
@@ -158,7 +235,13 @@ def process_evidence(
         job.stage = "complete"
         job.lease_owner = None
         job.lease_expires_at = None
-        result = {"episode_id": episode.id, "analysis_id": analysis.id, "ai_analysis_id": ai_analysis.id if ai_analysis else None, "memory_id": memory.id if memory else None, "value_score": value}
+        result = {
+            "episode_id": episode.id,
+            "analysis_id": analysis.id,
+            "ai_analysis_id": ai_analysis.id if ai_analysis else None,
+            "memory_id": memory.id if memory else None,
+            "value_score": value,
+        }
         if indexing["status"] != "ok":
             # A job that promoted a memory the vector index never received is
             # not a clean success - the owner can see which ones to re-index.
@@ -173,7 +256,12 @@ def process_evidence(
         evidence = db.get(EvidenceObject, evidence.id)
         failed = db.get(ProcessingJob, job.id)
         if not failed:
-            failed = ProcessingJob(id=job.id, agent_id=evidence.agent_id if evidence else "default", evidence_id=evidence.id if evidence else "", attempts=1)
+            failed = ProcessingJob(
+                id=job.id,
+                agent_id=evidence.agent_id if evidence else "default",
+                evidence_id=evidence.id if evidence else "",
+                attempts=1,
+            )
             db.add(failed)
         if lease:
             fence_job_lease(db, failed.id, lease.lease_owner)

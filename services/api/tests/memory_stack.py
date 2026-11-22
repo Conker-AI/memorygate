@@ -248,7 +248,9 @@ def holds_word(text_dump: str, word: str) -> bool:
     """Whether `word` appears in `text_dump` as a whole word, ignoring case. A dump of every
     stored value also holds random key hashes and ids, whose letters can spell a short word
     ("bus" in "...GdGbusxe..."); a stored sentence or token still has a boundary around it."""
-    return re.search(rf"(?<![^\W_]){re.escape(word)}(?![^\W_])", text_dump, re.IGNORECASE) is not None
+    return (
+        re.search(rf"(?<![^\W_]){re.escape(word)}(?![^\W_])", text_dump, re.IGNORECASE) is not None
+    )
 
 
 @pytest.fixture

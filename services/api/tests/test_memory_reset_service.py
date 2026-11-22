@@ -36,7 +36,9 @@ OLD, NEW, CUTOFF = datetime(2026, 1, 1), datetime(2026, 10, 30), datetime(2026, 
 
 @pytest.fixture
 def sessions(tmp_path, monkeypatch):
-    engine = create_engine(f"sqlite:///{tmp_path / 'reset.db'}", connect_args={"check_same_thread": False})
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'reset.db'}", connect_args={"check_same_thread": False}
+    )
     Base.metadata.create_all(engine)
     factory = sessionmaker(engine, autoflush=False, expire_on_commit=False)
     monkeypatch.setattr(backup_service, "BACKUP_DIR", str(tmp_path / "backups"))
@@ -47,31 +49,51 @@ def sessions(tmp_path, monkeypatch):
 def _seed(db, when=None):
     stamp = {} if when is None else {"created_at": when}
     tag = "new" if when is NEW else "old" if when is OLD else "x"
-    db.add_all([
-        Memory(id=f"m-{tag}", agent_id="owner", text=f"erase me {tag}", **stamp),
-        Memory(id=f"m2-{tag}", agent_id="helper", text="another agent's memory", **stamp),
-        Entity(id=f"e-{tag}", agent_id="owner", entity_type="person", name="Sam", **stamp),
-        Entity(id=f"e2-{tag}", agent_id="owner", entity_type="place", name="Office", **stamp),
-        Observation(id=f"o-{tag}", agent_id="owner", signal_type="verbal", description="said so",
-                    **({} if when is None else {"observed_at": when})),
-        MemoryAudit(action="memory_created", memory_id=f"m-{tag}", **stamp),
-    ])
-    db.add_all([
-        MemoryRevision(memory_id=f"m-{tag}", reason="edit", snapshot_json="{}"),
-        MemoryConflict(agent_id="owner", memory_id=f"m2-{tag}", conflicting_memory_id=f"m-{tag}"),
-        EntityEdge(from_entity_id=f"e-{tag}", to_entity_id=f"e2-{tag}", relationship_type="works_at"),
-        EntityEvent(entity_id=f"e-{tag}", event_type="met", description="met"),
-        EntityHistory(entity_id=f"e-{tag}", changed_field="name"),
-        ObjectLink(source_type="memory", source_id=f"m-{tag}", target_type="entity", target_id=f"e-{tag}",
-                   relationship="about"),
-    ])
+    db.add_all(
+        [
+            Memory(id=f"m-{tag}", agent_id="owner", text=f"erase me {tag}", **stamp),
+            Memory(id=f"m2-{tag}", agent_id="helper", text="another agent's memory", **stamp),
+            Entity(id=f"e-{tag}", agent_id="owner", entity_type="person", name="Sam", **stamp),
+            Entity(id=f"e2-{tag}", agent_id="owner", entity_type="place", name="Office", **stamp),
+            Observation(
+                id=f"o-{tag}",
+                agent_id="owner",
+                signal_type="verbal",
+                description="said so",
+                **({} if when is None else {"observed_at": when}),
+            ),
+            MemoryAudit(action="memory_created", memory_id=f"m-{tag}", **stamp),
+        ]
+    )
+    db.add_all(
+        [
+            MemoryRevision(memory_id=f"m-{tag}", reason="edit", snapshot_json="{}"),
+            MemoryConflict(
+                agent_id="owner", memory_id=f"m2-{tag}", conflicting_memory_id=f"m-{tag}"
+            ),
+            EntityEdge(
+                from_entity_id=f"e-{tag}", to_entity_id=f"e2-{tag}", relationship_type="works_at"
+            ),
+            EntityEvent(entity_id=f"e-{tag}", event_type="met", description="met"),
+            EntityHistory(entity_id=f"e-{tag}", changed_field="name"),
+            ObjectLink(
+                source_type="memory",
+                source_id=f"m-{tag}",
+                target_type="entity",
+                target_id=f"e-{tag}",
+                relationship="about",
+            ),
+        ]
+    )
 
 
 def _survivors(db):
-    db.add_all([
-        EvidenceSource(source_key="mail", source_type="imap", label="Mail"),
-        AgentAccessKey(label="pi", agent_id="owner", key_hash="hash"),
-    ])
+    db.add_all(
+        [
+            EvidenceSource(source_key="mail", source_type="imap", label="Mail"),
+            AgentAccessKey(label="pi", agent_id="owner", key_hash="hash"),
+        ]
+    )
 
 
 def test_a_full_reset_backs_up_first_then_removes_knowledge_and_linked_history(sessions, tmp_path):
@@ -84,20 +106,49 @@ def test_a_full_reset_backs_up_first_then_removes_knowledge_and_linked_history(s
     backup = Path(tmp_path / "backups" / result["backup"]["filename"])
     assert "erase me x" in backup.read_text()  # the backup holds what the reset removed
     assert result["reset_from"] is None
-    assert result["removed"] == {"memories": 2, "entities": 2, "observations": 1, "patterns": 0, "evidence": 0,
-                                 "analysis": 0, "episodes": 0, "transcripts": 0, "jobs": 0, "audit": 1,
-                                 "receipts": 0, "corrections": 0}
+    assert result["removed"] == {
+        "memories": 2,
+        "entities": 2,
+        "observations": 1,
+        "patterns": 0,
+        "evidence": 0,
+        "analysis": 0,
+        "episodes": 0,
+        "transcripts": 0,
+        "jobs": 0,
+        "audit": 1,
+        "receipts": 0,
+        "corrections": 0,
+    }
     assert result["indexing"] == {"status": "pending", "operations": 5}
     with sessions() as db:
-        for model in (Memory, Entity, Observation, MemoryAudit, MemoryRevision, MemoryConflict, EntityEdge,
-                      EntityEvent, EntityHistory, ObjectLink):
+        for model in (
+            Memory,
+            Entity,
+            Observation,
+            MemoryAudit,
+            MemoryRevision,
+            MemoryConflict,
+            EntityEdge,
+            EntityEvent,
+            EntityHistory,
+            ObjectLink,
+        ):
             assert db.query(model).count() == 0, model.__name__
         # Sources and access credentials deliberately survive.
         assert db.query(EvidenceSource).count() == 1 and db.query(AgentAccessKey).count() == 1
         # Every removed vector point has a delete waiting in the outbox.
-        queued = {(row.object_kind, row.object_id, row.operation) for row in db.scalars(select(VectorOutbox))}
-    assert queued == {("memory", "m-x", "delete"), ("memory", "m2-x", "delete"), ("entity", "e-x", "delete"),
-                      ("entity", "e2-x", "delete"), ("observation", "o-x", "delete")}
+        queued = {
+            (row.object_kind, row.object_id, row.operation)
+            for row in db.scalars(select(VectorOutbox))
+        }
+    assert queued == {
+        ("memory", "m-x", "delete"),
+        ("memory", "m2-x", "delete"),
+        ("entity", "e-x", "delete"),
+        ("entity", "e2-x", "delete"),
+        ("observation", "o-x", "delete"),
+    }
 
 
 def test_a_reset_from_a_date_keeps_older_knowledge_and_its_history(sessions):
@@ -105,16 +156,28 @@ def test_a_reset_from_a_date_keeps_older_knowledge_and_its_history(sessions):
         _seed(db, OLD)
         _seed(db, NEW)
         # Links that cross the date: one end is removed, so the link goes too, whichever end it is.
-        db.add_all([
-            ObjectLink(source_type="memory", source_id="m-old", target_type="entity", target_id="e-new",
-                       relationship="about"),
-            ObjectLink(source_type="memory", source_id="m-new", target_type="entity", target_id="e-old",
-                       relationship="about"),
-            EntityEdge(from_entity_id="e-old", to_entity_id="e-new", relationship_type="knows"),
-            EntityEdge(from_entity_id="e-new", to_entity_id="e-old", relationship_type="knows"),
-            MemoryConflict(agent_id="owner", memory_id="m-old", conflicting_memory_id="m-new"),
-            MemoryConflict(agent_id="owner", memory_id="m-new", conflicting_memory_id="m-old"),
-        ])
+        db.add_all(
+            [
+                ObjectLink(
+                    source_type="memory",
+                    source_id="m-old",
+                    target_type="entity",
+                    target_id="e-new",
+                    relationship="about",
+                ),
+                ObjectLink(
+                    source_type="memory",
+                    source_id="m-new",
+                    target_type="entity",
+                    target_id="e-old",
+                    relationship="about",
+                ),
+                EntityEdge(from_entity_id="e-old", to_entity_id="e-new", relationship_type="knows"),
+                EntityEdge(from_entity_id="e-new", to_entity_id="e-old", relationship_type="knows"),
+                MemoryConflict(agent_id="owner", memory_id="m-old", conflicting_memory_id="m-new"),
+                MemoryConflict(agent_id="owner", memory_id="m-new", conflicting_memory_id="m-old"),
+            ]
+        )
         db.commit()
         result = reset_memory(db, CUTOFF)
 
@@ -126,9 +189,15 @@ def test_a_reset_from_a_date_keeps_older_knowledge_and_its_history(sessions):
         assert sorted(row.id for row in db.scalars(select(Memory))) == ["m-old", "m2-old"]
         assert sorted(row.id for row in db.scalars(select(Entity))) == ["e-old", "e2-old"]
         assert [row.memory_id for row in db.scalars(select(MemoryRevision))] == ["m-old"]
-        assert [(row.from_entity_id, row.to_entity_id) for row in db.scalars(select(EntityEdge))] == [("e-old", "e2-old")]
-        assert [(row.source_id, row.target_id) for row in db.scalars(select(ObjectLink))] == [("m-old", "e-old")]
-        conflicts = [(row.memory_id, row.conflicting_memory_id) for row in db.scalars(select(MemoryConflict))]
+        assert [
+            (row.from_entity_id, row.to_entity_id) for row in db.scalars(select(EntityEdge))
+        ] == [("e-old", "e2-old")]
+        assert [(row.source_id, row.target_id) for row in db.scalars(select(ObjectLink))] == [
+            ("m-old", "e-old")
+        ]
+        conflicts = [
+            (row.memory_id, row.conflicting_memory_id) for row in db.scalars(select(MemoryConflict))
+        ]
         assert conflicts == [("m2-old", "m-old")]
         assert [row.memory_id for row in db.scalars(select(MemoryAudit))] == ["m-old"]
         assert sorted(row.id for row in db.scalars(select(Observation))) == ["o-new", "o-old"]
@@ -139,7 +208,12 @@ def test_resetting_an_empty_workspace_still_writes_a_backup(sessions, tmp_path):
         result = reset_memory(db)
     assert set(result["removed"].values()) == {0}
     assert result["indexing"]["operations"] == 0
-    assert json.loads((tmp_path / "backups" / result["backup"]["filename"]).read_text())["tables"]["memories"] == []
+    assert (
+        json.loads((tmp_path / "backups" / result["backup"]["filename"]).read_text())["tables"][
+            "memories"
+        ]
+        == []
+    )
 
 
 # --- Conversation receipts follow the knowledge they name -------------------
@@ -147,7 +221,11 @@ def test_resetting_an_empty_workspace_still_writes_a_backup(sessions, tmp_path):
 
 def _conversation(sessions, monkeypatch):
     monkeypatch.setattr(conversation_memory, "SessionLocal", sessions)
-    said = {"session_id": "ses", "content": "I prefer to train before school", "created_at": 1770000000.0}
+    said = {
+        "session_id": "ses",
+        "content": "I prefer to train before school",
+        "created_at": 1770000000.0,
+    }
     assert conversation_memory.ingest("owner", "msg_kept", said)["state"] == "admitted"
     assert conversation_memory.ingest("owner", "msg_forgotten", said)["state"] == "admitted"
     assert conversation_memory.forget("owner", "msg_forgotten")["state"] == "deleted"
@@ -193,11 +271,31 @@ def test_a_dated_reset_drops_only_the_receipts_of_the_memories_it_removes(sessio
     with sessions() as db:
         _seed(db, OLD)
         _seed(db, NEW)
-        db.add_all([
-            ConversationReceipt(id="r-old", agent_id="owner", message_id="msg-old", state="admitted", memory_id="m-old"),
-            ConversationReceipt(id="r-new", agent_id="owner", message_id="msg-new", state="admitted", memory_id="m-new"),
-            ConversationReceipt(id="r-gone", agent_id="owner", message_id="msg-gone", state="deleted", memory_id="m-new"),
-        ])
+        db.add_all(
+            [
+                ConversationReceipt(
+                    id="r-old",
+                    agent_id="owner",
+                    message_id="msg-old",
+                    state="admitted",
+                    memory_id="m-old",
+                ),
+                ConversationReceipt(
+                    id="r-new",
+                    agent_id="owner",
+                    message_id="msg-new",
+                    state="admitted",
+                    memory_id="m-new",
+                ),
+                ConversationReceipt(
+                    id="r-gone",
+                    agent_id="owner",
+                    message_id="msg-gone",
+                    state="deleted",
+                    memory_id="m-new",
+                ),
+            ]
+        )
         db.commit()
         result = reset_memory(db, CUTOFF)
 
@@ -226,8 +324,11 @@ def _client(sessions, monkeypatch):
 
 
 def _reset(client, current_key):
-    return client.post("/system/memory-reset", headers={"X-MemoryGate-Key": ADMIN_KEY},
-                       json={"current_key": current_key, "confirmation": system_routes.MEMORY_RESET_PHRASE})
+    return client.post(
+        "/system/memory-reset",
+        headers={"X-MemoryGate-Key": ADMIN_KEY},
+        json={"current_key": current_key, "confirmation": system_routes.MEMORY_RESET_PHRASE},
+    )
 
 
 def test_a_wrong_current_key_deletes_nothing_and_writes_no_backup(sessions, monkeypatch, tmp_path):
@@ -253,16 +354,41 @@ def test_a_dated_reset_leaves_no_trace_of_what_it_removed_in_what_it_keeps(sessi
     with sessions() as db:
         _seed(db, OLD)
         _seed(db, NEW)
-        db.add_all([
-            Observation(id="o-names", agent_id="owner", signal_type="verbal", description="d", observed_at=OLD,
-                        entity_ids_json='["e-old", "e-new"]'),
-            Pattern(id="p-old", agent_id="owner", pattern_name="p", created_at=OLD,
-                    applies_to_entity_ids_json='["e-new", "e2-old"]'),
-            MemoryCorrection(agent_id="owner", request_id="fix-new", memory_id="m-new", payload_hash="h",
-                             previous_revision=1, revision=2),
-            MemoryCorrection(agent_id="owner", request_id="fix-old", memory_id="m-old", payload_hash="h",
-                             previous_revision=1, revision=2),
-        ])
+        db.add_all(
+            [
+                Observation(
+                    id="o-names",
+                    agent_id="owner",
+                    signal_type="verbal",
+                    description="d",
+                    observed_at=OLD,
+                    entity_ids_json='["e-old", "e-new"]',
+                ),
+                Pattern(
+                    id="p-old",
+                    agent_id="owner",
+                    pattern_name="p",
+                    created_at=OLD,
+                    applies_to_entity_ids_json='["e-new", "e2-old"]',
+                ),
+                MemoryCorrection(
+                    agent_id="owner",
+                    request_id="fix-new",
+                    memory_id="m-new",
+                    payload_hash="h",
+                    previous_revision=1,
+                    revision=2,
+                ),
+                MemoryCorrection(
+                    agent_id="owner",
+                    request_id="fix-old",
+                    memory_id="m-old",
+                    payload_hash="h",
+                    previous_revision=1,
+                    revision=2,
+                ),
+            ]
+        )
         db.commit()
         result = reset_memory(db, CUTOFF)
 

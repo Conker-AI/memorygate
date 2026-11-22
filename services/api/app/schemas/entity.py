@@ -14,6 +14,7 @@ class EntityCreateRequest(BaseModel):
     agent_summary: str = ""
     importance_level: str = "normal"
 
+
 class EntityUpdateRequest(BaseModel):
     name: str | None = None
     description: str | None = None
@@ -25,10 +26,12 @@ class EntityUpdateRequest(BaseModel):
     change_reason: str = "manual update"
     triggered_by: str = "system"
 
+
 class EntitySearchRequest(BaseModel):
     agent_id: str | None = None
     query: str
     entity_type: str | None = None
+
 
 class EntityLinkRequest(BaseModel):
     from_entity_id: str
@@ -39,6 +42,7 @@ class EntityLinkRequest(BaseModel):
     notes: str = ""
     since_when: str = ""
 
+
 class EntityEventCreateRequest(BaseModel):
     entity_id: str
     event_type: str
@@ -46,9 +50,11 @@ class EntityEventCreateRequest(BaseModel):
     emotional_weight: int = 1
     occurred_at: str = ""
 
+
 class EntityMergeRequest(BaseModel):
     keep_entity_id: str
     merge_entity_id: str
+
 
 class EntityUpdateByIdRequest(BaseModel):
     entity_id: str

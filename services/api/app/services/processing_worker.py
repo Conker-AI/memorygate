@@ -18,8 +18,13 @@ _thread: threading.Thread | None = None
 _worker_id = str(uuid.uuid4())
 
 
-def claim_next_job(db, worker_id: str, *, now: datetime | None = None,
-                   lease_seconds: int = PROCESSING_LEASE_SECONDS) -> ProcessingJob | None:
+def claim_next_job(
+    db,
+    worker_id: str,
+    *,
+    now: datetime | None = None,
+    lease_seconds: int = PROCESSING_LEASE_SECONDS,
+) -> ProcessingJob | None:
     """Atomically claim the oldest runnable job.
 
     The conditional update is the concurrency boundary: workers may select the
@@ -120,7 +125,9 @@ def run_job(db, job: ProcessingJob) -> None:
         _fail(db, job, "evidence was invalidated")
         return
     try:
-        content = json.loads(evidence.normalized_payload_json or "{}").get("content") or evidence.summary
+        content = (
+            json.loads(evidence.normalized_payload_json or "{}").get("content") or evidence.summary
+        )
     except (ValueError, AttributeError):
         _fail(db, job, "evidence payload is not readable", evidence)
         return

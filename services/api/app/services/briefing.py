@@ -5,6 +5,7 @@ for fields the schema doesn't have a dedicated column for yet (project
 status, scheduled_for, warmth_level) - that's exactly what that column is
 for, so no new columns are added for it.
 """
+
 import json
 from datetime import UTC, datetime, timedelta
 
@@ -33,16 +34,20 @@ def _attrs(entity: Entity) -> dict:
 
 
 def _emotional_state(db, agent_id: str) -> tuple[str | None, str | None]:
-    row = db.execute(
-        select(Observation)
-        .where(
-            Observation.agent_id == agent_id,
-            Observation.signal_type == "emotional",
-            Observation.status.notin_(("contradicted", "archived")),
+    row = (
+        db.execute(
+            select(Observation)
+            .where(
+                Observation.agent_id == agent_id,
+                Observation.signal_type == "emotional",
+                Observation.status.notin_(("contradicted", "archived")),
+            )
+            .order_by(Observation.observed_at.desc())
+            .limit(1)
         )
-        .order_by(Observation.observed_at.desc())
-        .limit(1)
-    ).scalars().first()
+        .scalars()
+        .first()
+    )
 
     if not row or not row.observed_at:
         return None, None
@@ -61,7 +66,11 @@ def _active_streaks(db, agent_id: str) -> list[dict]:
     rows = db.execute(
         select(EntityEvent, Entity)
         .join(Entity, Entity.id == EntityEvent.entity_id)
-        .where(Entity.agent_id == agent_id, EntityEvent.event_type == "streak", EntityEvent.created_at >= cutoff)
+        .where(
+            Entity.agent_id == agent_id,
+            EntityEvent.event_type == "streak",
+            EntityEvent.created_at >= cutoff,
+        )
     ).all()
 
     # A streak is one habit's: count its streak events and name it after the habit.
@@ -71,19 +80,31 @@ def _active_streaks(db, agent_id: str) -> list[dict]:
         counts[entity.id] = counts.get(entity.id, 0) + 1
         names[entity.id] = entity.name or "streak"
 
-    return [{"name": names[key], "count": count} for key, count in counts.items() if count >= STREAK_THRESHOLD]
+    return [
+        {"name": names[key], "count": count}
+        for key, count in counts.items()
+        if count >= STREAK_THRESHOLD
+    ]
 
 
 def _pending_clarifications(db, agent_id: str) -> list[dict]:
     # clarifications live on Observation now (needs_clarification=True); there's
     # no dedicated importance column post-merge, so hypothesis_confidence -
     # already "how sure are we this needs surfacing" - stands in for it.
-    rows = db.execute(
-        select(Observation)
-        .where(Observation.agent_id == agent_id, Observation.needs_clarification == True, Observation.status == "unconfirmed")  # noqa: E712
-        .order_by(Observation.hypothesis_confidence.desc(), Observation.observed_at.desc())
-        .limit(2)
-    ).scalars().all()
+    rows = (
+        db.execute(
+            select(Observation)
+            .where(
+                Observation.agent_id == agent_id,
+                Observation.needs_clarification == True,
+                Observation.status == "unconfirmed",
+            )  # noqa: E712
+            .order_by(Observation.hypothesis_confidence.desc(), Observation.observed_at.desc())
+            .limit(2)
+        )
+        .scalars()
+        .all()
+    )
 
     return [
         {"id": row.id, "what": row.description, "trigger_condition": row.raise_condition}
@@ -93,9 +114,13 @@ def _pending_clarifications(db, agent_id: str) -> list[dict]:
 
 def _active_tasks(db, agent_id: str) -> list[dict]:
     cutoff = _now() - timedelta(days=TASK_TOUCHED_WINDOW_DAYS)
-    rows = db.execute(
-        select(Entity).where(Entity.agent_id == agent_id, Entity.entity_type == "project")
-    ).scalars().all()
+    rows = (
+        db.execute(
+            select(Entity).where(Entity.agent_id == agent_id, Entity.entity_type == "project")
+        )
+        .scalars()
+        .all()
+    )
 
     tasks: dict[str, dict] = {}
     for entity in rows:
@@ -103,12 +128,16 @@ def _active_tasks(db, agent_id: str) -> list[dict]:
         if attrs.get("status") == "completed":
             continue
 
-        last_event = db.execute(
-            select(EntityEvent)
-            .where(EntityEvent.entity_id == entity.id, EntityEvent.created_at >= cutoff)
-            .order_by(EntityEvent.created_at.desc())
-            .limit(1)
-        ).scalars().first()
+        last_event = (
+            db.execute(
+                select(EntityEvent)
+                .where(EntityEvent.entity_id == entity.id, EntityEvent.created_at >= cutoff)
+                .order_by(EntityEvent.created_at.desc())
+                .limit(1)
+            )
+            .scalars()
+            .first()
+        )
         if not last_event:
             continue
 
@@ -134,49 +163,61 @@ def _people_relevant(db, agent_id: str) -> list[dict]:
     cutoff = _now() - timedelta(days=RECENT_WINDOW_DAYS)
     today_str = _now().date().isoformat()
 
-    rows = db.execute(
-        select(Entity).where(Entity.agent_id == agent_id, Entity.entity_type == "human")
-    ).scalars().all()
+    rows = (
+        db.execute(select(Entity).where(Entity.agent_id == agent_id, Entity.entity_type == "human"))
+        .scalars()
+        .all()
+    )
 
     people = []
     for entity in rows:
         attrs = _attrs(entity)
         scheduled_today = attrs.get("scheduled_for") == today_str
 
-        recent_event = db.execute(
-            select(EntityEvent)
-            .where(EntityEvent.entity_id == entity.id, EntityEvent.created_at >= cutoff)
-            .order_by(EntityEvent.created_at.desc())
-            .limit(1)
-        ).scalars().first()
+        recent_event = (
+            db.execute(
+                select(EntityEvent)
+                .where(EntityEvent.entity_id == entity.id, EntityEvent.created_at >= cutoff)
+                .order_by(EntityEvent.created_at.desc())
+                .limit(1)
+            )
+            .scalars()
+            .first()
+        )
 
         if not (scheduled_today or recent_event):
             continue
 
         note = attrs.get("note") or (recent_event.description if recent_event else "")
-        people.append({
-            "entity_id": entity.id,
-            "name": entity.name,
-            "warmth_level": attrs.get("warmth_level", 0.5),
-            "note": note,
-        })
+        people.append(
+            {
+                "entity_id": entity.id,
+                "name": entity.name,
+                "warmth_level": attrs.get("warmth_level", 0.5),
+                "note": note,
+            }
+        )
 
     return people
 
 
 def _watch_flags(db, agent_id: str) -> list[str]:
     cutoff = _now() - timedelta(days=WATCH_FLAG_WINDOW_DAYS)
-    rows = db.execute(
-        select(Memory)
-        .where(
-            Memory.agent_id == agent_id,
-            Memory.memory_type == "watch",
-            Memory.status == "active",
-            Memory.created_at >= cutoff,
+    rows = (
+        db.execute(
+            select(Memory)
+            .where(
+                Memory.agent_id == agent_id,
+                Memory.memory_type == "watch",
+                Memory.status == "active",
+                Memory.created_at >= cutoff,
+            )
+            .order_by(Memory.created_at.desc())
+            .limit(5)
         )
-        .order_by(Memory.created_at.desc())
-        .limit(5)
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     return [row.summary or row.text[:120] for row in rows]
 
 

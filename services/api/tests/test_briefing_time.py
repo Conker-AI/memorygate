@@ -13,8 +13,16 @@ from memory_stack import stack as stack
 
 
 def observe(stack, **body):
-    response = stack.http.post("/observation/create", headers=stack.admin_headers(), json={
-        "signal_type": "emotional", "description": "seems low", "hypothesis": "tired", **body})
+    response = stack.http.post(
+        "/observation/create",
+        headers=stack.admin_headers(),
+        json={
+            "signal_type": "emotional",
+            "description": "seems low",
+            "hypothesis": "tired",
+            **body,
+        },
+    )
     assert response.status_code == 200, response.text
     return response.json()["observation"]["id"]
 

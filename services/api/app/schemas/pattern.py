@@ -18,11 +18,13 @@ class PatternCreateRequest(BaseModel):
     context_conditions: dict[str, Any] = Field(default_factory=dict)
     status: str = "candidate"
 
+
 class PatternSearchRequest(BaseModel):
     agent_id: str | None = None
     query: str = ""
     status: str | None = None
     entity_id: str | None = None
+
 
 class PatternUpdateRequest(BaseModel):
     description: str | None = None
@@ -37,6 +39,7 @@ class PatternUpdateRequest(BaseModel):
     context_conditions: dict[str, Any] | None = None
     status: str | None = None
 
+
 class PatternPromoteRequest(BaseModel):
     agent_id: str | None = None
     pattern_name: str
@@ -47,8 +50,10 @@ class PatternPromoteRequest(BaseModel):
     interpretation: str = ""
     recommended_action: str = ""
 
+
 class PatternConfirmRequest(BaseModel):
     note: str = ""
+
 
 class PatternContradictRequest(BaseModel):
     note: str = ""

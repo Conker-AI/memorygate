@@ -48,7 +48,9 @@ OWNER_CHANGES = ("user", "owner_review")
 def _blank_evidence(evidence: EvidenceObject) -> None:
     evidence.title = TOMBSTONE_TITLE
     evidence.summary = ""
-    evidence.raw_payload_json = json.dumps({"evidence_id": evidence.id, "content_status": "forgotten"})
+    evidence.raw_payload_json = json.dumps(
+        {"evidence_id": evidence.id, "content_status": "forgotten"}
+    )
     evidence.normalized_payload_json = "{}"
     evidence.tags_json = "[]"
     evidence.invalidated_at = evidence.invalidated_at or datetime.now(UTC)
@@ -59,10 +61,14 @@ def _blank_evidence(evidence: EvidenceObject) -> None:
 def _memories_to_erase(db, analysis_ids: list[str]) -> list[Memory]:
     if not analysis_ids:
         return []
-    supported = db.scalars(select(ObjectLink.target_id).where(
-        ObjectLink.source_type == "analysis", ObjectLink.source_id.in_(analysis_ids),
-        ObjectLink.target_type == "memory", ObjectLink.relationship == "supports",
-    )).all()
+    supported = db.scalars(
+        select(ObjectLink.target_id).where(
+            ObjectLink.source_type == "analysis",
+            ObjectLink.source_id.in_(analysis_ids),
+            ObjectLink.target_type == "memory",
+            ObjectLink.relationship == "supports",
+        )
+    ).all()
     erase = []
     for memory_id in sorted(set(supported)):
         memory = db.get(Memory, memory_id)
@@ -71,22 +77,35 @@ def _memories_to_erase(db, analysis_ids: list[str]) -> list[Memory]:
         # The pipeline's lock for this text: a worker about to reuse this memory for another
         # event either links it before this check or finds it gone and makes its own.
         lock_memory_text(db, memory.agent_id, memory.text)
-        owner_touched = db.scalar(select(MemoryRevision.id).where(
-            MemoryRevision.memory_id == memory_id, MemoryRevision.changed_by.in_(OWNER_CHANGES),
-        ).limit(1))
+        owner_touched = db.scalar(
+            select(MemoryRevision.id)
+            .where(
+                MemoryRevision.memory_id == memory_id,
+                MemoryRevision.changed_by.in_(OWNER_CHANGES),
+            )
+            .limit(1)
+        )
         if owner_touched is not None:
             continue  # the owner corrected or chose it: their words now, only the link goes
-        other_support = db.scalar(select(ObjectLink.id).where(
-            ObjectLink.target_type == "memory", ObjectLink.target_id == memory_id,
-            ObjectLink.relationship == "supports", ObjectLink.confidence > 0,
-            ObjectLink.source_id.not_in(analysis_ids),
-        ).limit(1))
+        other_support = db.scalar(
+            select(ObjectLink.id)
+            .where(
+                ObjectLink.target_type == "memory",
+                ObjectLink.target_id == memory_id,
+                ObjectLink.relationship == "supports",
+                ObjectLink.confidence > 0,
+                ObjectLink.source_id.not_in(analysis_ids),
+            )
+            .limit(1)
+        )
         if other_support is None:
             erase.append(memory)
     return erase
 
 
-def erase_in_session(db, agent_id: str, evidence: EvidenceObject | None, evidence_id: str) -> list[str]:
+def erase_in_session(
+    db, agent_id: str, evidence: EvidenceObject | None, evidence_id: str
+) -> list[str]:
     """Erase inside the caller's transaction; the ids of the memories erased with it."""
     deletion_receipt.record(db, agent_id, KIND, evidence_id)
     # Jobs first: on PostgreSQL this waits for a worker holding the row, and a worker that
@@ -97,30 +116,39 @@ def erase_in_session(db, agent_id: str, evidence: EvidenceObject | None, evidenc
     titles, summaries = original(evidence)
     tags = evidence.tags_json
     _blank_evidence(evidence)
-    analysis_ids = list(db.scalars(select(AnalysisObject.id).where(
-        AnalysisObject.agent_id == agent_id,
-        AnalysisObject.evidence_ids_json == json.dumps([evidence_id]),
-    )))
+    analysis_ids = list(
+        db.scalars(
+            select(AnalysisObject.id).where(
+                AnalysisObject.agent_id == agent_id,
+                AnalysisObject.evidence_ids_json == json.dumps([evidence_id]),
+            )
+        )
+    )
     memories = _memories_to_erase(db, analysis_ids)
     blank_episodes(db, agent_id, evidence_id, titles, summaries, tags, TOMBSTONE_TITLE)
     owned = [evidence_id, *analysis_ids]
-    db.execute(delete(ObjectLink).where(
-        or_(ObjectLink.source_id.in_(owned), ObjectLink.target_id.in_(owned))
-    ))
+    db.execute(
+        delete(ObjectLink).where(
+            or_(ObjectLink.source_id.in_(owned), ObjectLink.target_id.in_(owned))
+        )
+    )
     if analysis_ids:
         db.execute(delete(AnalysisObject).where(AnalysisObject.id.in_(analysis_ids)))
     erased = []
     for memory in memories:
-        db.execute(delete(ObjectLink).where(
-            or_(ObjectLink.source_id == memory.id, ObjectLink.target_id == memory.id)
-        ))
+        db.execute(
+            delete(ObjectLink).where(
+                or_(ObjectLink.source_id == memory.id, ObjectLink.target_id == memory.id)
+            )
+        )
         memory_forgetting.erase(db, agent_id, memory, ACTION, {"evidence_id": evidence_id})
         erased.append(memory.id)
     return erased
 
 
-def erase_evidence(agent_id: str, evidence_id: str, *, source_id: str | None = None,
-                   sessions=None) -> dict | None:
+def erase_evidence(
+    agent_id: str, evidence_id: str, *, source_id: str | None = None, sessions=None
+) -> dict | None:
     """Erase one evidence row of this agent (and source, when given).
 
     None when the evidence does not exist for that agent and source; a route answers 404.

@@ -49,12 +49,14 @@ def _reconcile_index_intent(operation, memory_id, *args, **kwargs):
         operation_override=operation,
     )
 
+
 def _default_review_by(memory_type: str, review_by: datetime | None) -> datetime | None:
     if review_by is not None:
         return review_by
     if memory_type == "phase":
         return datetime.now(UTC) + PHASE_REVIEW_WINDOW
     return None
+
 
 def _row_to_dict(row, score=None):
     tags = json.loads(row.tags_json)
@@ -82,6 +84,7 @@ def _row_to_dict(row, score=None):
         result["similarity"] = score
     return result
 
+
 def _merge_tags(old_tags: list[str], new_tags: list[str]) -> list[str]:
     merged = []
     seen = set()
@@ -96,10 +99,29 @@ def _merge_tags(old_tags: list[str], new_tags: list[str]) -> list[str]:
 def list_conflicts(agent_id: str = Depends(get_agent_id)):
     db = SessionLocal()
     try:
-        rows = db.execute(select(MemoryConflict).where(MemoryConflict.agent_id == agent_id).order_by(MemoryConflict.created_at.desc())).scalars().all()
-        return {"results": [{"id": row.id, "memory_id": row.memory_id, "conflicting_memory_id": row.conflicting_memory_id,
-                              "reason": row.reason, "confidence": row.confidence, "status": row.status,
-                              "created_at": row.created_at.isoformat() if row.created_at else None} for row in rows]}
+        rows = (
+            db.execute(
+                select(MemoryConflict)
+                .where(MemoryConflict.agent_id == agent_id)
+                .order_by(MemoryConflict.created_at.desc())
+            )
+            .scalars()
+            .all()
+        )
+        return {
+            "results": [
+                {
+                    "id": row.id,
+                    "memory_id": row.memory_id,
+                    "conflicting_memory_id": row.conflicting_memory_id,
+                    "reason": row.reason,
+                    "confidence": row.confidence,
+                    "status": row.status,
+                    "created_at": row.created_at.isoformat() if row.created_at else None,
+                }
+                for row in rows
+            ]
+        }
     finally:
         db.close()
 
@@ -111,15 +133,35 @@ def memory_revisions(memory_id: str, agent_id: str = Depends(get_agent_id)):
         memory = db.get(Memory, memory_id)
         if not memory or memory.agent_id != agent_id:
             raise HTTPException(404, "Memory not found")
-        rows = db.execute(select(MemoryRevision).where(MemoryRevision.memory_id == memory_id).order_by(MemoryRevision.created_at.desc())).scalars().all()
-        return {"results": [{"id": row.id, "changed_by": row.changed_by, "reason": row.reason,
-                              "snapshot": json.loads(row.snapshot_json or "{}"), "created_at": row.created_at.isoformat() if row.created_at else None} for row in rows]}
+        rows = (
+            db.execute(
+                select(MemoryRevision)
+                .where(MemoryRevision.memory_id == memory_id)
+                .order_by(MemoryRevision.created_at.desc())
+            )
+            .scalars()
+            .all()
+        )
+        return {
+            "results": [
+                {
+                    "id": row.id,
+                    "changed_by": row.changed_by,
+                    "reason": row.reason,
+                    "snapshot": json.loads(row.snapshot_json or "{}"),
+                    "created_at": row.created_at.isoformat() if row.created_at else None,
+                }
+                for row in rows
+            ]
+        }
     finally:
         db.close()
 
 
 @router.post("/conflicts/{conflict_id}/resolve")
-def resolve_conflict(conflict_id: str, payload: ConflictResolveRequest, agent_id: str = Depends(get_agent_id)):
+def resolve_conflict(
+    conflict_id: str, payload: ConflictResolveRequest, agent_id: str = Depends(get_agent_id)
+):
     db = SessionLocal()
     try:
         conflict = db.get(MemoryConflict, conflict_id)
@@ -128,7 +170,12 @@ def resolve_conflict(conflict_id: str, payload: ConflictResolveRequest, agent_id
         if payload.winner_memory_id not in (conflict.memory_id, conflict.conflicting_memory_id):
             raise HTTPException(422, "Winner must be one of the conflicted memories")
         winner = db.get(Memory, payload.winner_memory_id)
-        loser = db.get(Memory, conflict.conflicting_memory_id if payload.winner_memory_id == conflict.memory_id else conflict.memory_id)
+        loser = db.get(
+            Memory,
+            conflict.conflicting_memory_id
+            if payload.winner_memory_id == conflict.memory_id
+            else conflict.memory_id,
+        )
         if winner:
             winner.status = "active"
             winner.valid_until = None
@@ -145,9 +192,13 @@ def resolve_conflict(conflict_id: str, payload: ConflictResolveRequest, agent_id
     except StaleDataError:
         # Another resolution or edit changed one of these memories first; that one stands.
         db.rollback()
-        raise HTTPException(409, {"code": "revision_conflict", "message": "Memory changed; reload before resolving."}) from None
+        raise HTTPException(
+            409,
+            {"code": "revision_conflict", "message": "Memory changed; reload before resolving."},
+        ) from None
     finally:
         db.close()
+
 
 def _upgrade_existing_memory(db, row, payload, final_memory_type, final_confidence, final_summary):
     old_tags = json.loads(row.tags_json)
@@ -174,17 +225,21 @@ def _upgrade_existing_memory(db, row, payload, final_memory_type, final_confiden
 
     if upgraded:
         add_revision(db, row, "duplicate upgraded existing memory", "dedup")
-        db.add(MemoryAudit(
-            action="upgrade",
-            memory_id=row.id,
-            payload_json=json.dumps({
-                "agent_id": row.agent_id,
-                "text": payload.text,
-                "old_memory_type": old_memory_type,
-                "new_memory_type": row.memory_type,
-                "tags": merged_tags,
-            }),
-        ))
+        db.add(
+            MemoryAudit(
+                action="upgrade",
+                memory_id=row.id,
+                payload_json=json.dumps(
+                    {
+                        "agent_id": row.agent_id,
+                        "text": payload.text,
+                        "old_memory_type": old_memory_type,
+                        "new_memory_type": row.memory_type,
+                        "tags": merged_tags,
+                    }
+                ),
+            )
+        )
         enqueue_upsert(
             db,
             "memory",
@@ -214,6 +269,7 @@ def _upgrade_existing_memory(db, row, payload, final_memory_type, final_confiden
         result["indexing"] = indexing
     return result
 
+
 @router.post("/write")
 def write_memory(payload: MemoryWriteRequest, header_agent_id: str = Depends(get_agent_id)):
     agent_id = resolve_agent_id(header_agent_id, payload.agent_id)
@@ -225,11 +281,20 @@ def write_memory(payload: MemoryWriteRequest, header_agent_id: str = Depends(get
             value_score = score_value(payload.text)
             if value_score < config.value_threshold:
                 # Refused text is not kept: no memory exists for a forget to remove it with.
-                db.add(MemoryAudit(
-                    action="filtered",
-                    memory_id=None,
-                    payload_json=json.dumps({"agent_id": agent_id, "text_length": len(payload.text), "reason": "low_value", "value_score": value_score}),
-                ))
+                db.add(
+                    MemoryAudit(
+                        action="filtered",
+                        memory_id=None,
+                        payload_json=json.dumps(
+                            {
+                                "agent_id": agent_id,
+                                "text_length": len(payload.text),
+                                "reason": "low_value",
+                                "value_score": value_score,
+                            }
+                        ),
+                    )
+                )
                 db.commit()
                 return {"status": "filtered", "reason": "low value"}
 
@@ -244,22 +309,35 @@ def write_memory(payload: MemoryWriteRequest, header_agent_id: str = Depends(get
             )
         final_confidence = payload.confidence or classified["confidence"]
         final_summary = classified["summary"]
-        final_do_not_generalize = payload.do_not_generalize if payload.do_not_generalize is not None else False
-        final_review_by = _default_review_by(final_memory_type, parse_timestamp(payload.review_by, "review_by"))
+        final_do_not_generalize = (
+            payload.do_not_generalize if payload.do_not_generalize is not None else False
+        )
+        final_review_by = _default_review_by(
+            final_memory_type, parse_timestamp(payload.review_by, "review_by")
+        )
 
         # Exact duplicate: the same text as an active memory of this agent, however old. A memory
         # under review or expired is not a duplicate (the write would be lost); two writes of
         # one text are serialised until this transaction commits.
         lock_memory_text(db, agent_id, payload.text)
-        duplicate = db.execute(
-            select(Memory)
-            .where(Memory.agent_id == agent_id, Memory.status == "active",
-                   func.lower(func.trim(Memory.text)) == payload.text.strip().lower())
-            .order_by(Memory.created_at.asc())
-        ).scalars().first()
+        duplicate = (
+            db.execute(
+                select(Memory)
+                .where(
+                    Memory.agent_id == agent_id,
+                    Memory.status == "active",
+                    func.lower(func.trim(Memory.text)) == payload.text.strip().lower(),
+                )
+                .order_by(Memory.created_at.asc())
+            )
+            .scalars()
+            .first()
+        )
         if duplicate is not None:
             return _upgrade_existing_memory(
-                db, duplicate, payload,
+                db,
+                duplicate,
+                payload,
                 final_memory_type,
                 final_confidence,
                 final_summary,
@@ -275,17 +353,25 @@ def write_memory(payload: MemoryWriteRequest, header_agent_id: str = Depends(get
             try:
                 near_hits = find_near_duplicate(payload.text, limit=3, agent_id=agent_id)
             except Exception:
-                novelty = {"status": "degraded", "component": "vector_index", "reason": INDEX_UNREACHABLE}
+                novelty = {
+                    "status": "degraded",
+                    "component": "vector_index",
+                    "reason": INDEX_UNREACHABLE,
+                }
         best_score = near_hits[0]["score"] if near_hits else None
-        bucket = novelty_bucket(best_score, config.novelty_threshold) if config.signal_filter_enabled else (
-            "duplicate" if best_score is not None and best_score >= 0.92 else "new"
+        bucket = (
+            novelty_bucket(best_score, config.novelty_threshold)
+            if config.signal_filter_enabled
+            else ("duplicate" if best_score is not None and best_score >= 0.92 else "new")
         )
 
         if bucket == NOVELTY_DUPLICATE and near_hits:
             row = db.get(Memory, near_hits[0]["id"])
             if row and row.agent_id == agent_id:
                 result = _upgrade_existing_memory(
-                    db, row, payload,
+                    db,
+                    row,
+                    payload,
                     final_memory_type,
                     final_confidence,
                     final_summary,
@@ -329,19 +415,23 @@ def write_memory(payload: MemoryWriteRequest, header_agent_id: str = Depends(get
             },
         )
 
-        db.add(MemoryAudit(
-            action="write",
-            memory_id=memory.id,
-            payload_json=json.dumps({
-                "agent_id": agent_id,
-                "text": payload.text,
-                "source_type": payload.source_type,
-                "memory_type": memory.memory_type,
-                "evidence": payload.evidence,
-                "tags": payload.tags,
-                "low_novelty": low_novelty,
-            }),
-        ))
+        db.add(
+            MemoryAudit(
+                action="write",
+                memory_id=memory.id,
+                payload_json=json.dumps(
+                    {
+                        "agent_id": agent_id,
+                        "text": payload.text,
+                        "source_type": payload.source_type,
+                        "memory_type": memory.memory_type,
+                        "evidence": payload.evidence,
+                        "tags": payload.tags,
+                        "low_novelty": low_novelty,
+                    }
+                ),
+            )
+        )
         db.commit()
         db.refresh(memory)
         indexing = _reconcile_index_intent(upsert_memory_embedding, memory.id, memory.text)
@@ -364,6 +454,7 @@ def write_memory(payload: MemoryWriteRequest, header_agent_id: str = Depends(get
     finally:
         db.close()
 
+
 @router.post("/search")
 def search_memory(payload: MemorySearchRequest, header_agent_id: str = Depends(get_agent_id)):
     agent_id = resolve_agent_id(header_agent_id, payload.agent_id)
@@ -375,7 +466,11 @@ def search_memory(payload: MemorySearchRequest, header_agent_id: str = Depends(g
             try:
                 hits = search_memory_embeddings(payload.query, limit=20, agent_id=agent_id)
             except Exception:
-                retrieval = {"status": "degraded", "component": "vector_index", "reason": INDEX_UNREACHABLE}
+                retrieval = {
+                    "status": "degraded",
+                    "component": "vector_index",
+                    "reason": INDEX_UNREACHABLE,
+                }
         id_to_score = {h["id"]: h["score"] for h in hits}
         ids = list(id_to_score.keys())
 
@@ -384,9 +479,11 @@ def search_memory(payload: MemorySearchRequest, header_agent_id: str = Depends(g
         path = "semantic"
         if ids:
             id_to_rank = {memory_id: idx for idx, memory_id in enumerate(ids)}
-            fetched = db.execute(
-                select(Memory).where(Memory.id.in_(ids), Memory.agent_id == agent_id)
-            ).scalars().all()
+            fetched = (
+                db.execute(select(Memory).where(Memory.id.in_(ids), Memory.agent_id == agent_id))
+                .scalars()
+                .all()
+            )
 
             query_lower = payload.query.lower()
             rescored = []
@@ -396,10 +493,16 @@ def search_memory(payload: MemorySearchRequest, header_agent_id: str = Depends(g
 
                 text_lower = row.text.lower()
                 lexical = 0.0
-                if "humor" in query_lower and any(x in text_lower for x in ["humor", "sarcasm", "deadpan", "joke"]):
+                if "humor" in query_lower and any(
+                    x in text_lower for x in ["humor", "sarcasm", "deadpan", "joke"]
+                ):
                     lexical += 0.35
-                if any(x in query_lower for x in ["sidecar", "sidecars", "build", "architecture", "workflow"]) and any(
-                    x in text_lower for x in ["sidecar", "sidecars", "build", "architecture", "workflow", "before"]
+                if any(
+                    x in query_lower
+                    for x in ["sidecar", "sidecars", "build", "architecture", "workflow"]
+                ) and any(
+                    x in text_lower
+                    for x in ["sidecar", "sidecars", "build", "architecture", "workflow", "before"]
                 ):
                     lexical += 0.35
 
@@ -412,7 +515,12 @@ def search_memory(payload: MemorySearchRequest, header_agent_id: str = Depends(g
             path = "lexical"
             # Words, not the whole query as one substring: "release pipeline" must find
             # "the pipeline for the release". Same search as recall (active memories only).
-            rows = [row for row, _score in memory_candidates(db, prepare_query(payload.query), agent_id)[:20]]
+            rows = [
+                row
+                for row, _score in memory_candidates(db, prepare_query(payload.query), agent_id)[
+                    :20
+                ]
+            ]
 
         results = []
         for row in rows:
@@ -424,11 +532,17 @@ def search_memory(payload: MemorySearchRequest, header_agent_id: str = Depends(g
             # A memory still queued for the index has no vector yet, so only its words can
             # find it until the queue drains.
             pending = select(VectorOutbox.object_id).where(
-                VectorOutbox.agent_id == agent_id, VectorOutbox.object_kind == "memory",
-                VectorOutbox.status == "pending")
-            summary["pending_vector_index"] = db.scalar(select(func.count()).select_from(pending.subquery()))
+                VectorOutbox.agent_id == agent_id,
+                VectorOutbox.object_kind == "memory",
+                VectorOutbox.status == "pending",
+            )
+            summary["pending_vector_index"] = db.scalar(
+                select(func.count()).select_from(pending.subquery())
+            )
             known = {item["id"] for item in results}
-            for row, _score in memory_candidates(db, prepare_query(payload.query), agent_id, within=pending)[:20]:
+            for row, _score in memory_candidates(
+                db, prepare_query(payload.query), agent_id, within=pending
+            )[:20]:
                 if row.id not in known:
                     results.append({**_row_to_dict(row), "retrieval_path": "lexical"})
                     summary["mode"] = "hybrid" if path == "semantic" else path
@@ -436,19 +550,31 @@ def search_memory(payload: MemorySearchRequest, header_agent_id: str = Depends(g
     finally:
         db.close()
 
+
 @router.get("")
-def list_memory(agent_id: str = Depends(get_agent_id), limit: int = Query(default=100, ge=1, le=500),
-                offset: int = Query(default=0, ge=0)):
+def list_memory(
+    agent_id: str = Depends(get_agent_id),
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+):
     """Newest first; `offset` pages to older memories (the id breaks ties, so pages are stable)."""
     db = SessionLocal()
     try:
-        rows = db.execute(
-            select(Memory).where(Memory.agent_id == agent_id)
-            .order_by(Memory.created_at.desc(), Memory.id.desc()).limit(limit).offset(offset)
-        ).scalars().all()
+        rows = (
+            db.execute(
+                select(Memory)
+                .where(Memory.agent_id == agent_id)
+                .order_by(Memory.created_at.desc(), Memory.id.desc())
+                .limit(limit)
+                .offset(offset)
+            )
+            .scalars()
+            .all()
+        )
         return [_row_to_dict(row) for row in rows]
     finally:
         db.close()
+
 
 @router.get("/{memory_id}")
 def get_memory(memory_id: str, agent_id: str = Depends(get_agent_id)):
@@ -461,6 +587,7 @@ def get_memory(memory_id: str, agent_id: str = Depends(get_agent_id)):
     finally:
         db.close()
 
+
 def _check_revision(row, expected):
     # Optional for legacy callers; new editors must echo the fetched revision.
     if expected is not None and row.revision != expected:
@@ -468,7 +595,9 @@ def _check_revision(row, expected):
 
 
 @router.patch("/{memory_id}")
-def patch_memory(memory_id: str, payload: MemoryPatchRequest, agent_id: str = Depends(get_agent_id)):
+def patch_memory(
+    memory_id: str, payload: MemoryPatchRequest, agent_id: str = Depends(get_agent_id)
+):
     db = SessionLocal()
     try:
         row = db.get(Memory, memory_id)
@@ -500,7 +629,11 @@ def patch_memory(memory_id: str, payload: MemoryPatchRequest, agent_id: str = De
         if payload.tags is not None:
             row.tags_json = json.dumps(payload.tags)
 
-        db.add(MemoryAudit(action="edit", memory_id=row.id, payload_json=json.dumps({"text": row.text})))
+        db.add(
+            MemoryAudit(
+                action="edit", memory_id=row.id, payload_json=json.dumps({"text": row.text})
+            )
+        )
         detect_conflicts(db, row)
         enqueue_upsert(
             db,
@@ -526,13 +659,19 @@ def patch_memory(memory_id: str, payload: MemoryPatchRequest, agent_id: str = De
         return result
     except StaleDataError:
         db.rollback()
-        raise HTTPException(409, {"code": "revision_conflict", "message": "Memory changed; reload before editing."}) from None
+        raise HTTPException(
+            409, {"code": "revision_conflict", "message": "Memory changed; reload before editing."}
+        ) from None
     finally:
         db.close()
 
+
 @router.delete("/{memory_id}")
-def delete_memory(memory_id: str, agent_id: str = Depends(get_agent_id),
-                  expected_revision: int | None = Query(default=None, ge=1)):
+def delete_memory(
+    memory_id: str,
+    agent_id: str = Depends(get_agent_id),
+    expected_revision: int | None = Query(default=None, ge=1),
+):
     db = SessionLocal()
     try:
         row = db.get(Memory, memory_id)
@@ -541,6 +680,7 @@ def delete_memory(memory_id: str, agent_id: str = Depends(get_agent_id),
 
         _check_revision(row, expected_revision)
         from app.services.memory_forgetting import erase
+
         # A deleted memory's text must not survive in revisions, conflicts or audit.
         erase(db, agent_id, row, "delete", {"revision": row.revision})
         db.commit()
@@ -551,6 +691,8 @@ def delete_memory(memory_id: str, agent_id: str = Depends(get_agent_id),
         return result
     except StaleDataError:
         db.rollback()
-        raise HTTPException(409, {"code": "revision_conflict", "message": "Memory changed; reload before deleting."}) from None
+        raise HTTPException(
+            409, {"code": "revision_conflict", "message": "Memory changed; reload before deleting."}
+        ) from None
     finally:
         db.close()

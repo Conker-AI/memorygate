@@ -20,6 +20,7 @@ class ObservationCreateRequest(BaseModel):
     entity_ids: list[str] = Field(default_factory=list)
     related_observation_ids: list[str] = Field(default_factory=list)
 
+
 class ObservationSearchRequest(BaseModel):
     agent_id: str | None = None
     query: str = ""
@@ -27,6 +28,7 @@ class ObservationSearchRequest(BaseModel):
     status: str | None = None
     entity_id: str | None = None
     needs_clarification: bool | None = None
+
 
 class ObservationUpdateRequest(BaseModel):
     status: str | None = None
@@ -38,14 +40,18 @@ class ObservationUpdateRequest(BaseModel):
     needs_clarification: bool | None = None
     related_observation_ids: list[str] | None = None
 
+
 class ObservationConfirmRequest(BaseModel):
     confirmed_by: str = ""
+
 
 class ObservationContradictRequest(BaseModel):
     reason: str = ""
 
+
 class ObservationArchiveRequest(BaseModel):
     reason: str = "manual archive"
+
 
 class ObservationSessionContextRequest(BaseModel):
     agent_id: str | None = None

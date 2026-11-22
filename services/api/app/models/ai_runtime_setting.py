@@ -14,4 +14,6 @@ class AiRuntimeSetting(Base):
     provider: Mapped[str] = mapped_column(String, nullable=False, default="ollama")
     model: Mapped[str] = mapped_column(String, nullable=False, default="qwen3:4b")
     api_key_encrypted: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

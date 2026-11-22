@@ -18,21 +18,66 @@ WHEN = datetime(2026, 1, 2, tzinfo=UTC)
 
 
 def _seed(db):
-    db.add_all([
-        Entity(id="ent_maya", agent_id="owner", entity_type="human", name="Maya Rowan",
-               agent_notes="lives on Finch Street"),
-        Entity(id="ent_release", agent_id="owner", entity_type="project", name="Release"),
-        EntityHistory(id="his_1", entity_id="ent_maya", changed_field="agent_notes",
-                      old_value_json='"lives on Finch Street"', new_value_json='"moved"'),
-        EntityEvent(id="evt_1", entity_id="ent_maya", event_type="move", description="moved to Finch Street"),
-        EntityEdge(id="edg_1", from_entity_id="ent_maya", to_entity_id="ent_release", relationship_type="works_on"),
-        EntityEdge(id="edg_2", from_entity_id="ent_release", to_entity_id="ent_maya", relationship_type="owned_by"),
-        ObjectLink(id="lnk_1", source_type="observation", source_id="obs_1",
-                   target_type="entity", target_id="ent_maya", relationship="about"),
-        Observation(id="obs_1", agent_id="owner", session_id="s", observed_at=WHEN, signal_type="preference",
-                    description="prefers paper", entity_ids_json='["ent_maya", "ent_release"]'),
-        Pattern(id="pat_1", agent_id="owner", pattern_name="paper", applies_to_entity_ids_json='["ent_maya"]'),
-    ])
+    db.add_all(
+        [
+            Entity(
+                id="ent_maya",
+                agent_id="owner",
+                entity_type="human",
+                name="Maya Rowan",
+                agent_notes="lives on Finch Street",
+            ),
+            Entity(id="ent_release", agent_id="owner", entity_type="project", name="Release"),
+            EntityHistory(
+                id="his_1",
+                entity_id="ent_maya",
+                changed_field="agent_notes",
+                old_value_json='"lives on Finch Street"',
+                new_value_json='"moved"',
+            ),
+            EntityEvent(
+                id="evt_1",
+                entity_id="ent_maya",
+                event_type="move",
+                description="moved to Finch Street",
+            ),
+            EntityEdge(
+                id="edg_1",
+                from_entity_id="ent_maya",
+                to_entity_id="ent_release",
+                relationship_type="works_on",
+            ),
+            EntityEdge(
+                id="edg_2",
+                from_entity_id="ent_release",
+                to_entity_id="ent_maya",
+                relationship_type="owned_by",
+            ),
+            ObjectLink(
+                id="lnk_1",
+                source_type="observation",
+                source_id="obs_1",
+                target_type="entity",
+                target_id="ent_maya",
+                relationship="about",
+            ),
+            Observation(
+                id="obs_1",
+                agent_id="owner",
+                session_id="s",
+                observed_at=WHEN,
+                signal_type="preference",
+                description="prefers paper",
+                entity_ids_json='["ent_maya", "ent_release"]',
+            ),
+            Pattern(
+                id="pat_1",
+                agent_id="owner",
+                pattern_name="paper",
+                applies_to_entity_ids_json='["ent_maya"]',
+            ),
+        ]
+    )
     db.commit()
 
 

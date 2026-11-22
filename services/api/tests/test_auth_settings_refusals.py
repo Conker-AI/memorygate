@@ -102,7 +102,11 @@ def test_settings_report_the_environment_key_until_a_managed_key_is_set(stack):
 
     assert change_key(stack, ADMIN_KEY, STRONG_KEY).json() == {"status": "ok"}
     response = stack.http.get("/auth/settings", headers=headers(STRONG_KEY))
-    assert response.json() == {"auth_enabled": True, "key_source": "database", "has_managed_key": True}
+    assert response.json() == {
+        "auth_enabled": True,
+        "key_source": "database",
+        "has_managed_key": True,
+    }
 
 
 # --- admin key: change --------------------------------------------------------
@@ -378,7 +382,9 @@ def test_a_revoked_key_is_refused_and_other_keys_keep_working(stack):
 
     assert response.status_code == 200 and response.json() == {"status": "ok"}
     stack.clear_lockouts()
-    refused = stack.runtime("context", {"query": "anything"}, key=created["key"], agent="researcher")
+    refused = stack.runtime(
+        "context", {"query": "anything"}, key=created["key"], agent="researcher"
+    )
     assert refused.status_code == 401
     assert refused.json()["detail"] == "missing or invalid read key"
     assert context_status(stack, stack.companion_key, "companion") == 200
@@ -401,7 +407,9 @@ def test_revoking_an_unknown_id_is_not_found_and_revokes_nothing(stack):
 
 def test_a_read_key_cannot_revoke_a_key(stack):
     companion = next(
-        row for row in stack.get("/auth/agent-keys").json()["results"] if row["label"] == "companion"
+        row
+        for row in stack.get("/auth/agent-keys").json()["results"]
+        if row["label"] == "companion"
     )
     stack.clear_lockouts()
 

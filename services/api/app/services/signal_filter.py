@@ -13,19 +13,82 @@ import re
 import unicodedata
 
 ACKNOWLEDGMENTS = {
-    "ok", "okay", "yes", "no", "thanks", "thank you", "sure", "got it",
-    "cool", "fine", "alright", "k", "yep", "nope", "kk",
-    "да", "нет", "ок", "окей", "ага", "угу", "спасибо", "понятно", "хорошо",
+    "ok",
+    "okay",
+    "yes",
+    "no",
+    "thanks",
+    "thank you",
+    "sure",
+    "got it",
+    "cool",
+    "fine",
+    "alright",
+    "k",
+    "yep",
+    "nope",
+    "kk",
+    "да",
+    "нет",
+    "ок",
+    "окей",
+    "ага",
+    "угу",
+    "спасибо",
+    "понятно",
+    "хорошо",
 }
 
-PREFERENCE_WORDS = ["prefer", "always", "never", "i like", "i hate", "i want", "i decided", "i chose", "favorite", "i love"]
+PREFERENCE_WORDS = [
+    "prefer",
+    "always",
+    "never",
+    "i like",
+    "i hate",
+    "i want",
+    "i decided",
+    "i chose",
+    "favorite",
+    "i love",
+]
 PREFERENCE_WORDS += ["prefers", "preferred", "preferring", "preference", "preferences", "favourite"]
 BEHAVIORAL_WORDS = [
-    "every time", "whenever", "tends to", "usually", "habit", "pattern of",
-    "keep doing", "can't stop", "cant stop", "again", "relapse", "spiraling",
+    "every time",
+    "whenever",
+    "tends to",
+    "usually",
+    "habit",
+    "pattern of",
+    "keep doing",
+    "can't stop",
+    "cant stop",
+    "again",
+    "relapse",
+    "spiraling",
 ]
-RELATIONSHIP_WORDS = ["my friend", "my partner", "my boss", "my mom", "my dad", "my sister", "my brother", "works at", "lives in", "my wife", "my husband"]
-GOAL_WORDS = ["goal", "need to", "deadline", "must", "have to", "constraint", "plan to", "trying to"]
+RELATIONSHIP_WORDS = [
+    "my friend",
+    "my partner",
+    "my boss",
+    "my mom",
+    "my dad",
+    "my sister",
+    "my brother",
+    "works at",
+    "lives in",
+    "my wife",
+    "my husband",
+]
+GOAL_WORDS = [
+    "goal",
+    "need to",
+    "deadline",
+    "must",
+    "have to",
+    "constraint",
+    "plan to",
+    "trying to",
+]
 
 NEGATION_WORDS = ["not", "no longer", "stopped", "don't", "never"]
 
@@ -54,10 +117,17 @@ def score_value(text: str, existing_similar_text: str | None = None) -> float:
     if lower.rstrip(".!? ") in ACKNOWLEDGMENTS:
         return 0.0
     groups = (PREFERENCE_WORDS, BEHAVIORAL_WORDS, RELATIONSHIP_WORDS, GOAL_WORDS)
-    score = sum(HIGH_VALUE_WEIGHT for phrases, russian in zip(groups, RUSSIAN_SIGNALS, strict=True)
-                if _contains(lower, phrases) or re.search(russian, lower))
+    score = sum(
+        HIGH_VALUE_WEIGHT
+        for phrases, russian in zip(groups, RUSSIAN_SIGNALS, strict=True)
+        if _contains(lower, phrases) or re.search(russian, lower)
+    )
     negations = [*NEGATION_WORDS, "не", "больше не", "перестал", "перестала"]
-    if existing_similar_text and _contains(lower, negations) and not _contains(_normalized(existing_similar_text), negations):
+    if (
+        existing_similar_text
+        and _contains(lower, negations)
+        and not _contains(_normalized(existing_similar_text), negations)
+    ):
         score += HIGH_VALUE_WEIGHT
     return min(score, 1.0)
 

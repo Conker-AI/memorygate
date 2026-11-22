@@ -26,9 +26,15 @@ def db(monkeypatch):
         connection.create_function("lower", 1, lambda value: value.lower() if value else value)
 
     Base.metadata.create_all(engine)
-    monkeypatch.setattr(runtime, "semantic_status", lambda: {
-        "status": "degraded", "component": "embeddings", "reason": "synthetic unavailable",
-    })
+    monkeypatch.setattr(
+        runtime,
+        "semantic_status",
+        lambda: {
+            "status": "degraded",
+            "component": "embeddings",
+            "reason": "synthetic unavailable",
+        },
+    )
     monkeypatch.setattr(runtime, "build_briefing", lambda *_args: {})
     with Session(engine) as session:
         yield session
@@ -47,20 +53,37 @@ def add(db, identity, text, **kwargs):
 
 def test_old_relevant_memory_is_found_after_more_than_200_newer_rows(db):
     now = datetime.now(UTC)
-    add(db, "older-relevant", "I prefer quasar scheduling for engineering.",
-        summary="Owner's scheduling preference", updated_at=now - timedelta(days=100))
+    add(
+        db,
+        "older-relevant",
+        "I prefer quasar scheduling for engineering.",
+        summary="Owner's scheduling preference",
+        updated_at=now - timedelta(days=100),
+    )
     for index in range(201):
         add(db, f"new-{index:03}", "Unrelated recent note about lunch.", updated_at=now)
-    db.add(ConversationReceipt(id="source", agent_id="owner", message_id="msg-original",
-                               session_id="chat-original", memory_id="older-relevant", state="admitted"))
+    db.add(
+        ConversationReceipt(
+            id="source",
+            agent_id="owner",
+            message_id="msg-original",
+            session_id="chat-original",
+            memory_id="older-relevant",
+            state="admitted",
+        )
+    )
     db.commit()
 
     result = context(db, "Which project uses quasar scheduling?")
 
     assert [item["id"] for item in result["memories"]] == ["older-relevant"]
-    assert result["memories"][0]["citations"] == [{
-        "message_id": "msg-original", "session_id": "chat-original", "content_status": "available",
-    }]
+    assert result["memories"][0]["citations"] == [
+        {
+            "message_id": "msg-original",
+            "session_id": "chat-original",
+            "content_status": "available",
+        }
+    ]
     assert result["memories"][0]["retrieval_path"] == "lexical"
     assert result["retrieval"]["mode"] == "lexical"
     assert "Semantic retrieval is unavailable" in result["usage"]["instruction"]
@@ -79,7 +102,9 @@ def test_sql_ranks_before_candidate_limit_and_only_loads_bounded_rows(db):
     def record(_connection, _cursor, statement, parameters, _context, _many):
         statements.append((statement, parameters))
 
-    rows = lexical.memory_candidates(db, lexical.prepare_query("project quasar scheduling"), "owner")
+    rows = lexical.memory_candidates(
+        db, lexical.prepare_query("project quasar scheduling"), "owner"
+    )
 
     assert len(rows) == lexical.MAX_CANDIDATES
     assert rows[0][0].id == "old-best"
@@ -95,12 +120,24 @@ def test_namespace_active_state_and_deletion_tombstones_remain_strict(db):
     add(db, "deleted", "Quasar scheduling", status="deleted")
     add(db, "review", "Quasar scheduling", status="needs_review")
     add(db, "tombstoned", "Quasar scheduling")
-    db.add_all([
-        ConversationReceipt(id="deleted-source", agent_id="owner", message_id="gone",
-                            memory_id="tombstoned", state="deleted"),
-        ConversationReceipt(id="foreign-source", agent_id="other", message_id="foreign-gone",
-                            memory_id="visible", state="deleted"),
-    ])
+    db.add_all(
+        [
+            ConversationReceipt(
+                id="deleted-source",
+                agent_id="owner",
+                message_id="gone",
+                memory_id="tombstoned",
+                state="deleted",
+            ),
+            ConversationReceipt(
+                id="foreign-source",
+                agent_id="other",
+                message_id="foreign-gone",
+                memory_id="visible",
+                state="deleted",
+            ),
+        ]
+    )
     db.commit()
     result = context(db, "What is quasar scheduling?", include_evidence=True)
     assert [item["id"] for item in result["memories"]] == ["visible"]
@@ -123,15 +160,25 @@ def test_relevance_then_stable_id_order_is_independent_of_recency(db):
 
 
 def test_type_and_confidence_weights_match_existing_scoring(db):
-    variants = [("fact", "high"), ("watch", "low"), ("skill", "medium"),
-                ("context", "high"), ("phase", "low"), ("unknown", "unknown")]
+    variants = [
+        ("fact", "high"),
+        ("watch", "low"),
+        ("skill", "medium"),
+        ("context", "high"),
+        ("phase", "low"),
+        ("unknown", "unknown"),
+    ]
     for index, (kind, confidence) in enumerate(variants):
         add(db, str(index), "quasar", memory_type=kind, confidence=confidence)
     db.commit()
     result = context(db, "quasar")["memories"]
     for item in result:
-        assert item["score"] == pytest.approx(0.6 + memory_rank_bonus(item["type"], item["confidence"]))
-    assert [item["score"] for item in result] == sorted([item["score"] for item in result], reverse=True)
+        assert item["score"] == pytest.approx(
+            0.6 + memory_rank_bonus(item["type"], item["confidence"])
+        )
+    assert [item["score"] for item in result] == sorted(
+        [item["score"] for item in result], reverse=True
+    )
 
 
 @pytest.mark.parametrize("query", ["%", "_", "/", "%\u0027 OR \u00271\u0027=\u00271"])
@@ -173,7 +220,9 @@ def test_query_work_and_receipt_are_bounded_without_duplicate_term_weight(db):
 def test_multilingual_words_and_case_are_preserved(db):
     add(db, "russian", "Предпочитаю Квазар для планирования.")
     db.commit()
-    assert [item["id"] for item in context(db, "Какой проект использует квазар?")["memories"]] == ["russian"]
+    assert [item["id"] for item in context(db, "Какой проект использует квазар?")["memories"]] == [
+        "russian"
+    ]
 
 
 def test_hybrid_search_also_finds_old_unindexed_literal_match(db, monkeypatch):
@@ -183,15 +232,27 @@ def test_hybrid_search_also_finds_old_unindexed_literal_match(db, monkeypatch):
         add(db, f"new-{index:03}", "Unrelated newer note")
     db.commit()
     monkeypatch.setattr(runtime, "semantic_status", lambda: {"status": "ok"})
-    monkeypatch.setattr(runtime, "search_memory_embeddings", lambda *_args, **_kwargs: [
-        {"id": "semantic", "score": 0.8}, {"id": "old-literal", "score": 0.2},
-    ])
+    monkeypatch.setattr(
+        runtime,
+        "search_memory_embeddings",
+        lambda *_args, **_kwargs: [
+            {"id": "semantic", "score": 0.8},
+            {"id": "old-literal", "score": 0.2},
+        ],
+    )
     result = context(db, "Which project uses quasar scheduling?")
     assert {item["id"] for item in result["memories"]} == {"semantic", "old-literal"}
     assert len(result["memories"]) == 2 and result["retrieval"]["mode"] == "hybrid"
     # A second search with a sparse index must still find the old lexical row.
-    monkeypatch.setattr(runtime, "search_memory_embeddings", lambda *_args, **_kwargs: [
-        {"id": "semantic", "score": 0.8},
-    ])
+    monkeypatch.setattr(
+        runtime,
+        "search_memory_embeddings",
+        lambda *_args, **_kwargs: [
+            {"id": "semantic", "score": 0.8},
+        ],
+    )
     result = context(db, "Which project uses quasar scheduling?")
-    assert next(item for item in result["memories"] if item["id"] == "old-literal")["retrieval_path"] == "lexical"
+    assert (
+        next(item for item in result["memories"] if item["id"] == "old-literal")["retrieval_path"]
+        == "lexical"
+    )

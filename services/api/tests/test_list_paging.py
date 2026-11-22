@@ -12,8 +12,17 @@ START = datetime(2026, 1, 1)
 
 def test_older_memories_are_reachable_through_offset(stack):
     with stack.sessions() as db:
-        db.add_all([Memory(id=f"m{n:03d}", agent_id=OWNER, text=f"fact {n}",
-                           created_at=START + timedelta(minutes=n)) for n in range(130)])
+        db.add_all(
+            [
+                Memory(
+                    id=f"m{n:03d}",
+                    agent_id=OWNER,
+                    text=f"fact {n}",
+                    created_at=START + timedelta(minutes=n),
+                )
+                for n in range(130)
+            ]
+        )
         db.commit()
 
     first = [row["id"] for row in stack.get("/memory").json()]
@@ -26,10 +35,21 @@ def test_older_memories_are_reachable_through_offset(stack):
 
 def test_older_entities_are_reachable_through_offset(stack):
     with stack.sessions() as db:
-        db.add_all([Entity(id=f"e{n:03d}", agent_id=OWNER, entity_type="person", name=f"Person {n}",
-                           updated_at=START + timedelta(minutes=n)) for n in range(105)])
+        db.add_all(
+            [
+                Entity(
+                    id=f"e{n:03d}",
+                    agent_id=OWNER,
+                    entity_type="person",
+                    name=f"Person {n}",
+                    updated_at=START + timedelta(minutes=n),
+                )
+                for n in range(105)
+            ]
+        )
         db.commit()
 
     seen = [row["id"] for row in stack.get("/entity").json()] + [
-        row["id"] for row in stack.get("/entity?offset=100").json()]
+        row["id"] for row in stack.get("/entity?offset=100").json()
+    ]
     assert seen == [f"e{n:03d}" for n in range(104, -1, -1)]

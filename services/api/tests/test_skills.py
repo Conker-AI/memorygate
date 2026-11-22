@@ -13,7 +13,9 @@ from sqlalchemy.orm import sessionmaker
 
 
 def make_client(tmp_path, monkeypatch):
-    engine = create_engine(f"sqlite:///{tmp_path / 'skills.db'}", connect_args={"check_same_thread": False})
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'skills.db'}", connect_args={"check_same_thread": False}
+    )
     Session = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     Base.metadata.create_all(bind=engine)
     monkeypatch.setattr(skills, "SessionLocal", Session)
@@ -96,7 +98,9 @@ def test_a_skill_too_big_to_deliver_whole_is_refused_not_cut(tmp_path, monkeypat
     assert refused.status_code == 422
     assert client.get("/skills", headers=headers).json()["results"] == []
 
-    small = client.post("/skills", headers=headers, json={"title": "Small", "body": "short"}).json()["skill"]
+    small = client.post(
+        "/skills", headers=headers, json={"title": "Small", "body": "short"}
+    ).json()["skill"]
     grown = client.patch(f"/skills/{small['id']}", headers=headers, json={"body": big})
     assert grown.status_code == 422
     assert client.get(f"/skills/{small['id']}", headers=headers).json()["body"] == "short"
@@ -106,15 +110,21 @@ def test_one_skill_that_does_not_fit_does_not_drop_the_smaller_ones_after_it(tmp
     client, read_key = make_client(tmp_path, monkeypatch)
     headers = {"X-Agent-Id": "hermes"}
     half = "y" * (skills.MAX_SKILL_BYTES // 2)
-    made = [client.post("/skills", headers=headers, json={"title": title, "body": body, "linked_tools": ["pay"]})
-            .json()["skill"]["id"] for title, body in (("Small", "check the amount"), ("Half", half), ("Other half", half))]
+    made = [
+        client.post(
+            "/skills", headers=headers, json={"title": title, "body": body, "linked_tools": ["pay"]}
+        ).json()["skill"]["id"]
+        for title, body in (("Small", "check the amount"), ("Half", half), ("Other half", half))
+    ]
     # Newest first: Other half, then Half, then Small.
     with skills.SessionLocal() as db:
         for age, skill_id in enumerate(reversed(made)):
             db.get(Memory, skill_id).updated_at = datetime(2026, 1, 10 - age, tzinfo=UTC)
         db.commit()
 
-    context = client.get("/context/skills?tool=pay", headers={**headers, "X-MemoryGate-Key": read_key}).json()
+    context = client.get(
+        "/context/skills?tool=pay", headers={**headers, "X-MemoryGate-Key": read_key}
+    ).json()
 
     # One half fits, the other half then does not, and the small one is still delivered.
     titles = [item["title"] for item in context["results"]]

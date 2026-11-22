@@ -20,8 +20,15 @@ from app.services.vector_outbox import KINDS as VECTOR_KINDS
 from app.services.vector_outbox import enqueue_delete
 from sqlalchemy import select
 
-MODELS = {"memory": Memory, "entity": Entity, "observation": Observation, "pattern": Pattern,
-          "episode": EpisodeObject, "link": ObjectLink, "transcript": SessionTranscript}
+MODELS = {
+    "memory": Memory,
+    "entity": Entity,
+    "observation": Observation,
+    "pattern": Pattern,
+    "episode": EpisodeObject,
+    "link": ObjectLink,
+    "transcript": SessionTranscript,
+}
 
 
 def reconcile_indexes(target_sessions, client, collections):
@@ -30,9 +37,11 @@ def reconcile_indexes(target_sessions, client, collections):
     Services must remain stopped. No environment-configured live client is used.
     Receipt records verification, never releases the broader recovery hold.
     """
-    if (set(collections) != {"memory", "entity", "observation"}
-            or any(not isinstance(name, str) or not name for name in collections.values())
-            or len(set(collections.values())) != 3):
+    if (
+        set(collections) != {"memory", "entity", "observation"}
+        or any(not isinstance(name, str) or not name for name in collections.values())
+        or len(set(collections.values())) != 3
+    ):
         raise ValueError("Supply three distinct recovery collection names.")
     with target_sessions() as db:
         if db.get(RecoveryHold, "deletion-replay") is None:
@@ -47,7 +56,9 @@ def reconcile_indexes(target_sessions, client, collections):
                 if db.get(MODELS[row.object_kind], row.object_id) is not None:
                     raise ValueError("Replay database deletions before reconciling the index.")
                 indexes.add((row.object_kind, row.object_id))
-        for row in db.scalars(select(ConversationReceipt).where(ConversationReceipt.state == "deleted")):
+        for row in db.scalars(
+            select(ConversationReceipt).where(ConversationReceipt.state == "deleted")
+        ):
             if row.memory_id:
                 if db.get(Memory, row.memory_id) is not None:
                     raise ValueError("Deleted source still has a restored memory.")
@@ -61,10 +72,11 @@ def reconcile_indexes(target_sessions, client, collections):
             if collection not in present:
                 continue
             for offset in range(0, len(identities), 100):
-                batch = identities[offset:offset + 100]
+                batch = identities[offset : offset + 100]
                 client.delete(collection_name=collection, points_selector=batch, wait=True)
-                if client.retrieve(collection_name=collection, ids=batch,
-                                   with_payload=False, with_vectors=False):
+                if client.retrieve(
+                    collection_name=collection, ids=batch, with_payload=False, with_vectors=False
+                ):
                     raise ValueError("Deleted vector points remain present.")
     except Exception:
         raise ValueError("Recovery index verification failed; retain the hold and retry.") from None
@@ -75,8 +87,13 @@ def reconcile_indexes(target_sessions, client, collections):
             db.add(row)
         row.evidence_digest, row.verified_at = digest, datetime.now(UTC)
         db.commit()
-    return {"indexCleanupVerified": True, "evidenceDigest": digest,
-            "pointCount": len(indexes), "recoveryHeld": True, "promotesRecovery": False}
+    return {
+        "indexCleanupVerified": True,
+        "evidenceDigest": digest,
+        "pointCount": len(indexes),
+        "recoveryHeld": True,
+        "promotesRecovery": False,
+    }
 
 
 def assert_not_held(db):
@@ -86,10 +103,16 @@ def assert_not_held(db):
 
 def evidence(source):
     """Only identities; an empty result is not proof of historical completeness."""
-    rows = {(r.agent_id, r.object_kind, r.object_id) for r in source.scalars(select(DeletionReceipt))}
+    rows = {
+        (r.agent_id, r.object_kind, r.object_id) for r in source.scalars(select(DeletionReceipt))
+    }
     # Older versions already retained these tombstones before the generic ledger.
-    rows.update((r.agent_id, "conversation", r.message_id) for r in source.scalars(
-        select(ConversationReceipt).where(ConversationReceipt.state == "deleted")))
+    rows.update(
+        (r.agent_id, "conversation", r.message_id)
+        for r in source.scalars(
+            select(ConversationReceipt).where(ConversationReceipt.state == "deleted")
+        )
+    )
     return sorted(rows)
 
 
@@ -99,11 +122,19 @@ def replay(receipts, target_sessions):
     Each transaction is restartable. All index identities remain in receipts so
     retries retain cleanup evidence even when the database rows are already gone.
     """
-    if (not isinstance(receipts, list) or len(receipts) > 1_000_000 or any(
-        not isinstance(item, (list, tuple)) or len(item) != 3
-        or any(not isinstance(part, str) or len(part) > 256 for part in item)
-        or item[1] not in (*MODELS, "conversation", listener_forgetting.KIND) or not item[2]
-        or (item[1] != "link" and not item[0]) for item in receipts)):
+    if (
+        not isinstance(receipts, list)
+        or len(receipts) > 1_000_000
+        or any(
+            not isinstance(item, (list, tuple))
+            or len(item) != 3
+            or any(not isinstance(part, str) or len(part) > 256 for part in item)
+            or item[1] not in (*MODELS, "conversation", listener_forgetting.KIND)
+            or not item[2]
+            or (item[1] != "link" and not item[0])
+            for item in receipts
+        )
+    ):
         raise ValueError("Invalid deletion evidence.")
     with target_sessions() as db:
         if db.get(RecoveryHold, "deletion-replay") is None:
@@ -117,7 +148,9 @@ def replay(receipts, target_sessions):
                 indexes.add(("memory", result["memory_id"]))
             continue
         if kind == listener_forgetting.KIND:
-            result = listener_forgetting.erase_evidence(agent_id, identity, sessions=target_sessions)
+            result = listener_forgetting.erase_evidence(
+                agent_id, identity, sessions=target_sessions
+            )
             if result is not None:  # with `sessions` it always answers; None is the live 404 path
                 indexes.update(("memory", memory_id) for memory_id in result["memory_ids"])
             continue
@@ -141,9 +174,20 @@ def replay(receipts, target_sessions):
                 row = None
             if row is not None:
                 if kind == "episode":
-                    links = list(db.scalars(select(ObjectLink).where(
-                        ((ObjectLink.source_type == "episode") & (ObjectLink.source_id == identity)) |
-                        ((ObjectLink.target_type == "episode") & (ObjectLink.target_id == identity)))))
+                    links = list(
+                        db.scalars(
+                            select(ObjectLink).where(
+                                (
+                                    (ObjectLink.source_type == "episode")
+                                    & (ObjectLink.source_id == identity)
+                                )
+                                | (
+                                    (ObjectLink.target_type == "episode")
+                                    & (ObjectLink.target_id == identity)
+                                )
+                            )
+                        )
+                    )
                     for link in links:
                         record(db, "", "link", link.id)
                         db.delete(link)
@@ -151,6 +195,10 @@ def replay(receipts, target_sessions):
             db.commit()
         if kind in ("memory", "entity", "observation"):
             indexes.add((kind, identity))
-    return {"recoveryHeld": True, "coverage": "supplied-source-only",
-            "indexDeletes": [{"kind": kind, "id": identity} for kind, identity in sorted(indexes)],
-            "indexCleanupVerified": False, "promotesRecovery": False}
+    return {
+        "recoveryHeld": True,
+        "coverage": "supplied-source-only",
+        "indexDeletes": [{"kind": kind, "id": identity} for kind, identity in sorted(indexes)],
+        "indexCleanupVerified": False,
+        "promotesRecovery": False,
+    }

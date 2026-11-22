@@ -11,6 +11,7 @@ class SessionTranscript(Base):
 
     Transcripts live only in Pi (ADR-0002), so nothing writes new rows here;
     routes/transcript.py lists, reads and deletes the rows already stored."""
+
     __tablename__ = "session_transcripts"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))

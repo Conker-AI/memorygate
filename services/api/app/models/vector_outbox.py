@@ -7,9 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 class VectorOutbox(Base):
     __tablename__ = "vector_outbox"
-    __table_args__ = (
-        UniqueConstraint("object_kind", "object_id", name="uq_vector_outbox_object"),
-    )
+    __table_args__ = (UniqueConstraint("object_kind", "object_id", name="uq_vector_outbox_object"),)
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
     agent_id: Mapped[str] = mapped_column(String, default="default", index=True)

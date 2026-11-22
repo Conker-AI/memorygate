@@ -95,7 +95,9 @@ def test_startup_refuses_a_too_short_environment_key(session, monkeypatch):
 
 
 def test_startup_accepts_either_key_source(session, monkeypatch):
-    monkeypatch.setattr(auth_settings_service, "MEMORYGATE_ADMIN_KEY", "x" * MIN_ENV_ADMIN_KEY_LENGTH)
+    monkeypatch.setattr(
+        auth_settings_service, "MEMORYGATE_ADMIN_KEY", "x" * MIN_ENV_ADMIN_KEY_LENGTH
+    )
     with session() as db:
         assert assert_admin_key_configured(db) == "environment"
     monkeypatch.setattr(auth_settings_service, "MEMORYGATE_ADMIN_KEY", "")
@@ -170,16 +172,26 @@ def test_memory_reset_needs_the_typed_phrase_as_well_as_the_admin_key(
     monkeypatch.setattr(auth_settings_service, "MEMORYGATE_ADMIN_KEY", "")
     with session() as db:
         set_admin_key(db, ADMIN_KEY)
-        db.add(Memory(agent_id="default", text="Owner prefers local-first tools.", summary="local first", tags_json="[]"))
+        db.add(
+            Memory(
+                agent_id="default",
+                text="Owner prefers local-first tools.",
+                summary="local first",
+                tags_json="[]",
+            )
+        )
         db.commit()
     client = _system_client(monkeypatch, tmp_path)
     headers = {"X-MemoryGate-Key": ADMIN_KEY}
 
     without_key = client.post(
-        "/system/memory-reset", json={"current_key": ADMIN_KEY, "confirmation": system_routes.MEMORY_RESET_PHRASE}
+        "/system/memory-reset",
+        json={"current_key": ADMIN_KEY, "confirmation": system_routes.MEMORY_RESET_PHRASE},
     )
     wrong_phrase = client.post(
-        "/system/memory-reset", headers=headers, json={"current_key": ADMIN_KEY, "confirmation": "reset memory"}
+        "/system/memory-reset",
+        headers=headers,
+        json={"current_key": ADMIN_KEY, "confirmation": "reset memory"},
     )
     accepted = client.post(
         "/system/memory-reset",

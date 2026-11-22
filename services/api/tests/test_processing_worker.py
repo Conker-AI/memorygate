@@ -71,9 +71,15 @@ def test_expired_claim_is_recovered_after_restart(tmp_path):
         sessions = sessionmaker(engine, expire_on_commit=False, autoflush=False)
 
         with sessions() as db:
-            assert claim_next_job(
-                db, "worker-after-restart", now=started_at + timedelta(seconds=59), lease_seconds=60
-            ) is None
+            assert (
+                claim_next_job(
+                    db,
+                    "worker-after-restart",
+                    now=started_at + timedelta(seconds=59),
+                    lease_seconds=60,
+                )
+                is None
+            )
 
         with sessions() as db:
             recovered = claim_next_job(
@@ -94,8 +100,11 @@ def test_pipeline_releases_lease_on_completion(tmp_path, monkeypatch):
         monkeypatch.setattr(runtime_pipeline, "analyze_evidence", lambda *_args: None)
         with sessions() as db:
             evidence = EvidenceObject(
-                agent_id="owner", source_id="source-1", source_key="listener",
-                source_type="listener", summary="A bounded event",
+                agent_id="owner",
+                source_id="source-1",
+                source_key="listener",
+                source_type="listener",
+                summary="A bounded event",
                 normalized_payload_json='{"content":"A bounded event"}',
             )
             db.add(evidence)
@@ -121,10 +130,17 @@ def test_legacy_processing_job_without_lease_is_recovered(tmp_path):
     engine, sessions = _database(tmp_path)
     try:
         with sessions() as db:
-            db.add(ProcessingJob(
-                agent_id="owner", evidence_id="evidence-1", status="processing", attempts=1,
-                stage="analysis", lease_owner=None, lease_expires_at=None,
-            ))
+            db.add(
+                ProcessingJob(
+                    agent_id="owner",
+                    evidence_id="evidence-1",
+                    status="processing",
+                    attempts=1,
+                    stage="analysis",
+                    lease_owner=None,
+                    lease_expires_at=None,
+                )
+            )
             db.commit()
 
         with sessions() as db:
@@ -144,8 +160,11 @@ def test_heartbeat_protects_long_running_pipeline_past_original_deadline(tmp_pat
     try:
         with sessions() as db:
             evidence = EvidenceObject(
-                agent_id="owner", source_id="source-1", source_key="listener",
-                source_type="listener", summary="A bounded event",
+                agent_id="owner",
+                source_id="source-1",
+                source_key="listener",
+                source_type="listener",
+                summary="A bounded event",
                 normalized_payload_json='{"content":"A bounded event"}',
             )
             db.add(evidence)
@@ -173,6 +192,7 @@ def test_heartbeat_protects_long_running_pipeline_past_original_deadline(tmp_pat
             interval_seconds=0.01,
         ).start()
         with ThreadPoolExecutor(max_workers=1) as pool:
+
             def process_claim():
                 with sessions() as db:
                     evidence = db.get(EvidenceObject, evidence_id)
@@ -216,8 +236,11 @@ def test_stale_owner_cannot_commit_completion(tmp_path, monkeypatch):
         started_at = datetime.now(UTC)
         with sessions() as db:
             evidence = EvidenceObject(
-                agent_id="owner", source_id="source-1", source_key="listener",
-                source_type="listener", summary="A bounded event",
+                agent_id="owner",
+                source_id="source-1",
+                source_key="listener",
+                source_type="listener",
+                summary="A bounded event",
                 normalized_payload_json='{"content":"A bounded event"}',
             )
             db.add(evidence)
@@ -269,8 +292,11 @@ def test_stale_owner_cannot_commit_failure(tmp_path, monkeypatch):
         started_at = datetime.now(UTC)
         with sessions() as db:
             evidence = EvidenceObject(
-                agent_id="owner", source_id="source-1", source_key="listener",
-                source_type="listener", summary="A bounded event",
+                agent_id="owner",
+                source_id="source-1",
+                source_key="listener",
+                source_type="listener",
+                summary="A bounded event",
                 normalized_payload_json='{"content":"A bounded event"}',
             )
             db.add(evidence)
@@ -322,8 +348,11 @@ def test_retry_refuses_a_job_with_a_live_lease(tmp_path):
         started_at = datetime.now(UTC)
         with sessions() as db:
             evidence = EvidenceObject(
-                agent_id="owner", source_id="source-1", source_key="listener",
-                source_type="listener", summary="A bounded event",
+                agent_id="owner",
+                source_id="source-1",
+                source_key="listener",
+                source_type="listener",
+                summary="A bounded event",
                 normalized_payload_json='{"content":"A bounded event"}',
             )
             db.add(evidence)
@@ -355,15 +384,21 @@ def test_retry_requeues_a_failed_job_and_an_expired_lease(tmp_path):
         # Test (a): failed job with error
         with sessions() as db:
             evidence = EvidenceObject(
-                agent_id="owner", source_id="source-1", source_key="listener",
-                source_type="listener", summary="A bounded event",
+                agent_id="owner",
+                source_id="source-1",
+                source_key="listener",
+                source_type="listener",
+                summary="A bounded event",
                 normalized_payload_json='{"content":"A bounded event"}',
             )
             db.add(evidence)
             db.flush()
             failed_job = ProcessingJob(
-                agent_id="owner", evidence_id=evidence.id, status="failed",
-                stage="analysis", error="some error"
+                agent_id="owner",
+                evidence_id=evidence.id,
+                status="failed",
+                stage="analysis",
+                error="some error",
             )
             db.add(failed_job)
             db.commit()
@@ -382,8 +417,11 @@ def test_retry_requeues_a_failed_job_and_an_expired_lease(tmp_path):
         started_at = datetime.now(UTC)
         with sessions() as db:
             evidence = EvidenceObject(
-                agent_id="owner", source_id="source-2", source_key="listener",
-                source_type="listener", summary="Another event",
+                agent_id="owner",
+                source_id="source-2",
+                source_key="listener",
+                source_type="listener",
+                summary="Another event",
                 normalized_payload_json='{"content":"Another event"}',
             )
             db.add(evidence)
@@ -423,8 +461,11 @@ def test_an_unreadable_payload_fails_the_job_once(tmp_path, payload):
         started_at = datetime.now(UTC)
         with sessions() as db:
             evidence = EvidenceObject(
-                agent_id="owner", source_id="source-1", source_key="listener",
-                source_type="listener", summary="A bounded event",
+                agent_id="owner",
+                source_id="source-1",
+                source_key="listener",
+                source_type="listener",
+                summary="A bounded event",
                 normalized_payload_json=payload,
             )
             db.add(evidence)
@@ -445,8 +486,11 @@ def test_an_unreadable_payload_fails_the_job_once(tmp_path, payload):
             assert job.error == "evidence payload is not readable"
             assert job.lease_owner is None
             assert evidence.processing_state == "quarantined"
-            assert claim_next_job(
-                db, "worker-b", now=started_at + timedelta(seconds=61), lease_seconds=60
-            ) is None
+            assert (
+                claim_next_job(
+                    db, "worker-b", now=started_at + timedelta(seconds=61), lease_seconds=60
+                )
+                is None
+            )
     finally:
         engine.dispose()

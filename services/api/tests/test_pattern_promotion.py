@@ -365,7 +365,10 @@ def test_long_hypotheses_are_named_by_their_first_60_characters_and_a_hash(tmp_p
             patterns = promote_from_observations(db, "owner")
             assert len(patterns) == 1
             name = patterns[0].pattern_name
-            assert name.startswith("behavioral: " + "z" * 60 + "... #") and len(name) == 12 + 60 + 5 + 8
+            assert (
+                name.startswith("behavioral: " + "z" * 60 + "... #")
+                and len(name) == 12 + 60 + 5 + 8
+            )
     finally:
         engine.dispose()
 
@@ -418,8 +421,17 @@ PREFIX = "the owner gets quiet and short with people during the late part of "  
 
 def _cluster(db, tail, start, count=3):
     for i in range(start, start + count):
-        db.add(Observation(id=f"obs{i}", agent_id="owner", signal_type="tonal", description="d",
-                           hypothesis=PREFIX + tail, status="confirmed", entity_ids_json="[]"))
+        db.add(
+            Observation(
+                id=f"obs{i}",
+                agent_id="owner",
+                signal_type="tonal",
+                description="d",
+                hypothesis=PREFIX + tail,
+                status="confirmed",
+                entity_ids_json="[]",
+            )
+        )
     db.commit()
 
 
@@ -435,7 +447,9 @@ def test_two_hypotheses_sharing_a_beginning_are_two_patterns_and_do_not_bump_eac
             patterns = db.execute(select(Pattern)).scalars().all()
             assert len(patterns) == 2
             assert sorted(json.loads(p.observation_ids_json) for p in patterns) == [
-                ["obs0", "obs1", "obs2"], ["obs3", "obs4", "obs5"]]
+                ["obs0", "obs1", "obs2"],
+                ["obs3", "obs4", "obs5"],
+            ]
             # Reruns with unchanged clusters never count as fresh confirmations.
             assert [p.confirmation_count for p in patterns] == [1, 1]
     finally:
@@ -448,9 +462,17 @@ def test_a_pattern_under_the_old_name_is_kept_by_the_cluster_it_holds(tmp_path):
         with sessions() as db:
             _cluster(db, "the evening", 0)
             _cluster(db, "a long call", 3)
-            db.add(Pattern(id="pat_old", agent_id="owner", pattern_name="tonal: " + PREFIX[:60],
-                           observation_ids_json='["obs3", "obs4", "obs5"]', instance_count=3,
-                           confirmation_count=4, status="candidate"))
+            db.add(
+                Pattern(
+                    id="pat_old",
+                    agent_id="owner",
+                    pattern_name="tonal: " + PREFIX[:60],
+                    observation_ids_json='["obs3", "obs4", "obs5"]',
+                    instance_count=3,
+                    confirmation_count=4,
+                    status="candidate",
+                )
+            )
             db.commit()
 
             promote_from_observations(db, "owner")
@@ -469,8 +491,18 @@ def test_contradicted_or_archived_observations_do_not_build_a_pattern(tmp_path):
     try:
         with sessions() as db:
             for i, status in enumerate(("contradicted", "archived", "contradicted")):
-                db.add(Observation(id=f"obs{i}", agent_id="owner", signal_type="tonal", description="d",
-                                   hypothesis="x", status=status, confirmation_count=3, entity_ids_json="[]"))
+                db.add(
+                    Observation(
+                        id=f"obs{i}",
+                        agent_id="owner",
+                        signal_type="tonal",
+                        description="d",
+                        hypothesis="x",
+                        status=status,
+                        confirmation_count=3,
+                        entity_ids_json="[]",
+                    )
+                )
             db.commit()
 
             assert promote_from_observations(db, "owner") == []

@@ -1,6 +1,7 @@
 """Dedup check for entity creation - exact name match first, then embedding
 similarity, scoped to (agent_id, entity_type) so e.g. a person and a project
 that happen to share a name never collide."""
+
 import json
 
 from app.models.entity import Entity
@@ -27,13 +28,17 @@ def find_duplicate(db, agent_id: str, entity_type: str, name: str) -> tuple[Enti
     that rather than presenting a partial check as a complete one.
     """
     normalized = _normalize(name)
-    exact = db.execute(
-        select(Entity).where(
-            Entity.agent_id == agent_id,
-            Entity.entity_type == entity_type,
-            func.lower(func.trim(Entity.name)) == normalized,
+    exact = (
+        db.execute(
+            select(Entity).where(
+                Entity.agent_id == agent_id,
+                Entity.entity_type == entity_type,
+                func.lower(func.trim(Entity.name)) == normalized,
+            )
         )
-    ).scalars().first()
+        .scalars()
+        .first()
+    )
     if exact:
         return exact, {"status": "ok", "component": None, "reason": None}
 
@@ -43,7 +48,11 @@ def find_duplicate(db, agent_id: str, entity_type: str, name: str) -> tuple[Enti
     try:
         hits = find_similar_entities(name, agent_id=agent_id, entity_type=entity_type, limit=1)
     except Exception:
-        return None, {"status": "degraded", "component": "vector_index", "reason": INDEX_UNREACHABLE}
+        return None, {
+            "status": "degraded",
+            "component": "vector_index",
+            "reason": INDEX_UNREACHABLE,
+        }
     if hits and hits[0]["score"] >= DEDUP_SIMILARITY_THRESHOLD:
         return db.get(Entity, hits[0]["id"]), status
 
@@ -62,22 +71,37 @@ def _loads(value: str | None, empty):
 def _repoint_edges(db, keep_id: str, merge_id: str) -> None:
     """Edges of `merge_id` move to `keep_id`; one between the two would become a self-loop and
     goes, and an edge that now repeats one `keep_id` already has (same ends and type) goes too."""
-    db.execute(text(
-        "DELETE FROM entity_edges WHERE (from_entity_id = :m AND to_entity_id IN (:k, :m)) "
-        "OR (to_entity_id = :m AND from_entity_id = :k)"
-    ), {"k": keep_id, "m": merge_id})
-    db.execute(text(
-        "DELETE FROM entity_edges WHERE from_entity_id = :m AND EXISTS (SELECT 1 FROM entity_edges e "
-        "WHERE e.from_entity_id = :k AND e.to_entity_id = entity_edges.to_entity_id "
-        "AND e.relationship_type = entity_edges.relationship_type)"
-    ), {"k": keep_id, "m": merge_id})
-    db.execute(text(
-        "DELETE FROM entity_edges WHERE to_entity_id = :m AND EXISTS (SELECT 1 FROM entity_edges e "
-        "WHERE e.to_entity_id = :k AND e.from_entity_id = entity_edges.from_entity_id "
-        "AND e.relationship_type = entity_edges.relationship_type)"
-    ), {"k": keep_id, "m": merge_id})
-    db.execute(text("UPDATE entity_edges SET from_entity_id = :k WHERE from_entity_id = :m"), {"k": keep_id, "m": merge_id})
-    db.execute(text("UPDATE entity_edges SET to_entity_id = :k WHERE to_entity_id = :m"), {"k": keep_id, "m": merge_id})
+    db.execute(
+        text(
+            "DELETE FROM entity_edges WHERE (from_entity_id = :m AND to_entity_id IN (:k, :m)) "
+            "OR (to_entity_id = :m AND from_entity_id = :k)"
+        ),
+        {"k": keep_id, "m": merge_id},
+    )
+    db.execute(
+        text(
+            "DELETE FROM entity_edges WHERE from_entity_id = :m AND EXISTS (SELECT 1 FROM entity_edges e "
+            "WHERE e.from_entity_id = :k AND e.to_entity_id = entity_edges.to_entity_id "
+            "AND e.relationship_type = entity_edges.relationship_type)"
+        ),
+        {"k": keep_id, "m": merge_id},
+    )
+    db.execute(
+        text(
+            "DELETE FROM entity_edges WHERE to_entity_id = :m AND EXISTS (SELECT 1 FROM entity_edges e "
+            "WHERE e.to_entity_id = :k AND e.from_entity_id = entity_edges.from_entity_id "
+            "AND e.relationship_type = entity_edges.relationship_type)"
+        ),
+        {"k": keep_id, "m": merge_id},
+    )
+    db.execute(
+        text("UPDATE entity_edges SET from_entity_id = :k WHERE from_entity_id = :m"),
+        {"k": keep_id, "m": merge_id},
+    )
+    db.execute(
+        text("UPDATE entity_edges SET to_entity_id = :k WHERE to_entity_id = :m"),
+        {"k": keep_id, "m": merge_id},
+    )
 
 
 def _repoint_links(db, keep_id: str, merge_id: str) -> None:
@@ -85,26 +109,39 @@ def _repoint_links(db, keep_id: str, merge_id: str) -> None:
     A link between the two goes; one `keep_id` already has goes (links are unique per ends
     and relationship)."""
     ids = {"k": keep_id, "m": merge_id}
-    db.execute(text(
-        "DELETE FROM object_links WHERE source_type = 'entity' AND target_type = 'entity' "
-        "AND ((source_id = :m AND target_id IN (:k, :m)) OR (target_id = :m AND source_id = :k))"
-    ), ids)
+    db.execute(
+        text(
+            "DELETE FROM object_links WHERE source_type = 'entity' AND target_type = 'entity' "
+            "AND ((source_id = :m AND target_id IN (:k, :m)) OR (target_id = :m AND source_id = :k))"
+        ),
+        ids,
+    )
     for end, other in (("source", "target"), ("target", "source")):
-        db.execute(text(
-            f"DELETE FROM object_links WHERE {end}_type = 'entity' AND {end}_id = :m AND EXISTS "
-            f"(SELECT 1 FROM object_links o WHERE o.{end}_type = 'entity' AND o.{end}_id = :k "
-            f"AND o.{other}_type = object_links.{other}_type AND o.{other}_id = object_links.{other}_id "
-            "AND o.relationship = object_links.relationship)"
-        ), ids)
-        db.execute(text(
-            f"UPDATE object_links SET {end}_id = :k WHERE {end}_type = 'entity' AND {end}_id = :m"
-        ), ids)
+        db.execute(
+            text(
+                f"DELETE FROM object_links WHERE {end}_type = 'entity' AND {end}_id = :m AND EXISTS "
+                f"(SELECT 1 FROM object_links o WHERE o.{end}_type = 'entity' AND o.{end}_id = :k "
+                f"AND o.{other}_type = object_links.{other}_type AND o.{other}_id = object_links.{other}_id "
+                "AND o.relationship = object_links.relationship)"
+            ),
+            ids,
+        )
+        db.execute(
+            text(
+                f"UPDATE object_links SET {end}_id = :k WHERE {end}_type = 'entity' AND {end}_id = :m"
+            ),
+            ids,
+        )
 
 
 def _repoint_id_lists(db, keep_id: str, merge_id: str) -> None:
-    for table, column in (("observations", "entity_ids_json"), ("patterns", "applies_to_entity_ids_json")):
+    for table, column in (
+        ("observations", "entity_ids_json"),
+        ("patterns", "applies_to_entity_ids_json"),
+    ):
         rows = db.execute(
-            text(f"SELECT id, {column} FROM {table} WHERE {column} LIKE :pat"), {"pat": f"%{merge_id}%"}
+            text(f"SELECT id, {column} FROM {table} WHERE {column} LIKE :pat"),
+            {"pat": f"%{merge_id}%"},
         ).fetchall()
         for row in rows:
             ids = _loads(getattr(row, column), [])
@@ -116,7 +153,10 @@ def _repoint_id_lists(db, keep_id: str, merge_id: str) -> None:
                 if mapped not in seen:
                     seen.add(mapped)
                     new_ids.append(mapped)
-            db.execute(text(f"UPDATE {table} SET {column} = :v WHERE id = :id"), {"v": json.dumps(new_ids), "id": row.id})
+            db.execute(
+                text(f"UPDATE {table} SET {column} = :v WHERE id = :id"),
+                {"v": json.dumps(new_ids), "id": row.id},
+            )
 
 
 def absorb_entity(db, keep: Entity, merge: Entity) -> None:
@@ -140,8 +180,14 @@ def absorb_entity(db, keep: Entity, merge: Entity) -> None:
     keep.agent_summary = keep.agent_summary or merge.agent_summary
 
     _repoint_edges(db, keep.id, merge.id)
-    db.execute(text("UPDATE entity_events SET entity_id = :k WHERE entity_id = :m"), {"k": keep.id, "m": merge.id})
-    db.execute(text("UPDATE entity_history SET entity_id = :k WHERE entity_id = :m"), {"k": keep.id, "m": merge.id})
+    db.execute(
+        text("UPDATE entity_events SET entity_id = :k WHERE entity_id = :m"),
+        {"k": keep.id, "m": merge.id},
+    )
+    db.execute(
+        text("UPDATE entity_history SET entity_id = :k WHERE entity_id = :m"),
+        {"k": keep.id, "m": merge.id},
+    )
     _repoint_links(db, keep.id, merge.id)
     _repoint_id_lists(db, keep.id, merge.id)
 
@@ -161,11 +207,17 @@ def merge_duplicate_groups(db) -> int:
     ).all()
     removed = 0
     for agent_id, entity_type, name in keys:
-        rows = db.execute(
-            select(Entity)
-            .where(Entity.agent_id == agent_id, Entity.entity_type == entity_type, folded == name)
-            .order_by(Entity.created_at, Entity.id)
-        ).scalars().all()
+        rows = (
+            db.execute(
+                select(Entity)
+                .where(
+                    Entity.agent_id == agent_id, Entity.entity_type == entity_type, folded == name
+                )
+                .order_by(Entity.created_at, Entity.id)
+            )
+            .scalars()
+            .all()
+        )
         for merge in rows[1:]:
             absorb_entity(db, rows[0], merge)
             removed += 1

@@ -54,8 +54,10 @@ def stamp_recalled(db, memory_ids: list[str], now: datetime | None = None) -> No
     try:
         db.execute(
             update(Memory)
-            .where(Memory.id.in_(ids), or_(Memory.last_recalled_at.is_(None),
-                                           Memory.last_recalled_at < now - STAMP_EVERY))
+            .where(
+                Memory.id.in_(ids),
+                or_(Memory.last_recalled_at.is_(None), Memory.last_recalled_at < now - STAMP_EVERY),
+            )
             .values(last_recalled_at=now, updated_at=Memory.updated_at)
             .execution_options(synchronize_session=False)
         )
@@ -66,15 +68,28 @@ def stamp_recalled(db, memory_ids: list[str], now: datetime | None = None) -> No
 
 
 def _live_rows(db, agent_id: str):
-    forgotten = select(ConversationReceipt.id).where(
-        ConversationReceipt.agent_id == agent_id,
-        ConversationReceipt.memory_id == Memory.id,
-        ConversationReceipt.state == "deleted",
-    ).exists()
+    forgotten = (
+        select(ConversationReceipt.id)
+        .where(
+            ConversationReceipt.agent_id == agent_id,
+            ConversationReceipt.memory_id == Memory.id,
+            ConversationReceipt.state == "deleted",
+        )
+        .exists()
+    )
     return db.execute(
-        select(Memory.id, Memory.text, Memory.status, Memory.created_at, Memory.valid_until,
-               Memory.review_by, Memory.last_recalled_at, Memory.revision, Memory.memory_type,
-               Memory.source_type)
+        select(
+            Memory.id,
+            Memory.text,
+            Memory.status,
+            Memory.created_at,
+            Memory.valid_until,
+            Memory.review_by,
+            Memory.last_recalled_at,
+            Memory.revision,
+            Memory.memory_type,
+            Memory.source_type,
+        )
         .where(Memory.agent_id == agent_id, Memory.status.in_(LIVE_STATUSES), ~forgotten)
         .order_by(Memory.created_at.desc(), Memory.id.desc())
         .limit(MAX_SCAN + 1)
@@ -85,8 +100,11 @@ def _exact_duplicates(rows) -> list[dict]:
     groups = defaultdict(list)
     for row in rows:
         groups[_normal(row.text)].append(row.id)
-    return [{"ids": sorted(ids), "reason": "same text once case and spacing are ignored"}
-            for ids in groups.values() if len(ids) > 1]
+    return [
+        {"ids": sorted(ids), "reason": "same text once case and spacing are ignored"}
+        for ids in groups.values()
+        if len(ids) > 1
+    ]
 
 
 def _near_duplicates(rows, exact: list[dict]) -> list[dict]:
@@ -105,19 +123,41 @@ def _near_duplicates(rows, exact: list[dict]) -> list[dict]:
     for (first, second), count in shared.items():
         larger = max(len(words[first]), len(words[second]))
         if count >= 2 and count / larger >= NEAR_SHARED:
-            found.append({"ids": [first, second],
-                          "reason": f"{round(100 * count / larger)}% of their words are the same"})
+            found.append(
+                {
+                    "ids": [first, second],
+                    "reason": f"{round(100 * count / larger)}% of their words are the same",
+                }
+            )
     return sorted(found, key=lambda item: item["ids"])
 
 
 def _contradictions(db, agent_id: str, live_ids: set[str]) -> list[dict]:
-    rows = db.execute(select(MemoryConflict).where(
-        MemoryConflict.agent_id == agent_id, MemoryConflict.status == "open",
-        or_(MemoryConflict.memory_id.in_(live_ids), MemoryConflict.conflicting_memory_id.in_(live_ids)),
-    )).scalars().all() if live_ids else []
-    return [{"ids": [row.memory_id, row.conflicting_memory_id], "conflict_id": row.id,
-             "reason": row.reason or "open conflict"}
-            for row in rows if row.memory_id in live_ids and row.conflicting_memory_id in live_ids]
+    rows = (
+        db.execute(
+            select(MemoryConflict).where(
+                MemoryConflict.agent_id == agent_id,
+                MemoryConflict.status == "open",
+                or_(
+                    MemoryConflict.memory_id.in_(live_ids),
+                    MemoryConflict.conflicting_memory_id.in_(live_ids),
+                ),
+            )
+        )
+        .scalars()
+        .all()
+        if live_ids
+        else []
+    )
+    return [
+        {
+            "ids": [row.memory_id, row.conflicting_memory_id],
+            "conflict_id": row.id,
+            "reason": row.reason or "open conflict",
+        }
+        for row in rows
+        if row.memory_id in live_ids and row.conflicting_memory_id in live_ids
+    ]
 
 
 def _expired(rows, now: datetime) -> list[dict]:
@@ -125,9 +165,13 @@ def _expired(rows, now: datetime) -> list[dict]:
     for row in rows:
         valid_until, review_by = _as_utc(row.valid_until), _as_utc(row.review_by)
         if valid_until is not None and valid_until < now:
-            found.append({"ids": [row.id], "reason": f"valid until {valid_until.date().isoformat()}"})
+            found.append(
+                {"ids": [row.id], "reason": f"valid until {valid_until.date().isoformat()}"}
+            )
         elif review_by is not None and review_by < now:
-            found.append({"ids": [row.id], "reason": f"review was due {review_by.date().isoformat()}"})
+            found.append(
+                {"ids": [row.id], "reason": f"review was due {review_by.date().isoformat()}"}
+            )
     return found
 
 
@@ -139,9 +183,13 @@ def _not_recalled(rows, now: datetime, days: int) -> list[dict]:
         if created is None or created >= cutoff or row.status != "active":
             continue
         if recalled is None:
-            found.append({"ids": [row.id], "reason": f"saved over {days} days ago and never recalled"})
+            found.append(
+                {"ids": [row.id], "reason": f"saved over {days} days ago and never recalled"}
+            )
         elif recalled < cutoff:
-            found.append({"ids": [row.id], "reason": f"last recalled {recalled.date().isoformat()}"})
+            found.append(
+                {"ids": [row.id], "reason": f"last recalled {recalled.date().isoformat()}"}
+            )
     return found
 
 
@@ -154,15 +202,21 @@ def _named(rows, groups: list[dict]) -> dict:
     the revision the correction and forget routes take as `expected_revision`."""
     wanted = {memory_id for group in groups for item in group["items"] for memory_id in item["ids"]}
     return {
-        row.id: {"text": row.text, "revision": row.revision, "memory_type": row.memory_type,
-                 "source_type": row.source_type,
-                 "state": "current" if row.status == "active" else "needs_review"}
-        for row in rows if row.id in wanted
+        row.id: {
+            "text": row.text,
+            "revision": row.revision,
+            "memory_type": row.memory_type,
+            "source_type": row.source_type,
+            "state": "current" if row.status == "active" else "needs_review",
+        }
+        for row in rows
+        if row.id in wanted
     }
 
 
-def upkeep_candidates(db, agent_id: str, *, unused_days: int, limit: int,
-                      now: datetime | None = None) -> dict:
+def upkeep_candidates(
+    db, agent_id: str, *, unused_days: int, limit: int, now: datetime | None = None
+) -> dict:
     """Candidates by kind; each item has `ids` and `reason`, and `memories` holds every listed
     memory's text and revision, so one call is enough to show and act on them. Reads only."""
     now = now or datetime.now(UTC)

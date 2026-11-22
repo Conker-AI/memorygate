@@ -232,7 +232,9 @@ def test_processing_completes_on_pi_503_without_invented_memory(pi, tmp_path):
             assert job.status == "completed"
             # No empty "finished" AI analysis is stored, so a later run can still analyse it.
             assert result["ai_analysis_id"] is None
-            assert db.query(AnalysisObject).filter_by(analysis_type="local_ai_proposal").count() == 0
+            assert (
+                db.query(AnalysisObject).filter_by(analysis_type="local_ai_proposal").count() == 0
+            )
     finally:
         engine.dispose()
 

@@ -11,7 +11,9 @@ from sqlalchemy.orm import sessionmaker
 
 
 def make_client(tmp_path, monkeypatch):
-    engine = create_engine(f"sqlite:///{tmp_path / 'audit-metrics.db'}", connect_args={"check_same_thread": False})
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'audit-metrics.db'}", connect_args={"check_same_thread": False}
+    )
     Session = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     Base.metadata.create_all(bind=engine)
     monkeypatch.setattr(auth, "SessionLocal", Session)
@@ -23,8 +25,19 @@ def make_client(tmp_path, monkeypatch):
     with Session() as db:
         set_admin_key(db, "Admin-key-123!")
         _, read_key = create_agent_access_key(db, "test", "hermes")
-        db.add(Memory(agent_id="hermes", text="Owner prefers safe local metadata.", summary="safe metadata", tags_json="[]"))
-        db.add(SessionTranscript(id="t1", agent_id="hermes", transcript="private transcript secret=abc123"))
+        db.add(
+            Memory(
+                agent_id="hermes",
+                text="Owner prefers safe local metadata.",
+                summary="safe metadata",
+                tags_json="[]",
+            )
+        )
+        db.add(
+            SessionTranscript(
+                id="t1", agent_id="hermes", transcript="private transcript secret=abc123"
+            )
+        )
         db.commit()
     app = FastAPI()
     app.include_router(runtime.router)

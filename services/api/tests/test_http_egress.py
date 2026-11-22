@@ -96,7 +96,14 @@ def _load_script(relative_path: str) -> ModuleType:
 
 
 def _set_hostile_proxy(monkeypatch, proxy_url: str) -> None:
-    for name in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"):
+    for name in (
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+    ):
         monkeypatch.setenv(name, proxy_url)
     for name in ("NO_PROXY", "no_proxy"):
         monkeypatch.delenv(name, raising=False)
@@ -109,7 +116,9 @@ def _configure_api_clients(monkeypatch, target_url: str) -> None:
     monkeypatch.setattr(ollama_service, "OLLAMA_URL", target_url)
     monkeypatch.setattr(ollama_service, "OLLAMA_MODEL", "test-ollama")
     monkeypatch.setattr(ollama_service, "OLLAMA_ENABLED", True)
-    monkeypatch.setattr(ollama_service, "SessionLocal", lambda: type("DB", (), {"close": lambda self: None})())
+    monkeypatch.setattr(
+        ollama_service, "SessionLocal", lambda: type("DB", (), {"close": lambda self: None})()
+    )
     monkeypatch.setattr(
         ollama_service,
         "get_runtime_config",
@@ -119,9 +128,7 @@ def _configure_api_clients(monkeypatch, target_url: str) -> None:
     qdrant_store.get_qdrant_client.cache_clear()
 
 
-def test_every_outbound_client_bypasses_hostile_ambient_proxy(
-    monkeypatch, http_servers
-):
+def test_every_outbound_client_bypasses_hostile_ambient_proxy(monkeypatch, http_servers):
     proxy, proxy_url = http_servers()
     target, target_url = http_servers()
     _set_hostile_proxy(monkeypatch, proxy_url)
@@ -134,9 +141,7 @@ def test_every_outbound_client_bypasses_hostile_ambient_proxy(
     assert ollama_service.ollama_health()["available"] is True
     assert ollama_service._generate("system", "prompt", 10) == '{"answer":"ok"}'
     assert qdrant_store.get_qdrant_client().get_collections().collections == []
-    assert _load_script("services/cli/memorygate.py").request("GET", "/health") == {
-        "status": "ok"
-    }
+    assert _load_script("services/cli/memorygate.py").request("GET", "/health") == {"status": "ok"}
     assert _load_script("services/mcp/memorygate_mcp.py").exchange("context", {}) == {
         "status": "ok"
     }

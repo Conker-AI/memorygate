@@ -1,4 +1,5 @@
 """Admin-only destructive reset operations for the single MemoryGate workspace."""
+
 import json
 from datetime import UTC, datetime
 from itertools import islice
@@ -35,12 +36,28 @@ VECTOR_KINDS = ("memory", "entity", "observation")
 # sets and the kept ones there to cover every table, so a table added later cannot be skipped by
 # accident. vector_outbox is rewritten (a delete intent per removed memory, entity and
 # observation), not emptied.
-RESET_TABLES = frozenset({
-    "memories", "entities", "observations", "patterns", "evidence_objects", "analysis_objects",
-    "episode_objects", "session_transcripts", "processing_jobs", "memory_audit",
-    "conversation_receipts", "memory_corrections", "memory_revisions", "memory_conflicts",
-    "entity_history", "entity_events", "entity_edges", "object_links",
-})
+RESET_TABLES = frozenset(
+    {
+        "memories",
+        "entities",
+        "observations",
+        "patterns",
+        "evidence_objects",
+        "analysis_objects",
+        "episode_objects",
+        "session_transcripts",
+        "processing_jobs",
+        "memory_audit",
+        "conversation_receipts",
+        "memory_corrections",
+        "memory_revisions",
+        "memory_conflicts",
+        "entity_history",
+        "entity_events",
+        "entity_edges",
+        "object_links",
+    }
+)
 REWRITTEN_TABLES = frozenset({"vector_outbox"})
 
 
@@ -73,31 +90,50 @@ def _enqueue_deletes(db, kind: str, rows: list[tuple[str, str]]) -> None:
     insert = sqlite_insert if db.get_bind().dialect.name == "sqlite" else pg_insert
     now = datetime.now(UTC)
     for chunk in _chunks(rows, 50):
-        values = [{
-            "id": str(uuid5(NAMESPACE_URL, f"memorygate-vector:{kind}:{object_id}")),
-            "agent_id": agent_id, "object_kind": kind, "object_id": object_id,
-            "operation": "delete", "document_text": None, "payload_json": "{}", "generation": 1,
-            "status": "pending", "attempts": 0, "next_attempt_at": now, "last_error": "",
-        } for object_id, agent_id in chunk]
+        values = [
+            {
+                "id": str(uuid5(NAMESPACE_URL, f"memorygate-vector:{kind}:{object_id}")),
+                "agent_id": agent_id,
+                "object_kind": kind,
+                "object_id": object_id,
+                "operation": "delete",
+                "document_text": None,
+                "payload_json": "{}",
+                "generation": 1,
+                "status": "pending",
+                "attempts": 0,
+                "next_attempt_at": now,
+                "last_error": "",
+            }
+            for object_id, agent_id in chunk
+        ]
         statement = insert(VectorOutbox).values(values)
-        db.execute(statement.on_conflict_do_update(
-            index_elements=["object_kind", "object_id"],
-            set_={
-                "agent_id": statement.excluded.agent_id, "operation": statement.excluded.operation,
-                "document_text": statement.excluded.document_text,
-                "payload_json": statement.excluded.payload_json,
-                "generation": VectorOutbox.generation + 1, "status": "pending", "attempts": 0,
-                "next_attempt_at": statement.excluded.next_attempt_at, "last_error": "",
-                "updated_at": now,
-            },
-        ))
+        db.execute(
+            statement.on_conflict_do_update(
+                index_elements=["object_kind", "object_id"],
+                set_={
+                    "agent_id": statement.excluded.agent_id,
+                    "operation": statement.excluded.operation,
+                    "document_text": statement.excluded.document_text,
+                    "payload_json": statement.excluded.payload_json,
+                    "generation": VectorOutbox.generation + 1,
+                    "status": "pending",
+                    "attempts": 0,
+                    "next_attempt_at": statement.excluded.next_attempt_at,
+                    "last_error": "",
+                    "updated_at": now,
+                },
+            )
+        )
 
 
 def _strip_entities(db, table: str, column: str, entity_ids: set[str]) -> None:
     """Take every removed entity id out of the kept rows' JSON id lists: one scan and one UPDATE
     per changed row (the old form scanned the table once per removed entity). `table` and
     `column` are constants."""
-    rows = db.execute(text(f"SELECT id, {column} AS ids FROM {table} WHERE {column} IS NOT NULL")).fetchall()
+    rows = db.execute(
+        text(f"SELECT id, {column} AS ids FROM {table} WHERE {column} IS NOT NULL")
+    ).fetchall()
     for row in rows:
         kept = row.ids
         for entity_id in entity_ids:
@@ -106,7 +142,9 @@ def _strip_entities(db, table: str, column: str, entity_ids: set[str]) -> None:
                 if left is not None:
                     kept = json.dumps(left)
         if kept != row.ids:
-            db.execute(text(f"UPDATE {table} SET {column} = :v WHERE id = :id"), {"v": kept, "id": row.id})
+            db.execute(
+                text(f"UPDATE {table} SET {column} = :v WHERE id = :id"), {"v": kept, "id": row.id}
+            )
 
 
 def reset_memory(db, reset_from: datetime | None = None) -> dict:
@@ -116,12 +154,24 @@ def reset_memory(db, reset_from: datetime | None = None) -> dict:
     """
     backup = create_backup(db)
     plan = (
-        ("memories", Memory), ("entities", Entity), ("observations", Observation), ("patterns", Pattern),
-        ("evidence", EvidenceObject), ("analysis", AnalysisObject), ("episodes", EpisodeObject),
-        ("transcripts", SessionTranscript), ("jobs", ProcessingJob), ("audit", MemoryAudit),
+        ("memories", Memory),
+        ("entities", Entity),
+        ("observations", Observation),
+        ("patterns", Pattern),
+        ("evidence", EvidenceObject),
+        ("analysis", AnalysisObject),
+        ("episodes", EpisodeObject),
+        ("transcripts", SessionTranscript),
+        ("jobs", ProcessingJob),
+        ("audit", MemoryAudit),
     )
     selected = {
-        name: _ids(db, model, reset_from, *(("agent_id",) if model in (Memory, Entity, Observation) else ()))
+        name: _ids(
+            db,
+            model,
+            reset_from,
+            *(("agent_id",) if model in (Memory, Entity, Observation) else ()),
+        )
         for name, model in plan
     }
     memory_ids = [row[0] for row in selected["memories"]]
@@ -135,9 +185,14 @@ def reset_memory(db, reset_from: datetime | None = None) -> dict:
     # that no longer exists. Forgetting tombstones stay: a forgotten message must never return.
     receipt_ids: set = set()
     for chunk in _chunks([row[0] for row in selected["evidence"]] + memory_ids):
-        receipt_ids.update(db.scalars(select(ConversationReceipt.id).where(
-            ConversationReceipt.state != "deleted",
-            ConversationReceipt.id.in_(chunk) | ConversationReceipt.memory_id.in_(chunk))))
+        receipt_ids.update(
+            db.scalars(
+                select(ConversationReceipt.id).where(
+                    ConversationReceipt.state != "deleted",
+                    ConversationReceipt.id.in_(chunk) | ConversationReceipt.memory_id.in_(chunk),
+                )
+            )
+        )
     receipts = _delete_in(db, ConversationReceipt, ConversationReceipt.id, receipt_ids)
 
     # A correction receipt replays its answer for a repeated request id, so one naming a removed
@@ -151,12 +206,22 @@ def reset_memory(db, reset_from: datetime | None = None) -> dict:
         _strip_entities(db, "patterns", "applies_to_entity_ids_json", set(entity_ids))
 
     # Linked history must not survive as orphaned records after a reset.
-    for model, field in ((MemoryRevision, "memory_id"), (MemoryConflict, "memory_id"), (MemoryConflict, "conflicting_memory_id"),
-                         (EntityHistory, "entity_id"), (EntityEvent, "entity_id"), (EntityEdge, "from_entity_id"),
-                         (EntityEdge, "to_entity_id")):
+    for model, field in (
+        (MemoryRevision, "memory_id"),
+        (MemoryConflict, "memory_id"),
+        (MemoryConflict, "conflicting_memory_id"),
+        (EntityHistory, "entity_id"),
+        (EntityEvent, "entity_id"),
+        (EntityEdge, "from_entity_id"),
+        (EntityEdge, "to_entity_id"),
+    ):
         _delete_in(db, model, getattr(model, field), all_selected_ids)
     for chunk in _chunks(all_selected_ids):
-        db.execute(delete(ObjectLink).where(ObjectLink.source_id.in_(chunk) | ObjectLink.target_id.in_(chunk)))
+        db.execute(
+            delete(ObjectLink).where(
+                ObjectLink.source_id.in_(chunk) | ObjectLink.target_id.in_(chunk)
+            )
+        )
 
     for name, model in plan:
         _delete_in(db, model, model.id, [row[0] for row in selected[name]])
@@ -169,5 +234,8 @@ def reset_memory(db, reset_from: datetime | None = None) -> dict:
         "backup": backup,
         "removed": removed,
         "reset_from": reset_from.isoformat() if reset_from else None,
-        "indexing": {"status": "pending", "operations": sum(len(selected[n]) for n in ("memories", "entities", "observations"))},
+        "indexing": {
+            "status": "pending",
+            "operations": sum(len(selected[n]) for n in ("memories", "entities", "observations")),
+        },
     }

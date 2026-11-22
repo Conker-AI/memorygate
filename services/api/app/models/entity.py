@@ -20,7 +20,9 @@ class Entity(Base):
     agent_summary: Mapped[str] = mapped_column(Text, default="")
     importance_level: Mapped[str] = mapped_column(String, default="normal")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class EntityEdge(Base):
@@ -59,4 +61,6 @@ class EntityHistory(Base):
     new_value_json: Mapped[str] = mapped_column(Text, default="null")
     change_reason: Mapped[str] = mapped_column(Text, default="")
     triggered_by: Mapped[str] = mapped_column(String, default="system")
-    snapshot_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    snapshot_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )

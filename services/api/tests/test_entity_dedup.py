@@ -41,7 +41,9 @@ def test_same_name_with_other_type_or_agent_is_not_a_duplicate(db, monkeypatch):
     add_entity(db, "e1", "Alice Chen", agent_id="owner", entity_type="person")
     monkeypatch.setattr(entity_dedup, "semantic_status", lambda: OK)
     searched = []
-    monkeypatch.setattr(entity_dedup, "find_similar_entities", lambda *args, **kwargs: searched.append(kwargs) or [])
+    monkeypatch.setattr(
+        entity_dedup, "find_similar_entities", lambda *args, **kwargs: searched.append(kwargs) or []
+    )
     db.flush()
 
     found, status = entity_dedup.find_duplicate(db, "owner", "project", "Alice Chen")
@@ -53,7 +55,11 @@ def test_same_name_with_other_type_or_agent_is_not_a_duplicate(db, monkeypatch):
 
 
 def test_non_ok_status_returns_none_without_searching(db, monkeypatch):
-    unavailable = {"status": "unavailable", "component": "vector_index", "reason": INDEX_UNREACHABLE}
+    unavailable = {
+        "status": "unavailable",
+        "component": "vector_index",
+        "reason": INDEX_UNREACHABLE,
+    }
     monkeypatch.setattr(entity_dedup, "semantic_status", lambda: unavailable)
 
     def must_not_search(*args, **kwargs):
@@ -78,7 +84,11 @@ def test_failing_search_reports_a_degraded_vector_index(db, monkeypatch):
     found, status = entity_dedup.find_duplicate(db, "owner", "person", "Alice Chen")
 
     assert found is None
-    assert status == {"status": "degraded", "component": "vector_index", "reason": INDEX_UNREACHABLE}
+    assert status == {
+        "status": "degraded",
+        "component": "vector_index",
+        "reason": INDEX_UNREACHABLE,
+    }
 
 
 def test_similarity_tier_respects_the_threshold(db, monkeypatch):

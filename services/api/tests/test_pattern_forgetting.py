@@ -17,20 +17,62 @@ WHEN = datetime(2026, 1, 2, tzinfo=UTC)
 
 
 def _seed(db):
-    db.add_all([
-        Observation(id="obs_1", agent_id="owner", session_id="s", observed_at=WHEN, signal_type="mood",
-                    description="tired after calls with Maya"),
-        Observation(id="obs_2", agent_id="owner", session_id="s", observed_at=WHEN, signal_type="mood",
-                    description="tired on Mondays", related_observation_ids_json='["obs_1"]'),
-        Pattern(id="pat_only", agent_id="owner", pattern_name="calls with Maya",
-                description="tired after calls with Maya", observation_ids_json='["obs_1"]'),
-        Pattern(id="pat_both", agent_id="owner", pattern_name="tired", observation_ids_json='["obs_1", "obs_2"]'),
-        Pattern(id="pat_other", agent_id="owner", pattern_name="other", observation_ids_json='["obs_2"]'),
-        ObjectLink(id="lnk_1", source_type="observation", source_id="obs_1",
-                   target_type="pattern", target_id="pat_both", relationship="supports"),
-        ObjectLink(id="lnk_2", source_type="observation", source_id="obs_2",
-                   target_type="pattern", target_id="pat_other", relationship="supports"),
-    ])
+    db.add_all(
+        [
+            Observation(
+                id="obs_1",
+                agent_id="owner",
+                session_id="s",
+                observed_at=WHEN,
+                signal_type="mood",
+                description="tired after calls with Maya",
+            ),
+            Observation(
+                id="obs_2",
+                agent_id="owner",
+                session_id="s",
+                observed_at=WHEN,
+                signal_type="mood",
+                description="tired on Mondays",
+                related_observation_ids_json='["obs_1"]',
+            ),
+            Pattern(
+                id="pat_only",
+                agent_id="owner",
+                pattern_name="calls with Maya",
+                description="tired after calls with Maya",
+                observation_ids_json='["obs_1"]',
+            ),
+            Pattern(
+                id="pat_both",
+                agent_id="owner",
+                pattern_name="tired",
+                observation_ids_json='["obs_1", "obs_2"]',
+            ),
+            Pattern(
+                id="pat_other",
+                agent_id="owner",
+                pattern_name="other",
+                observation_ids_json='["obs_2"]',
+            ),
+            ObjectLink(
+                id="lnk_1",
+                source_type="observation",
+                source_id="obs_1",
+                target_type="pattern",
+                target_id="pat_both",
+                relationship="supports",
+            ),
+            ObjectLink(
+                id="lnk_2",
+                source_type="observation",
+                source_id="obs_2",
+                target_type="pattern",
+                target_id="pat_other",
+                relationship="supports",
+            ),
+        ]
+    )
     db.commit()
 
 

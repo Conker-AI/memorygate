@@ -30,13 +30,22 @@ def add_memory(db, identity, text, **kwargs):
 
 
 def revisions(db, memory_id):
-    return db.execute(select(MemoryRevision).where(MemoryRevision.memory_id == memory_id)).scalars().all()
+    return (
+        db.execute(select(MemoryRevision).where(MemoryRevision.memory_id == memory_id))
+        .scalars()
+        .all()
+    )
 
 
 def test_snapshot_returns_exactly_seven_keys_with_iso_dates_or_none(db):
     memory = add_memory(
-        db, "dated", "Owner prefers quasar scheduling.", summary="scheduling preference",
-        memory_type="fact", confidence="high", status="active",
+        db,
+        "dated",
+        "Owner prefers quasar scheduling.",
+        summary="scheduling preference",
+        memory_type="fact",
+        confidence="high",
+        status="active",
         valid_from=datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC),
         valid_until=datetime(2026, 3, 4, 5, 6, 7, tzinfo=UTC),
     )
@@ -46,7 +55,15 @@ def test_snapshot_returns_exactly_seven_keys_with_iso_dates_or_none(db):
     dated = memory_truth.snapshot(memory)
     blank = memory_truth.snapshot(blank)
 
-    assert set(dated) == {"text", "summary", "memory_type", "confidence", "status", "valid_from", "valid_until"}
+    assert set(dated) == {
+        "text",
+        "summary",
+        "memory_type",
+        "confidence",
+        "status",
+        "valid_from",
+        "valid_until",
+    }
     assert dated["text"] == "Owner prefers quasar scheduling."
     assert dated["summary"] == "scheduling preference"
     assert dated["memory_type"] == "fact"
@@ -98,7 +115,9 @@ def test_opposing_negation_over_shared_terms_flags_both_memories(db):
 
 def test_no_conflict_for_same_polarity_other_agent_or_single_shared_word(db):
     same_polarity = add_memory(db, "sp1", "Owners prefer quasar scheduling.", agent_id="same")
-    also_positive = add_memory(db, "sp2", "Owners really prefer quasar scheduling.", agent_id="same")
+    also_positive = add_memory(
+        db, "sp2", "Owners really prefer quasar scheduling.", agent_id="same"
+    )
     other_agent = add_memory(db, "oa1", "Owners prefer quasar scheduling.", agent_id="one")
     elsewhere = add_memory(db, "oa2", "Owners no longer prefer quasar scheduling.", agent_id="two")
     single_word = add_memory(db, "sw1", "Quasar scheduling matters.")
@@ -129,7 +148,9 @@ def test_detecting_twice_does_not_duplicate_the_open_conflict(db):
     assert memory_truth.detect_conflicts(db, memory) == []
     db.flush()
 
-    conflicts = db.execute(select(MemoryConflict).where(MemoryConflict.status == "open")).scalars().all()
+    conflicts = (
+        db.execute(select(MemoryConflict).where(MemoryConflict.status == "open")).scalars().all()
+    )
     assert len(conflicts) == 1
     assert len(revisions(db, "new")) == 1 and len(revisions(db, "old")) == 1
 
@@ -147,8 +168,13 @@ def test_text_without_words_longer_than_four_letters_is_not_checked(db):
 def test_mark_unsupported_moves_only_active_memories(db):
     before = datetime.now(UTC)
     active = add_memory(db, "active", "Owner prefers quasar scheduling.")
-    review = add_memory(db, "review", "Older quasar scheduling note.", status="needs_review",
-                        valid_until=datetime(2026, 1, 1, tzinfo=UTC))
+    review = add_memory(
+        db,
+        "review",
+        "Older quasar scheduling note.",
+        status="needs_review",
+        valid_until=datetime(2026, 1, 1, tzinfo=UTC),
+    )
     db.flush()
 
     memory_truth.mark_unsupported(db, active, "no supporting observations")
@@ -177,8 +203,12 @@ def test_words_that_only_contain_a_negation_do_not_count_as_one(db):
 
 def test_a_memory_in_the_owners_words_stays_in_recall_against_one_that_is_not(db):
     owner = add_memory(db, "owner", "Owner prefers quasar scheduling.", source_type="user")
-    conker = add_memory(db, "conker", "Owner no longer prefers quasar scheduling.", source_type="assistant")
-    chat = add_memory(db, "chat", "Owner never wants quasar scheduling reminders.", source_type="owner_statement")
+    conker = add_memory(
+        db, "conker", "Owner no longer prefers quasar scheduling.", source_type="assistant"
+    )
+    chat = add_memory(
+        db, "chat", "Owner never wants quasar scheduling reminders.", source_type="owner_statement"
+    )
     db.flush()
 
     created = memory_truth.detect_conflicts(db, conker)
