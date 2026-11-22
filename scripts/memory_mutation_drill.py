@@ -97,44 +97,92 @@ CASES = [
     ),
 ]
 SOURCE = "services/api/app"
-CASES.extend([
-    ("unbudgeted-hosted-dispatch", "services/api/app/services/ollama_service.py",
-     '            record_refusal(db, config["model"], len(system) + len(prompt), max_tokens)\n            return None',
-     '            record_refusal(db, config["model"], len(system) + len(prompt), max_tokens)\n            httpx.Client(timeout=90)\n            return None'),
-    ("refused-cost-audit-lost", "services/api/app/services/hosted_budget.py",
-     '    db.commit()', '    db.rollback()'),
-])
-CASES.extend([
-    ("collection-inspection-falsely-healthy", "services/api/app/services/qdrant_store.py",
-     '    if unverified:', '    if False:'),
-])
-CASES.extend([
-    ("oversized-ingestion-retryable", "services/api/app/routes/conversation.py",
-     '"retryable": False', '"retryable": True'),
-    ("ingestion-cap-removed", "services/api/app/routes/conversation.py",
-     'max_length=MAX_CONTENT_CHARACTERS', 'max_length=32000'),
-])
-CASES.extend([
-    ("cryptography-pin-before-pkcs7-fix", "services/api/requirements.txt",
-     'cryptography==50.0.0', 'cryptography==46.0.1'),
-])
-CASES.extend([
-    ("quote-overwrites-calculated-cost", "services/api/app/services/hosted_budget.py",
-     'quote.update(status="owner_supplied_estimate", upper_bound_microusd=total)',
-     'quote.update(supplied)'),
-])
-CASES.extend([
-    # Erasing an imported event never takes a memory the owner wrote, never reaches another
-    # listener's event, and always takes the memory made from it alone.
-    ("listener-erase-takes-owner-memory", "services/api/app/services/listener_forgetting.py",
-     "if memory is None or memory.source_type != DERIVED_SOURCE:", "if memory is None:"),
-    ("listener-erase-crosses-sources", "services/api/app/services/listener_forgetting.py",
-     "if evidence is not None and source_id is not None and evidence.source_id != source_id:",
-     "if False:"),
-    ("listener-erase-keeps-memory", "services/api/app/services/listener_forgetting.py",
-     'memory_forgetting.erase(db, agent_id, memory, ACTION, {"evidence_id": evidence_id})',
-     "pass"),
-])
+CASES.extend(
+    [
+        (
+            "unbudgeted-hosted-dispatch",
+            "services/api/app/services/ollama_service.py",
+            '            record_refusal(db, config["model"], len(system) + len(prompt), max_tokens)\n            return None',
+            '            record_refusal(db, config["model"], len(system) + len(prompt), max_tokens)\n            httpx.Client(timeout=90)\n            return None',
+        ),
+        (
+            "refused-cost-audit-lost",
+            "services/api/app/services/hosted_budget.py",
+            "    db.commit()",
+            "    db.rollback()",
+        ),
+    ]
+)
+CASES.extend(
+    [
+        (
+            "collection-inspection-falsely-healthy",
+            "services/api/app/services/qdrant_store.py",
+            "    if unverified:",
+            "    if False:",
+        ),
+    ]
+)
+CASES.extend(
+    [
+        (
+            "oversized-ingestion-retryable",
+            "services/api/app/routes/conversation.py",
+            '"retryable": False',
+            '"retryable": True',
+        ),
+        (
+            "ingestion-cap-removed",
+            "services/api/app/routes/conversation.py",
+            "max_length=MAX_CONTENT_CHARACTERS",
+            "max_length=32000",
+        ),
+    ]
+)
+CASES.extend(
+    [
+        (
+            "cryptography-pin-before-pkcs7-fix",
+            "services/api/requirements.txt",
+            "cryptography==50.0.0",
+            "cryptography==46.0.1",
+        ),
+    ]
+)
+CASES.extend(
+    [
+        (
+            "quote-overwrites-calculated-cost",
+            "services/api/app/services/hosted_budget.py",
+            'quote.update(status="owner_supplied_estimate", upper_bound_microusd=total)',
+            "quote.update(supplied)",
+        ),
+    ]
+)
+CASES.extend(
+    [
+        # Erasing an imported event never takes a memory the owner wrote, never reaches another
+        # listener's event, and always takes the memory made from it alone.
+        (
+            "listener-erase-takes-owner-memory",
+            "services/api/app/services/listener_forgetting.py",
+            "if memory is None or memory.source_type != DERIVED_SOURCE:",
+            "if memory is None:",
+        ),
+        (
+            "listener-erase-crosses-sources",
+            "services/api/app/services/listener_forgetting.py",
+            "if evidence is not None and source_id is not None and evidence.source_id != source_id:",
+            "if False:",
+        ),
+        (
+            "listener-erase-keeps-memory",
+            "services/api/app/services/listener_forgetting.py",
+            'memory_forgetting.erase(db, agent_id, memory, ACTION, {"evidence_id": evidence_id})',
+            "pass",
+        ),
+    ]
+)
 SAFETY_TEST = "services/api/tests/test_audit_safety.py"
 LISTENER_TEST = "services/api/tests/test_listener_evidence_erase.py"
 TEST = "services/api/tests/test_conversation_memory.py"
@@ -175,7 +223,9 @@ def main():
         shutil.copyfile(ROOT / LISTENER_TEST, target / LISTENER_TEST)
         for guard in GUARD:
             shutil.copyfile(ROOT / guard, target / guard)
-        shutil.copyfile(ROOT / "services/api/requirements.txt", target / "services/api/requirements.txt")
+        shutil.copyfile(
+            ROOT / "services/api/requirements.txt", target / "services/api/requirements.txt"
+        )
         if filename:
             file = target / filename
             source = file.read_text(encoding="utf-8")

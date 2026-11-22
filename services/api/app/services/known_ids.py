@@ -12,7 +12,9 @@ def require_known(db, model, agent_id: str, ids: list[str] | None, field: str) -
     wanted = list(dict.fromkeys(ids or []))
     if not wanted:
         return
-    found = set(db.scalars(select(model.id).where(model.agent_id == agent_id, model.id.in_(wanted))))
+    found = set(
+        db.scalars(select(model.id).where(model.agent_id == agent_id, model.id.in_(wanted)))
+    )
     missing = [object_id for object_id in wanted if object_id not in found]
     if missing:
         raise HTTPException(422, {"code": "unknown_ids", "field": field, "ids": missing[:20]})

@@ -24,7 +24,7 @@ ignore = [
     # that raised instead would take down the very endpoint the owner uses to
     # find out what is wrong. See the truthful-status rule in CLAUDE.md.
     "BLE001",
-    # Line length is left to review until this module adopts `ruff format`.
+    # The formatter owns line length (100); long strings and comments it cannot break are left alone.
     "E501",
 ]
 
@@ -38,3 +38,13 @@ ignore = [
 "services/api/app/models/__init__.py" = ["F401"]
 # Russian vocabulary for multilingual signal detection (ADR-0004), not look-alike letters.
 "services/api/app/services/signal_filter.py" = ["RUF001"]
+
+[format]
+# Formatting the first three grows them past the 600-line limit; the rest carry text anchors of the
+# mutation drill (scripts/memory_mutation_drill.py). They join the format run when split or re-anchored.
+exclude = [
+    "services/api/app/services/backup_service.py",
+    "services/api/app/routes/memory.py",
+    "services/api/app/routes/runtime.py",
+    "services/api/tests/test_briefing_and_pattern_routes.py",
+]

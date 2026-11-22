@@ -26,9 +26,15 @@ class Pattern(Base):
     applies_to_entity_ids_json: Mapped[str] = mapped_column(Text, default="[]")
     context_conditions_json: Mapped[str] = mapped_column(Text, default="{}")
 
-    status: Mapped[str] = mapped_column(String, default="candidate", index=True)  # candidate / active / deprecated / contradicted
+    status: Mapped[str] = mapped_column(
+        String, default="candidate", index=True
+    )  # candidate / active / deprecated / contradicted
     promoted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    last_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_confirmed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

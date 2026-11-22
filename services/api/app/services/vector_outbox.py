@@ -76,7 +76,9 @@ def enqueue(
     ).scalar_one()
 
 
-def enqueue_upsert(db, object_kind: str, object_id: str, text_value: str, *, agent_id: str, payload: dict) -> int:
+def enqueue_upsert(
+    db, object_kind: str, object_id: str, text_value: str, *, agent_id: str, payload: dict
+) -> int:
     return enqueue(
         db,
         agent_id=agent_id,
@@ -184,7 +186,9 @@ def reconcile_one(
         except Exception as exc:
             result = _degraded(exc)
             row.last_error = f"{type(exc).__name__}: {result['reason']}"
-            row.next_attempt_at = datetime.now(UTC) + timedelta(seconds=min(300, 2 ** min(row.attempts, 8)))
+            row.next_attempt_at = datetime.now(UTC) + timedelta(
+                seconds=min(300, 2 ** min(row.attempts, 8))
+            )
             db.commit()
             return result
         row.status = "complete"

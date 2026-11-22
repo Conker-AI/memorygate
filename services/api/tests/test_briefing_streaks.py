@@ -17,7 +17,11 @@ def habit(stack, name):
 
 
 def streak(stack, entity_id, description):
-    post(stack, "/entity/event", {"entity_id": entity_id, "event_type": "streak", "description": description})
+    post(
+        stack,
+        "/entity/event",
+        {"entity_id": entity_id, "event_type": "streak", "description": description},
+    )
 
 
 def streaks(stack):

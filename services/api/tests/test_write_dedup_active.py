@@ -24,8 +24,17 @@ def test_an_old_active_memory_is_still_found_as_the_duplicate(stack):
     first = stack.write(TEXT)["id"]
     with stack.sessions() as db:
         later = datetime.now(UTC) + timedelta(days=1)
-        db.add_all([Memory(id=f"m{n:03d}", agent_id="owner", text=f"Filler memory number {n} about lunch",
-                           created_at=later + timedelta(seconds=n)) for n in range(120)])
+        db.add_all(
+            [
+                Memory(
+                    id=f"m{n:03d}",
+                    agent_id="owner",
+                    text=f"Filler memory number {n} about lunch",
+                    created_at=later + timedelta(seconds=n),
+                )
+                for n in range(120)
+            ]
+        )
         db.commit()
 
     again = stack.write("  " + TEXT.upper() + " ")

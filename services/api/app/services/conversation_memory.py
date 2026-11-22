@@ -142,11 +142,16 @@ def ingest(agent_id: str, message_id: str, payload: dict) -> dict:
                     f"Admission method {receipt.admission_method}; value {score:.2f}; "
                     "no inference or generalization."
                 ),
-                steps_json=json.dumps([
-                    "owner_requested_retention" if intent == "requested" else
-                    "owner_declined_retention" if intent == "declined" else "unicode_signal_filter",
-                    "retain_owner_attribution",
-                ]),
+                steps_json=json.dumps(
+                    [
+                        "owner_requested_retention"
+                        if intent == "requested"
+                        else "owner_declined_retention"
+                        if intent == "declined"
+                        else "unicode_signal_filter",
+                        "retain_owner_attribution",
+                    ]
+                ),
                 confidence=0.5,
             )
         )
@@ -204,6 +209,7 @@ def forget(agent_id: str, message_id: str, *, sessions=None) -> dict:
         receipt = _lock(db, agent_id, message_id)
         if receipt.state != "deleted":
             from app.models.deletion_receipt import record
+
             record(db, agent_id, "conversation", message_id)
             evidence = db.get(EvidenceObject, receipt.id)
             if evidence:
@@ -264,9 +270,13 @@ def index_pending(limit: int = 10) -> int:
     from app.models.vector_outbox import VectorOutbox
 
     with SessionLocal() as db:
-        receipts = db.execute(
-            select(ConversationReceipt).where(ConversationReceipt.index_pending != "none")
-        ).scalars().all()
+        receipts = (
+            db.execute(
+                select(ConversationReceipt).where(ConversationReceipt.index_pending != "none")
+            )
+            .scalars()
+            .all()
+        )
         for receipt in receipts:
             intent = db.execute(
                 select(VectorOutbox).where(

@@ -11,12 +11,19 @@ def _post(stack, path, body, agent="owner"):
 
 
 def _link(source_type, source_id, target_type, target_id):
-    return {"source_type": source_type, "source_id": source_id,
-            "target_type": target_type, "target_id": target_id, "relationship": "supports"}
+    return {
+        "source_type": source_type,
+        "source_id": source_id,
+        "target_type": target_type,
+        "target_id": target_id,
+        "relationship": "supports",
+    }
 
 
 def _episode(stack, agent="owner"):
-    return _post(stack, "/lineage/episodes", {"title": "Release week"}, agent).json()["episode"]["id"]
+    return _post(stack, "/lineage/episodes", {"title": "Release week"}, agent).json()["episode"][
+        "id"
+    ]
 
 
 def test_a_link_to_another_agents_object_is_refused_and_nothing_is_stored(stack):
@@ -42,21 +49,35 @@ def test_another_agents_lineage_is_not_found(stack):
 def test_another_agents_link_cannot_be_deleted(stack):
     theirs = stack.write(CHECKLIST, agent=OTHER)["id"]
     week = _episode(stack, OTHER)
-    link = _post(stack, "/lineage/links", _link("memory", theirs, "episode", week), OTHER).json()["link"]
+    link = _post(stack, "/lineage/links", _link("memory", theirs, "episode", week), OTHER).json()[
+        "link"
+    ]
     path = f"/lineage/links/{link['id']}"
 
     refused = stack.http.delete(path, headers=stack.admin_headers())
 
     assert refused.status_code == 404
-    assert [row["id"] for row in stack.get(f"/lineage/episode/{week}", agent=OTHER).json()["incoming"]] == [link["id"]]
+    assert [
+        row["id"] for row in stack.get(f"/lineage/episode/{week}", agent=OTHER).json()["incoming"]
+    ] == [link["id"]]
     assert stack.http.delete(path, headers=stack.admin_headers(OTHER)).status_code == 200
 
 
 def test_an_episode_cannot_group_another_agents_evidence(stack):
     from app.models.evidence_object import EvidenceObject
+
     with stack.sessions() as db:
-        db.add(EvidenceObject(id="evd_other", agent_id=OTHER, source_id="s", source_key="s",
-                              source_type="manual", title="t", summary="their words"))
+        db.add(
+            EvidenceObject(
+                id="evd_other",
+                agent_id=OTHER,
+                source_id="s",
+                source_key="s",
+                source_type="manual",
+                title="t",
+                summary="their words",
+            )
+        )
         db.commit()
 
     refused = _post(stack, "/lineage/episodes", {"title": "Mine", "evidence_ids": ["evd_other"]})

@@ -171,17 +171,23 @@ def create_agent_access_key(db, label: str, agent_id: str) -> tuple[AgentAccessK
     return row, key
 
 
-def ensure_bootstrap_agent_access_key(db, raw_key: str, agent_id: str, label: str = "AgentGate Pi") -> AgentAccessKey:
+def ensure_bootstrap_agent_access_key(
+    db, raw_key: str, agent_id: str, label: str = "AgentGate Pi"
+) -> AgentAccessKey:
     """Configuration seeds missing authority; it never resets an owner's decision."""
     if not raw_key.startswith("mg_read_") or len(raw_key) < 24:
-        raise ValueError("MEMORYGATE_BOOTSTRAP_READ_KEY must start with mg_read_ and be at least 24 characters")
+        raise ValueError(
+            "MEMORYGATE_BOOTSTRAP_READ_KEY must start with mg_read_ and be at least 24 characters"
+        )
     binding_id = "environment-read-key"
     binding = db.get(BootstrapAuthority, binding_id)
     if binding:
         row = db.get(AgentAccessKey, binding.key_id)
         if row is None:
-            raise ValueError("Bootstrap key was removed. Disable bootstrap configuration and "
-                             "provision an owner-issued read key; access was not recreated.")
+            raise ValueError(
+                "Bootstrap key was removed. Disable bootstrap configuration and "
+                "provision an owner-issued read key; access was not recreated."
+            )
         return row
     existing = db.query(AgentAccessKey).all()
     row = next((item for item in existing if item.label == label), None)
@@ -190,12 +196,15 @@ def ensure_bootstrap_agent_access_key(db, raw_key: str, agent_id: str, label: st
     if row is None and existing:
         # Pre-upgrade renamed AND rotated keys have no inferable bootstrap identity.
         # Failing closed is preferable to silently minting a second authority.
-        raise ValueError("Existing read keys cannot be matched to bootstrap configuration. "
-                         "Disable bootstrap configuration and use an owner-issued read key.")
+        raise ValueError(
+            "Existing read keys cannot be matched to bootstrap configuration. "
+            "Disable bootstrap configuration and use an owner-issued read key."
+        )
     try:
         if row is None:
-            row = AgentAccessKey(label=label, agent_id=agent_id,
-                                 key_hash=_hash_key(raw_key), revoked=False)
+            row = AgentAccessKey(
+                label=label, agent_id=agent_id, key_hash=_hash_key(raw_key), revoked=False
+            )
             db.add(row)
             db.flush()
         db.add(BootstrapAuthority(id=binding_id, key_id=row.id))
@@ -213,7 +222,11 @@ def ensure_bootstrap_agent_access_key(db, raw_key: str, agent_id: str, label: st
 def verify_agent_access_key(db, key: str | None, agent_id: str) -> bool:
     if not key:
         return False
-    rows = db.query(AgentAccessKey).filter(AgentAccessKey.agent_id == agent_id, AgentAccessKey.revoked.is_(False)).all()
+    rows = (
+        db.query(AgentAccessKey)
+        .filter(AgentAccessKey.agent_id == agent_id, AgentAccessKey.revoked.is_(False))
+        .all()
+    )
     known = _verified.get(_cache_tag(key))
     # A remembered match first, so rows before it are not stretched on every request.
     for row in sorted(rows, key=lambda item: item.key_hash != known):
@@ -226,7 +239,9 @@ def verify_agent_access_key(db, key: str | None, agent_id: str) -> bool:
 
 def has_agent_key(db, agent_id: str) -> bool:
     """Whether any live read key belongs to this agent id."""
-    query = db.query(AgentAccessKey.id).filter(AgentAccessKey.agent_id == agent_id, AgentAccessKey.revoked.is_(False))
+    query = db.query(AgentAccessKey.id).filter(
+        AgentAccessKey.agent_id == agent_id, AgentAccessKey.revoked.is_(False)
+    )
     return query.first() is not None
 
 

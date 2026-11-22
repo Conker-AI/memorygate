@@ -133,8 +133,12 @@ def test_remembering_reads_only_memories_that_could_match(setup):
 
     http, sessions, _calls = setup
     with sessions() as db:
-        db.add_all([Memory(agent_id="owner", text=f"Unrelated note number {n} about lunch.")
-                    for n in range(200)])
+        db.add_all(
+            [
+                Memory(agent_id="owner", text=f"Unrelated note number {n} about lunch.")
+                for n in range(200)
+            ]
+        )
         db.add(Memory(agent_id="owner", text="The physics exam is not on Thursday."))
         db.commit()
     loaded = []

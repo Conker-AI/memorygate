@@ -4,6 +4,7 @@ A table added later and forgotten in memory_reset_service fails the first test, 
 silently skip it (or silently take it). The second proves the batching: forty-five times the rows
 cost a handful more statements (one per chunk of ids), not one or more per row.
 """
+
 from datetime import datetime
 
 import app.main  # noqa: F401 - registers every model on Base.metadata
@@ -50,13 +51,30 @@ def test_the_statement_count_does_not_grow_with_the_rows(tmp_path, monkeypatch, 
         Base.metadata.create_all(engine)
         with sessionmaker(engine, expire_on_commit=False)() as db:
             for n in range(size):
-                db.add_all([
-                    Memory(id=f"m-{n}", agent_id="owner", text=f"memory {n}", created_at=datetime(2026, 5, 1)),
-                    Entity(id=f"e-{n}", agent_id="owner", entity_type="person", name=f"Sam {n}",
-                           created_at=datetime(2026, 5, 1)),
-                    ObjectLink(source_type="memory", source_id=f"m-{n}", target_type="entity",
-                               target_id=f"e-{n}", relationship="about"),
-                ])
+                db.add_all(
+                    [
+                        Memory(
+                            id=f"m-{n}",
+                            agent_id="owner",
+                            text=f"memory {n}",
+                            created_at=datetime(2026, 5, 1),
+                        ),
+                        Entity(
+                            id=f"e-{n}",
+                            agent_id="owner",
+                            entity_type="person",
+                            name=f"Sam {n}",
+                            created_at=datetime(2026, 5, 1),
+                        ),
+                        ObjectLink(
+                            source_type="memory",
+                            source_id=f"m-{n}",
+                            target_type="entity",
+                            target_id=f"e-{n}",
+                            relationship="about",
+                        ),
+                    ]
+                )
             db.commit()
             statements = []
 

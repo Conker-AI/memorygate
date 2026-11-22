@@ -36,8 +36,18 @@ def ids(result, kind):
 
 
 def flat(result):
-    return {i for kind in ("exact_duplicates", "near_duplicates", "contradictions", "expired", "not_recalled")
-            for item in result[kind]["items"] for i in item["ids"]}
+    return {
+        i
+        for kind in (
+            "exact_duplicates",
+            "near_duplicates",
+            "contradictions",
+            "expired",
+            "not_recalled",
+        )
+        for item in result[kind]["items"]
+        for i in item["ids"]
+    }
 
 
 def test_exact_and_near_duplicates_are_listed_with_a_reason(stack):
@@ -52,7 +62,10 @@ def test_exact_and_near_duplicates_are_listed_with_a_reason(stack):
     assert response.status_code == 200, response.text
     result = response.json()
     assert ids(result, "exact_duplicates") == [["m-a", "m-b"]]
-    assert result["exact_duplicates"]["items"][0]["reason"] == "same text once case and spacing are ignored"
+    assert (
+        result["exact_duplicates"]["items"][0]["reason"]
+        == "same text once case and spacing are ignored"
+    )
     assert ids(result, "near_duplicates") == [["m-c", "m-d"]]
     assert "% of their words are the same" in result["near_duplicates"]["items"][0]["reason"]
     assert result["memories_checked"] == 5 and result["truncated"] is False
@@ -61,24 +74,49 @@ def test_exact_and_near_duplicates_are_listed_with_a_reason(stack):
 def test_open_conflicts_expired_and_unused_memories_are_listed(stack):
     add(stack, "m-tea", "I drink green tea every morning", last_recalled_at=NOW)
     add(stack, "m-coffee", "I never drink anything but coffee in the morning", last_recalled_at=NOW)
-    add(stack, "m-lease", "The flat lease runs through the summer", last_recalled_at=NOW,
-        valid_until=NOW - timedelta(days=3))
-    add(stack, "m-phase", "Training for the half marathon", last_recalled_at=NOW,
-        review_by=NOW - timedelta(days=1))
+    add(
+        stack,
+        "m-lease",
+        "The flat lease runs through the summer",
+        last_recalled_at=NOW,
+        valid_until=NOW - timedelta(days=3),
+    )
+    add(
+        stack,
+        "m-phase",
+        "Training for the half marathon",
+        last_recalled_at=NOW,
+        review_by=NOW - timedelta(days=1),
+    )
     add(stack, "m-never", "The spare key is under the blue pot")
     add(stack, "m-stale", "Parking is on level three", last_recalled_at=NOW - timedelta(days=120))
     add(stack, "m-new", "The dentist moved to Elm Street", created_at=NOW - timedelta(days=2))
     with stack.sessions() as db:
-        db.add(MemoryConflict(id="c-open", agent_id=OWNER, memory_id="m-tea",
-                              conflicting_memory_id="m-coffee", reason="morning drink differs"))
-        db.add(MemoryConflict(id="c-done", agent_id=OWNER, memory_id="m-tea",
-                              conflicting_memory_id="m-never", status="resolved"))
+        db.add(
+            MemoryConflict(
+                id="c-open",
+                agent_id=OWNER,
+                memory_id="m-tea",
+                conflicting_memory_id="m-coffee",
+                reason="morning drink differs",
+            )
+        )
+        db.add(
+            MemoryConflict(
+                id="c-done",
+                agent_id=OWNER,
+                memory_id="m-tea",
+                conflicting_memory_id="m-never",
+                status="resolved",
+            )
+        )
         db.commit()
 
     result = upkeep(stack, unused_days=90).json()
 
     assert result["contradictions"]["items"] == [
-        {"ids": ["m-tea", "m-coffee"], "conflict_id": "c-open", "reason": "morning drink differs"}]
+        {"ids": ["m-tea", "m-coffee"], "conflict_id": "c-open", "reason": "morning drink differs"}
+    ]
     expired = {item["ids"][0]: item["reason"] for item in result["expired"]["items"]}
     assert expired["m-lease"].startswith("valid until ")
     assert expired["m-phase"].startswith("review was due ")
@@ -92,12 +130,26 @@ def test_another_agents_and_forgotten_or_archived_rows_never_appear(stack):
     add(stack, "m-own", "Our team stand-up is at nine", last_recalled_at=NOW)
     add(stack, "m-own2", "Our team stand-up is at nine")
     add(stack, "x-1", "Our team stand-up is at nine", agent=OTHER)
-    add(stack, "x-2", "Our team stand-up is at nine", agent=OTHER, valid_until=NOW - timedelta(days=9))
+    add(
+        stack,
+        "x-2",
+        "Our team stand-up is at nine",
+        agent=OTHER,
+        valid_until=NOW - timedelta(days=9),
+    )
     add(stack, "m-archived", "Our team stand-up is at nine", status="archived")
     add(stack, "m-gone", "Our team stand-up is at nine")
     with stack.sessions() as db:
-        db.add(ConversationReceipt(id="r-gone", agent_id=OWNER, session_id="s", message_id="msg",
-                                   state="deleted", memory_id="m-gone"))
+        db.add(
+            ConversationReceipt(
+                id="r-gone",
+                agent_id=OWNER,
+                session_id="s",
+                message_id="msg",
+                state="deleted",
+                memory_id="m-gone",
+            )
+        )
         db.add(MemoryConflict(agent_id=OTHER, memory_id="x-1", conflicting_memory_id="x-2"))
         db.add(MemoryConflict(agent_id=OWNER, memory_id="m-own", conflicting_memory_id="x-1"))
         db.commit()
@@ -115,7 +167,9 @@ def test_another_agents_and_forgotten_or_archived_rows_never_appear(stack):
 
 def test_refused_without_a_matching_key(stack):
     add(stack, "m-1", "A private note")
-    assert stack.http.get("/runtime/memory-upkeep", headers={"X-Agent-Id": OWNER}).status_code == 401
+    assert (
+        stack.http.get("/runtime/memory-upkeep", headers={"X-Agent-Id": OWNER}).status_code == 401
+    )
     stack.clear_lockouts()
     assert upkeep(stack, key="mg_read_wrong_key_not_a_secret").status_code == 401
     stack.clear_lockouts()
@@ -123,8 +177,9 @@ def test_refused_without_a_matching_key(stack):
     refused = upkeep(stack, key=stack.companion_key, agent=OWNER)
     assert refused.status_code in (401, 403), refused.text
     assert "A private note" not in refused.text
-    admin = stack.http.get("/runtime/memory-upkeep",
-                           headers={"X-MemoryGate-Key": ADMIN_KEY, "X-Agent-Id": OWNER})
+    admin = stack.http.get(
+        "/runtime/memory-upkeep", headers={"X-MemoryGate-Key": ADMIN_KEY, "X-Agent-Id": OWNER}
+    )
     assert admin.status_code == 200 and admin.json()["agent_id"] == OWNER
 
 
@@ -152,8 +207,12 @@ def test_the_route_changes_nothing(stack):
 
     def snapshot():
         with stack.engine.connect() as db:
-            return {table: [tuple(row) for row in db.execute(text(f'SELECT * FROM "{table}" ORDER BY 1'))]
-                    for table in ("memories", "memory_conflicts", "memory_audit", "memory_revisions")}
+            return {
+                table: [
+                    tuple(row) for row in db.execute(text(f'SELECT * FROM "{table}" ORDER BY 1'))
+                ]
+                for table in ("memories", "memory_conflicts", "memory_audit", "memory_revisions")
+            }
 
     before = snapshot()
     assert upkeep(stack).status_code == 200
@@ -182,7 +241,9 @@ def test_a_failed_stamp_never_fails_recall(stack, monkeypatch):
     from app.services import memory_upkeep
     from sqlalchemy.exc import OperationalError
 
-    memory_id = stack.write("I always walk home the long way when it is grey", source_type="user")["id"]
+    memory_id = stack.write("I always walk home the long way when it is grey", source_type="user")[
+        "id"
+    ]
 
     def locked(*_args, **_kwargs):
         raise OperationalError("UPDATE memories", {}, Exception("deadlock detected"))
@@ -209,27 +270,49 @@ def test_recall_restamps_at_most_once_an_hour(stack):
 
 
 def test_every_listed_memory_comes_with_its_text_and_revision(stack):
-    add(stack, "m-a", "I take the early train to work on Mondays", last_recalled_at=NOW,
-        memory_type="fact", source_type="user")
-    add(stack, "m-b", "i take the early train to work on mondays", last_recalled_at=NOW,
-        status="needs_review")
-    add(stack, "m-quiet", "The plants get water on Sundays", last_recalled_at=NOW,
-        created_at=NOW - timedelta(days=2))
+    add(
+        stack,
+        "m-a",
+        "I take the early train to work on Mondays",
+        last_recalled_at=NOW,
+        memory_type="fact",
+        source_type="user",
+    )
+    add(
+        stack,
+        "m-b",
+        "i take the early train to work on mondays",
+        last_recalled_at=NOW,
+        status="needs_review",
+    )
+    add(
+        stack,
+        "m-quiet",
+        "The plants get water on Sundays",
+        last_recalled_at=NOW,
+        created_at=NOW - timedelta(days=2),
+    )
     add(stack, "x-1", "I take the early train to work on Mondays", agent=OTHER)
 
     result = upkeep(stack).json()
 
     assert set(result["memories"]) == {"m-a", "m-b"}
     assert result["memories"]["m-a"] == {
-        "text": "I take the early train to work on Mondays", "revision": 1, "memory_type": "fact",
-        "source_type": "user", "state": "current"}
+        "text": "I take the early train to work on Mondays",
+        "revision": 1,
+        "memory_type": "fact",
+        "source_type": "user",
+        "state": "current",
+    }
     assert result["memories"]["m-b"]["revision"] == 1
     assert result["memories"]["m-b"]["state"] == "needs_review"
     assert "x-1" not in result["memories"]
 
 
 def test_memories_names_only_what_the_limit_kept(stack):
-    for index, value in enumerate(("The cellar door sticks", "Bread rises overnight", "Kites need wind")):
+    for index, value in enumerate(
+        ("The cellar door sticks", "Bread rises overnight", "Kites need wind")
+    ):
         add(stack, f"m-{index}", value)
 
     result = upkeep(stack, limit=1).json()

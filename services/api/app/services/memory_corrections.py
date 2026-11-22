@@ -53,9 +53,7 @@ def read_memory(agent_id, memory_id):
         ).scalar_one_or_none()
         if row is None:
             raise HTTPException(404, "Memory not found")
-        if len(row.text) > 16000 or any(
-            len(v) > 100 for v in (row.source_type, row.confidence)
-        ):
+        if len(row.text) > 16000 or any(len(v) > 100 for v in (row.source_type, row.confidence)):
             raise HTTPException(409, "Memory exceeds correction transport bounds")
         return {
             "id": row.id,
@@ -104,13 +102,9 @@ def apply(agent_id, request_id, payload):
             if prior is not None:
                 return _view(prior)
             if memory.revision != payload["expected_revision"]:
-                raise HTTPException(
-                    409, "Memory revision changed; review the current record"
-                )
+                raise HTTPException(409, "Memory revision changed; review the current record")
             previous = memory.revision
-            add_revision(
-                db, memory, "before reviewed runtime text correction", "owner_review"
-            )
+            add_revision(db, memory, "before reviewed runtime text correction", "owner_review")
             memory.text = payload["text"]
             # Exact text is safe as a retrieval summary; no classifier or inferred upgrade.
             memory.summary = payload["text"]
@@ -161,17 +155,14 @@ def apply(agent_id, request_id, payload):
             prior = _prior(db, agent_id, request_id, digest)
             if prior is not None:
                 return _view(prior)
-        raise HTTPException(
-            409, "Memory revision or correction request changed"
-        ) from None
+        raise HTTPException(409, "Memory revision or correction request changed") from None
 
     # Derived vector indexing is outside the authoritative transaction. Replays never repeat it.
     # A crash here leaves a visible pending receipt, while the authoritative correction is durable.
     try:
         with SessionLocal() as db:
             current = db.execute(
-                select(Memory)
-                .where(Memory.id == payload["memory_id"], Memory.agent_id == agent_id)
+                select(Memory).where(Memory.id == payload["memory_id"], Memory.agent_id == agent_id)
             ).scalar_one_or_none()
             current_revision = current.revision if current is not None else None
             db.rollback()

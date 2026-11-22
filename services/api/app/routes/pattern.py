@@ -29,6 +29,7 @@ from sqlalchemy import select
 SEARCH_LIMIT = 50
 router = APIRouter(prefix="/pattern", tags=["pattern"])
 
+
 def _pattern_to_dict(row: Pattern) -> dict:
     return {
         "id": row.id,
@@ -51,11 +52,13 @@ def _pattern_to_dict(row: Pattern) -> dict:
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
     }
 
+
 def _get_owned_pattern(db, pattern_id: str, agent_id: str) -> Pattern:
     row = db.get(Pattern, pattern_id)
     if not row or row.agent_id != agent_id:
         raise HTTPException(404, "Pattern not found")
     return row
+
 
 @router.post("/create")
 def create_pattern(payload: PatternCreateRequest, header_agent_id: str = Depends(get_agent_id)):
@@ -87,6 +90,7 @@ def create_pattern(payload: PatternCreateRequest, header_agent_id: str = Depends
     finally:
         db.close()
 
+
 @router.delete("/{pattern_id}")
 def delete_pattern(pattern_id: str, agent_id: str = Depends(get_agent_id)):
     """Delete a pattern and its lineage links; it leaves a content-free receipt for replay."""
@@ -100,6 +104,7 @@ def delete_pattern(pattern_id: str, agent_id: str = Depends(get_agent_id)):
     finally:
         db.close()
 
+
 @router.post("/search")
 def search_patterns(payload: PatternSearchRequest, header_agent_id: str = Depends(get_agent_id)):
     agent_id = resolve_agent_id(header_agent_id, payload.agent_id)
@@ -110,11 +115,25 @@ def search_patterns(payload: PatternSearchRequest, header_agent_id: str = Depend
         if payload.status:
             stmt = stmt.where(Pattern.status == payload.status)
         if payload.entity_id:
-            stmt = stmt.where(Pattern.applies_to_entity_ids_json.contains(payload.entity_id, autoescape=True))
+            stmt = stmt.where(
+                Pattern.applies_to_entity_ids_json.contains(payload.entity_id, autoescape=True)
+            )
         if payload.query:
-            stmt = stmt.where(matches_any((Pattern.pattern_name, Pattern.description, Pattern.interpretation,
-                                           Pattern.recommended_action, Pattern.status), payload.query))
-        rows = db.execute(stmt.order_by(Pattern.updated_at.desc()).execution_options(yield_per=100)).scalars()
+            stmt = stmt.where(
+                matches_any(
+                    (
+                        Pattern.pattern_name,
+                        Pattern.description,
+                        Pattern.interpretation,
+                        Pattern.recommended_action,
+                        Pattern.status,
+                    ),
+                    payload.query,
+                )
+            )
+        rows = db.execute(
+            stmt.order_by(Pattern.updated_at.desc()).execution_options(yield_per=100)
+        ).scalars()
         results = []
 
         for row in rows:
@@ -128,13 +147,15 @@ def search_patterns(payload: PatternSearchRequest, header_agent_id: str = Depend
                 continue
 
             if payload.query:
-                hay = " ".join([
-                    item["pattern_name"],
-                    item["description"],
-                    item["interpretation"],
-                    item["recommended_action"],
-                    item["status"],
-                ]).lower()
+                hay = " ".join(
+                    [
+                        item["pattern_name"],
+                        item["description"],
+                        item["interpretation"],
+                        item["recommended_action"],
+                        item["status"],
+                    ]
+                ).lower()
                 if payload.query.lower() not in hay:
                     continue
 
@@ -144,27 +165,42 @@ def search_patterns(payload: PatternSearchRequest, header_agent_id: str = Depend
     finally:
         db.close()
 
+
 @router.get("/active/{agent_id}")
 def list_active_patterns(agent_id: str):
     db = SessionLocal()
     try:
-        rows = db.execute(
-            select(Pattern).where(Pattern.agent_id == agent_id, Pattern.status == "active").order_by(Pattern.updated_at.desc())
-        ).scalars().all()
+        rows = (
+            db.execute(
+                select(Pattern)
+                .where(Pattern.agent_id == agent_id, Pattern.status == "active")
+                .order_by(Pattern.updated_at.desc())
+            )
+            .scalars()
+            .all()
+        )
         return {"results": [_pattern_to_dict(row) for row in rows]}
     finally:
         db.close()
+
 
 @router.get("/candidates/{agent_id}")
 def list_candidate_patterns(agent_id: str):
     db = SessionLocal()
     try:
-        rows = db.execute(
-            select(Pattern).where(Pattern.agent_id == agent_id, Pattern.status == "candidate").order_by(Pattern.updated_at.desc())
-        ).scalars().all()
+        rows = (
+            db.execute(
+                select(Pattern)
+                .where(Pattern.agent_id == agent_id, Pattern.status == "candidate")
+                .order_by(Pattern.updated_at.desc())
+            )
+            .scalars()
+            .all()
+        )
         return {"results": [_pattern_to_dict(row) for row in rows]}
     finally:
         db.close()
+
 
 @router.get("/{pattern_id}")
 def get_pattern(pattern_id: str, agent_id: str = Depends(get_agent_id)):
@@ -175,8 +211,11 @@ def get_pattern(pattern_id: str, agent_id: str = Depends(get_agent_id)):
     finally:
         db.close()
 
+
 @router.post("/update/{pattern_id}")
-def update_pattern(pattern_id: str, payload: PatternUpdateRequest, agent_id: str = Depends(get_agent_id)):
+def update_pattern(
+    pattern_id: str, payload: PatternUpdateRequest, agent_id: str = Depends(get_agent_id)
+):
     db = SessionLocal()
     try:
         row = _get_owned_pattern(db, pattern_id, agent_id)
@@ -199,7 +238,9 @@ def update_pattern(pattern_id: str, payload: PatternUpdateRequest, agent_id: str
         if payload.recommended_action is not None:
             row.recommended_action = payload.recommended_action
         if payload.applies_to_entity_ids is not None:
-            require_known(db, Entity, agent_id, payload.applies_to_entity_ids, "applies_to_entity_ids")
+            require_known(
+                db, Entity, agent_id, payload.applies_to_entity_ids, "applies_to_entity_ids"
+            )
             row.applies_to_entity_ids_json = json.dumps(payload.applies_to_entity_ids)
         if payload.context_conditions is not None:
             row.context_conditions_json = json.dumps(payload.context_conditions)
@@ -214,8 +255,11 @@ def update_pattern(pattern_id: str, payload: PatternUpdateRequest, agent_id: str
     finally:
         db.close()
 
+
 @router.post("/{pattern_id}/confirm")
-def confirm_pattern(pattern_id: str, payload: PatternConfirmRequest, agent_id: str = Depends(get_agent_id)):
+def confirm_pattern(
+    pattern_id: str, payload: PatternConfirmRequest, agent_id: str = Depends(get_agent_id)
+):
     db = SessionLocal()
     try:
         row = _get_owned_pattern(db, pattern_id, agent_id)
@@ -228,8 +272,11 @@ def confirm_pattern(pattern_id: str, payload: PatternConfirmRequest, agent_id: s
     finally:
         db.close()
 
+
 @router.post("/{pattern_id}/contradict")
-def contradict_pattern(pattern_id: str, payload: PatternContradictRequest, agent_id: str = Depends(get_agent_id)):
+def contradict_pattern(
+    pattern_id: str, payload: PatternContradictRequest, agent_id: str = Depends(get_agent_id)
+):
     db = SessionLocal()
     try:
         row = _get_owned_pattern(db, pattern_id, agent_id)
@@ -242,6 +289,7 @@ def contradict_pattern(pattern_id: str, payload: PatternContradictRequest, agent
     finally:
         db.close()
 
+
 @router.post("/promote")
 def promote_pattern(payload: PatternPromoteRequest, header_agent_id: str = Depends(get_agent_id)):
     agent_id = resolve_agent_id(header_agent_id, payload.agent_id)
@@ -249,10 +297,22 @@ def promote_pattern(payload: PatternPromoteRequest, header_agent_id: str = Depen
     try:
         stmt = select(Observation).where(Observation.agent_id == agent_id)
         if payload.entity_id:
-            stmt = stmt.where(Observation.entity_ids_json.contains(payload.entity_id, autoescape=True))
+            stmt = stmt.where(
+                Observation.entity_ids_json.contains(payload.entity_id, autoescape=True)
+            )
         if payload.query:
-            stmt = stmt.where(matches_any((Observation.description, Observation.raw_context, Observation.hypothesis,
-                                           Observation.signal_type, Observation.status), payload.query))
+            stmt = stmt.where(
+                matches_any(
+                    (
+                        Observation.description,
+                        Observation.raw_context,
+                        Observation.hypothesis,
+                        Observation.signal_type,
+                        Observation.status,
+                    ),
+                    payload.query,
+                )
+            )
         obs_rows = db.execute(stmt.order_by(Observation.observed_at.desc())).scalars().all()
         matched = []
 
@@ -262,13 +322,15 @@ def promote_pattern(payload: PatternPromoteRequest, header_agent_id: str = Depen
                 continue
 
             if payload.query:
-                hay = " ".join([
-                    row.description,
-                    row.raw_context,
-                    row.hypothesis,
-                    row.signal_type,
-                    row.status,
-                ]).lower()
+                hay = " ".join(
+                    [
+                        row.description,
+                        row.raw_context,
+                        row.hypothesis,
+                        row.signal_type,
+                        row.status,
+                    ]
+                ).lower()
                 if payload.query.lower() not in hay:
                     continue
 

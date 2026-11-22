@@ -29,14 +29,23 @@ def _within_two_weeks(value) -> bool:
 
 def test_editing_an_old_memory_to_a_phase_dates_its_review_from_now(stack):
     with stack.sessions() as db:
-        db.add(Memory(
-            id="mem_old", agent_id=OWNER, text="Works late on Fridays", memory_type="fact",
-            confidence="medium", source_type="user", tags_json="[]",
-            created_at=datetime.now(UTC) - timedelta(days=60),
-        ))
+        db.add(
+            Memory(
+                id="mem_old",
+                agent_id=OWNER,
+                text="Works late on Fridays",
+                memory_type="fact",
+                confidence="medium",
+                source_type="user",
+                tags_json="[]",
+                created_at=datetime.now(UTC) - timedelta(days=60),
+            )
+        )
         db.commit()
 
-    response = stack.http.patch("/memory/mem_old", headers=stack.admin_headers(), json={"memory_type": "phase"})
+    response = stack.http.patch(
+        "/memory/mem_old", headers=stack.admin_headers(), json={"memory_type": "phase"}
+    )
 
     assert response.status_code == 200, response.text
     assert _within_two_weeks(response.json()["memory"]["review_by"])
@@ -55,9 +64,15 @@ def test_a_duplicate_write_that_upgrades_to_a_phase_sets_its_review_date(stack):
 
 def test_a_listener_promotion_to_a_phase_sets_its_review_date(setup, monkeypatch):
     http, sessions, _engine, _removed = setup
-    monkeypatch.setattr(runtime_pipeline, "classify_memory", lambda content, source_type: {
-        "memory_type": "phase", "confidence": "medium", "summary": content[:280],
-    })
+    monkeypatch.setattr(
+        runtime_pipeline,
+        "classify_memory",
+        lambda content, source_type: {
+            "memory_type": "phase",
+            "confidence": "medium",
+            "summary": content[:280],
+        },
+    )
 
     result = process(sessions, sent(http))
 

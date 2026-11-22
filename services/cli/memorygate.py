@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Portable MemoryGate CLI for terminal-capable agents."""
+
 import argparse
 import json
 import os
@@ -22,7 +23,16 @@ def request(method: str, path: str, payload: dict | None = None) -> dict:
     agent_id = os.getenv("MEMORYGATE_AGENT_ID", "default")
     if not key:
         raise RuntimeError("MEMORYGATE_KEY is required")
-    request = Request(f"{base}{path}", data=json.dumps(payload).encode() if payload is not None else None, method=method, headers={"Content-Type": "application/json", "X-MemoryGate-Key": key, "X-Agent-Id": agent_id})
+    request = Request(
+        f"{base}{path}",
+        data=json.dumps(payload).encode() if payload is not None else None,
+        method=method,
+        headers={
+            "Content-Type": "application/json",
+            "X-MemoryGate-Key": key,
+            "X-Agent-Id": agent_id,
+        },
+    )
     with _URL_OPENER.open(request, timeout=30) as response:
         return json.loads(response.read())
 
@@ -42,9 +52,23 @@ def main() -> int:
     args = parser.parse_args()
     try:
         if args.command == "context":
-            result = request("POST", "/runtime/context", {"query": args.query, "max_items": args.limit, "include_evidence": args.evidence})
+            result = request(
+                "POST",
+                "/runtime/context",
+                {"query": args.query, "max_items": args.limit, "include_evidence": args.evidence},
+            )
         else:
-            result = request("POST", "/runtime/ingest", {"source_key": args.source_key, "content": args.content, "title": args.title, "tags": args.tag, "auto_process": True})
+            result = request(
+                "POST",
+                "/runtime/ingest",
+                {
+                    "source_key": args.source_key,
+                    "content": args.content,
+                    "title": args.title,
+                    "tags": args.tag,
+                    "auto_process": True,
+                },
+            )
         print(json.dumps(result, indent=2))
         return 0
     except (RuntimeError, HTTPError, URLError) as exc:

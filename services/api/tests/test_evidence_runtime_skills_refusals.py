@@ -55,9 +55,15 @@ def test_a_disabled_source_is_refused_with_409_and_the_list_filters_by_source(st
 
 def test_ingest_into_an_unknown_or_disabled_source_is_404_and_stores_nothing(stack):
     body = {"source_key": "notes", "content": "hello"}
-    assert stack.http.post("/runtime/ingest", headers=stack.admin_headers(), json=body).status_code == 404
+    assert (
+        stack.http.post("/runtime/ingest", headers=stack.admin_headers(), json=body).status_code
+        == 404
+    )
     post(stack, "/evidence/sources", {**SOURCE, "enabled": False})
-    assert stack.http.post("/runtime/ingest", headers=stack.admin_headers(), json=body).status_code == 404
+    assert (
+        stack.http.post("/runtime/ingest", headers=stack.admin_headers(), json=body).status_code
+        == 404
+    )
     assert count(stack, EvidenceObject) == 0
 
 
@@ -79,7 +85,10 @@ def test_a_job_is_listed_by_status_retried_once_and_never_for_another_agent(stac
     assert post(stack, f"/runtime/jobs/{job['id']}/retry", agent=OTHER).status_code == 404
     assert post(stack, "/runtime/jobs/job_unknown/retry").status_code == 404
     retried = post(stack, f"/runtime/jobs/{job['id']}/retry")
-    assert retried.status_code == 200 and retried.json() == {"status": "queued", "job_id": job["id"]}
+    assert retried.status_code == 200 and retried.json() == {
+        "status": "queued",
+        "job_id": job["id"],
+    }
 
 
 def test_a_job_whose_evidence_is_gone_cannot_be_retried(stack):
@@ -111,7 +120,11 @@ def test_invalidating_unknown_or_foreign_evidence_is_404(stack):
 
 # --- Skills --------------------------------------------------------------------
 
-SKILL = {"title": "Check amounts", "body": "Look at the amount first.", "linked_tools": ["pay.charge"]}
+SKILL = {
+    "title": "Check amounts",
+    "body": "Look at the amount first.",
+    "linked_tools": ["pay.charge"],
+}
 
 
 def skill(stack, agent="owner", **body):
@@ -123,7 +136,9 @@ def skill(stack, agent="owner", **body):
 def test_a_skill_of_another_agent_or_a_plain_memory_is_not_found(stack):
     mine = skill(stack)
     assert stack.get(f"/skills/{mine}", OTHER).status_code == 404
-    other = stack.http.patch(f"/skills/{mine}", headers=stack.admin_headers(OTHER), json={"title": "x"})
+    other = stack.http.patch(
+        f"/skills/{mine}", headers=stack.admin_headers(OTHER), json={"title": "x"}
+    )
     assert other.status_code == 404
     assert stack.get("/skills/mem_unknown").status_code == 404
     memory = stack.write("I always walk home the long way when it is grey", source_type="user")
@@ -139,12 +154,18 @@ def test_a_patch_changes_only_the_given_fields_and_keeps_the_rest(stack):
         return stack.http.patch(f"/skills/{mine}", headers=stack.admin_headers(), json=body)
 
     assert patch({"title": "Renamed"}).status_code == 200
-    changed = patch({"linked_tools": ["mail.send"], "version": "2", "active": False}).json()["skill"]
+    changed = patch({"linked_tools": ["mail.send"], "version": "2", "active": False}).json()[
+        "skill"
+    ]
     assert changed["title"] == "Renamed" and changed["body"] == SKILL["body"]
     assert changed["linked_tools"] == ["mail.send"] and changed["version"] == "2"
     assert changed["active"] is False
     again = patch({"active": True, "body": "New body."}).json()["skill"]
-    assert again["active"] is True and again["linked_tools"] == ["mail.send"] and again["body"] == "New body."
+    assert (
+        again["active"] is True
+        and again["linked_tools"] == ["mail.send"]
+        and again["body"] == "New body."
+    )
 
 
 def test_an_old_skill_that_stored_a_plain_list_of_tools_still_reads_and_patches(stack):
@@ -157,5 +178,7 @@ def test_an_old_skill_that_stored_a_plain_list_of_tools_still_reads_and_patches(
     with stack.sessions() as db:
         db.get(Memory, mine).tags_json = "{not json"
         db.commit()
-    patched = stack.http.patch(f"/skills/{mine}", headers=stack.admin_headers(), json={"title": "Fixed"})
+    patched = stack.http.patch(
+        f"/skills/{mine}", headers=stack.admin_headers(), json={"title": "Fixed"}
+    )
     assert patched.status_code == 200 and patched.json()["skill"]["title"] == "Fixed"

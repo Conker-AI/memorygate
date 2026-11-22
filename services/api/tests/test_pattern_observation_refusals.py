@@ -200,8 +200,12 @@ def test_promote_without_enough_matching_observations_creates_no_pattern(stack):
 
 def test_promote_groups_only_the_matching_observations_of_the_caller(stack):
     with stack.sessions() as db:  # observations may only name entities that exist
-        db.add_all([Entity(id=key, agent_id="owner", entity_type="place", name=key)
-                    for key in ("ent_office", "ent_home", "ent_river")])
+        db.add_all(
+            [
+                Entity(id=key, agent_id="owner", entity_type="place", name=key)
+                for key in ("ent_office", "ent_home", "ent_river")
+            ]
+        )
         db.commit()
     tea = [
         observe(stack, "Drinks green tea at noon", entity_ids=["ent_office"]),

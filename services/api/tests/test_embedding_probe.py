@@ -18,7 +18,8 @@ def provider_cache(monkeypatch):
 
 def model_response(body=None):
     return httpx.Response(
-        200, json=body if body is not None else {"model": "qa-model", "dimension": 8},
+        200,
+        json=body if body is not None else {"model": "qa-model", "dimension": 8},
         request=httpx.Request("GET", "http://qa.invalid/model"),
     )
 
@@ -48,12 +49,20 @@ def test_probe_never_publishes_a_partial_result(monkeypatch):
             second = pool.submit(embeddings.embedding_health)
         finally:
             release.set()
-        assert first.result(timeout=5) == second.result(timeout=5) == {
-            "status": "ok", "model": "qa-model", "dimension": 8,
-        }
+        assert (
+            first.result(timeout=5)
+            == second.result(timeout=5)
+            == {
+                "status": "ok",
+                "model": "qa-model",
+                "dimension": 8,
+            }
+        )
 
 
-@pytest.mark.parametrize("body", [{}, {"model": "qa-model"}, {"model": "qa-model", "dimension": "bad"}])
+@pytest.mark.parametrize(
+    "body", [{}, {"model": "qa-model"}, {"model": "qa-model", "dimension": "bad"}]
+)
 def test_malformed_probe_reports_unavailability_without_raising(monkeypatch, body):
     monkeypatch.setattr(embeddings.httpx, "get", lambda *args, **kwargs: model_response(body))
     health = embeddings.embedding_health()

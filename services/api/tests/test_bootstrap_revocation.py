@@ -90,12 +90,8 @@ def test_rename_and_rotation_preserve_permanent_bootstrap_identity(database):
         row.agent_id = "restricted"
         db.commit()
     with Session(database) as db:
-        seeded = ensure_bootstrap_agent_access_key(
-            db, RAW, "broader", label="New config label"
-        )
-        assert (
-            seeded.id == identity and seeded.revoked and seeded.agent_id == "restricted"
-        )
+        seeded = ensure_bootstrap_agent_access_key(db, RAW, "broader", label="New config label")
+        assert seeded.id == identity and seeded.revoked and seeded.agent_id == "restricted"
         assert db.query(AgentAccessKey).count() == 1
         assert not verify_agent_access_key(db, RAW, "broader")
 

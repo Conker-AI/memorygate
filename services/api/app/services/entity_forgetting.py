@@ -14,8 +14,11 @@ def erase_dependents(db, entity_id: str) -> None:
     Each removed lineage link leaves a content-free `link` receipt, as other deletes do."""
     db.execute(delete(EntityHistory).where(EntityHistory.entity_id == entity_id))
     db.execute(delete(EntityEvent).where(EntityEvent.entity_id == entity_id))
-    db.execute(delete(EntityEdge).where(
-        or_(EntityEdge.from_entity_id == entity_id, EntityEdge.to_entity_id == entity_id)))
+    db.execute(
+        delete(EntityEdge).where(
+            or_(EntityEdge.from_entity_id == entity_id, EntityEdge.to_entity_id == entity_id)
+        )
+    )
     erase_links(db, "entity", entity_id)
     for table, column in ID_LISTS:
         strip_id(db, table, column, entity_id)

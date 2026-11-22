@@ -30,14 +30,26 @@ def db(tmp_path):
 
 def test_watch_flags_skip_memories_that_left_recall(db):
     now = datetime.now(UTC)
-    db.add(Memory(
-        agent_id="owner", memory_type="watch", status="needs_review",
-        summary="old watch", text="old watch", created_at=now - timedelta(hours=2),
-    ))
-    db.add(Memory(
-        agent_id="owner", memory_type="watch", status="active",
-        summary="live watch", text="live watch", created_at=now - timedelta(hours=1),
-    ))
+    db.add(
+        Memory(
+            agent_id="owner",
+            memory_type="watch",
+            status="needs_review",
+            summary="old watch",
+            text="old watch",
+            created_at=now - timedelta(hours=2),
+        )
+    )
+    db.add(
+        Memory(
+            agent_id="owner",
+            memory_type="watch",
+            status="active",
+            summary="live watch",
+            text="live watch",
+            created_at=now - timedelta(hours=1),
+        )
+    )
     db.commit()
 
     assert briefing._watch_flags(db, "owner") == ["live watch"]
@@ -46,14 +58,26 @@ def test_watch_flags_skip_memories_that_left_recall(db):
 @pytest.mark.parametrize("dropped_status", ["contradicted", "archived"])
 def test_emotional_state_skips_contradicted_and_archived_observations(db, dropped_status):
     now = datetime.now(UTC)
-    db.add(Observation(
-        agent_id="owner", signal_type="emotional", description="d", status="unconfirmed",
-        hypothesis="calm", observed_at=now - timedelta(hours=3),
-    ))
-    db.add(Observation(
-        agent_id="owner", signal_type="emotional", description="d", status=dropped_status,
-        hypothesis="stressed", observed_at=now - timedelta(hours=1),
-    ))
+    db.add(
+        Observation(
+            agent_id="owner",
+            signal_type="emotional",
+            description="d",
+            status="unconfirmed",
+            hypothesis="calm",
+            observed_at=now - timedelta(hours=3),
+        )
+    )
+    db.add(
+        Observation(
+            agent_id="owner",
+            signal_type="emotional",
+            description="d",
+            status=dropped_status,
+            hypothesis="stressed",
+            observed_at=now - timedelta(hours=1),
+        )
+    )
     db.commit()
 
     assert briefing._emotional_state(db, "owner")[0] == "calm"

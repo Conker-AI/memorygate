@@ -20,11 +20,57 @@ MAX_PHRASE_CHARS = 256
 MAX_CANDIDATES = 120
 _WORDS = re.compile(r"[^\W_]+(?:[-'][^\W_]+)*", re.UNICODE)
 _STOP_WORDS = frozenset(
-    ["an", "and", "are", "as", "at", "be", "by", "can", "could", "did", "do", "does",
-     "for", "from", "has", "have", "how", "in", "is", "it", "me", "my", "of", "on", "or",
-     "our", "please", "should", "that", "the", "their", "these", "this", "to", "us", "was",
-     "we", "were", "what", "when", "where", "which", "who", "why", "will", "with", "would",
-     "you", "your"]
+    [
+        "an",
+        "and",
+        "are",
+        "as",
+        "at",
+        "be",
+        "by",
+        "can",
+        "could",
+        "did",
+        "do",
+        "does",
+        "for",
+        "from",
+        "has",
+        "have",
+        "how",
+        "in",
+        "is",
+        "it",
+        "me",
+        "my",
+        "of",
+        "on",
+        "or",
+        "our",
+        "please",
+        "should",
+        "that",
+        "the",
+        "their",
+        "these",
+        "this",
+        "to",
+        "us",
+        "was",
+        "we",
+        "were",
+        "what",
+        "when",
+        "where",
+        "which",
+        "who",
+        "why",
+        "will",
+        "with",
+        "would",
+        "you",
+        "your",
+    ]
 )
 
 
@@ -108,11 +154,15 @@ def memory_candidates(db, query: LexicalQuery, agent_id: str, within=None):
         + case(MEMORY_TYPE_BONUSES, value=Memory.memory_type, else_=0.0)
         + case(CONFIDENCE_BONUSES, value=Memory.confidence, else_=0.0)
     ).label("lexical_score")
-    deleted = select(ConversationReceipt.id).where(
-        ConversationReceipt.agent_id == agent_id,
-        ConversationReceipt.memory_id == Memory.id,
-        ConversationReceipt.state == "deleted",
-    ).exists()
+    deleted = (
+        select(ConversationReceipt.id)
+        .where(
+            ConversationReceipt.agent_id == agent_id,
+            ConversationReceipt.memory_id == Memory.id,
+            ConversationReceipt.state == "deleted",
+        )
+        .exists()
+    )
     statement = (
         select(Memory, score)
         .where(

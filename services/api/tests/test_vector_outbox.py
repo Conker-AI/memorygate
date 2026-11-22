@@ -14,9 +14,7 @@ from sqlalchemy.orm import Session, sessionmaker
 @pytest.fixture
 def database(tmp_path):
     path = tmp_path / "outbox.db"
-    engine = create_engine(
-        f"sqlite:///{path}", connect_args={"check_same_thread": False}
-    )
+    engine = create_engine(f"sqlite:///{path}", connect_args={"check_same_thread": False})
     Base.metadata.create_all(engine)
     sessions = sessionmaker(engine, expire_on_commit=False, autoflush=False)
     yield path, engine, sessions
@@ -111,12 +109,7 @@ def test_delete_supersedes_an_unapplied_upsert(database, monkeypatch):
     _, _, sessions = database
     with sessions() as db:
         assert enqueue_memory(db) == 1
-        assert (
-            vector_outbox.enqueue_delete(
-                db, "memory", "memory-1", agent_id="owner"
-            )
-            == 2
-        )
+        assert vector_outbox.enqueue_delete(db, "memory", "memory-1", agent_id="owner") == 2
         db.delete(db.get(Memory, "memory-1"))
         db.commit()
 
@@ -189,12 +182,8 @@ def test_restart_replays_effect_without_creating_a_second_point(database, monkey
     assert list(points) == ["memory-1"]
 
     engine.dispose()
-    restarted_engine = create_engine(
-        f"sqlite:///{path}", connect_args={"check_same_thread": False}
-    )
-    restarted_sessions = sessionmaker(
-        restarted_engine, expire_on_commit=False, autoflush=False
-    )
+    restarted_engine = create_engine(f"sqlite:///{path}", connect_args={"check_same_thread": False})
+    restarted_sessions = sessionmaker(restarted_engine, expire_on_commit=False, autoflush=False)
     try:
         assert vector_outbox.reconcile_pending(1, sessions=restarted_sessions) == 1
         assert list(points) == ["memory-1"]

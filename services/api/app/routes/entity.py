@@ -32,6 +32,7 @@ router = APIRouter(prefix="/entity", tags=["entity"])
 # Python/JS.
 CURRENT_ENTITY_TYPES = {"human", "project", "organization", "place", "concept", "habit", "object"}
 
+
 def _entity_to_dict(row: Entity) -> dict:
     return {
         "id": row.id,
@@ -48,25 +49,38 @@ def _entity_to_dict(row: Entity) -> dict:
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
     }
 
+
 def _get_owned_entity(db, entity_id: str, agent_id: str) -> Entity:
     row = db.get(Entity, entity_id)
     if not row or row.agent_id != agent_id:
         raise HTTPException(404, "Entity not found")
     return row
 
+
 @router.get("")
-def list_entities(agent_id: str = Depends(get_agent_id), limit: int = Query(default=100, ge=1, le=500),
-                  offset: int = Query(default=0, ge=0)):
+def list_entities(
+    agent_id: str = Depends(get_agent_id),
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+):
     """Most recently changed first; `offset` pages to older entities."""
     db = SessionLocal()
     try:
-        rows = db.execute(
-            select(Entity).where(Entity.agent_id == agent_id)
-            .order_by(Entity.updated_at.desc(), Entity.id.desc()).limit(limit).offset(offset)
-        ).scalars().all()
+        rows = (
+            db.execute(
+                select(Entity)
+                .where(Entity.agent_id == agent_id)
+                .order_by(Entity.updated_at.desc(), Entity.id.desc())
+                .limit(limit)
+                .offset(offset)
+            )
+            .scalars()
+            .all()
+        )
         return [_entity_to_dict(row) for row in rows]
     finally:
         db.close()
+
 
 @router.post("/create")
 def create_entity(payload: EntityCreateRequest, header_agent_id: str = Depends(get_agent_id)):
@@ -103,14 +117,16 @@ def create_entity(payload: EntityCreateRequest, header_agent_id: str = Depends(g
             db.commit()
             db.refresh(dup)
 
-            db.add(EntityHistory(
-                entity_id=dup.id,
-                changed_field="entity_deduplicated",
-                old_value_json=json.dumps(before),
-                new_value_json=json.dumps(_entity_to_dict(dup)),
-                change_reason="create request matched an existing entity - merged instead of duplicating",
-                triggered_by="system",
-            ))
+            db.add(
+                EntityHistory(
+                    entity_id=dup.id,
+                    changed_field="entity_deduplicated",
+                    old_value_json=json.dumps(before),
+                    new_value_json=json.dumps(_entity_to_dict(dup)),
+                    change_reason="create request matched an existing entity - merged instead of duplicating",
+                    triggered_by="system",
+                )
+            )
             db.commit()
 
             return {"status": "ok", "entity": _entity_to_dict(dup), "deduplicated": True}
@@ -137,14 +153,16 @@ def create_entity(payload: EntityCreateRequest, header_agent_id: str = Depends(g
             payload={"agent_id": agent_id, "entity_type": entity.entity_type},
         )
 
-        db.add(EntityHistory(
-            entity_id=entity.id,
-            changed_field="entity_created",
-            old_value_json="null",
-            new_value_json=json.dumps(_entity_to_dict(entity)),
-            change_reason="entity created",
-            triggered_by="system",
-        ))
+        db.add(
+            EntityHistory(
+                entity_id=entity.id,
+                changed_field="entity_created",
+                old_value_json="null",
+                new_value_json=json.dumps(_entity_to_dict(entity)),
+                change_reason="entity created",
+                triggered_by="system",
+            )
+        )
         db.commit()
         db.refresh(entity)
         indexing = reconcile_one("entity", entity.id, sessions=SessionLocal)
@@ -158,12 +176,14 @@ def create_entity(payload: EntityCreateRequest, header_agent_id: str = Depends(g
     finally:
         db.close()
 
+
 @router.delete("/{entity_id}")
 def delete_entity(entity_id: str, agent_id: str = Depends(get_agent_id)):
     db = SessionLocal()
     try:
         row = _get_owned_entity(db, entity_id, agent_id)
         from app.models.deletion_receipt import record
+
         record(db, agent_id, "entity", row.id)
         enqueue_delete(db, "entity", row.id, agent_id=agent_id)
         erase_dependents(db, row.id)
@@ -177,6 +197,7 @@ def delete_entity(entity_id: str, agent_id: str = Depends(get_agent_id)):
     finally:
         db.close()
 
+
 @router.get("/{entity_id}")
 def get_entity(entity_id: str, agent_id: str = Depends(get_agent_id)):
     db = SessionLocal()
@@ -185,6 +206,7 @@ def get_entity(entity_id: str, agent_id: str = Depends(get_agent_id)):
         return _entity_to_dict(row)
     finally:
         db.close()
+
 
 @router.post("/search")
 def search_entities(payload: EntitySearchRequest, header_agent_id: str = Depends(get_agent_id)):
@@ -199,7 +221,7 @@ def search_entities(payload: EntitySearchRequest, header_agent_id: str = Depends
                 Entity.description.ilike(pattern, escape="/"),
                 Entity.agent_summary.ilike(pattern, escape="/"),
                 Entity.agent_notes.ilike(pattern, escape="/"),
-            )
+            ),
         )
         if payload.entity_type:
             stmt = stmt.where(Entity.entity_type == payload.entity_type)
@@ -209,8 +231,11 @@ def search_entities(payload: EntitySearchRequest, header_agent_id: str = Depends
     finally:
         db.close()
 
+
 @router.patch("/{entity_id}")
-def update_entity(entity_id: str, payload: EntityUpdateRequest, agent_id: str = Depends(get_agent_id)):
+def update_entity(
+    entity_id: str, payload: EntityUpdateRequest, agent_id: str = Depends(get_agent_id)
+):
     db = SessionLocal()
     try:
         row = _get_owned_entity(db, entity_id, agent_id)
@@ -247,14 +272,16 @@ def update_entity(entity_id: str, payload: EntityUpdateRequest, agent_id: str = 
 
         after = _entity_to_dict(row)
 
-        db.add(EntityHistory(
-            entity_id=row.id,
-            changed_field="entity_updated",
-            old_value_json=json.dumps(before),
-            new_value_json=json.dumps(after),
-            change_reason=payload.change_reason,
-            triggered_by=payload.triggered_by,
-        ))
+        db.add(
+            EntityHistory(
+                entity_id=row.id,
+                changed_field="entity_updated",
+                old_value_json=json.dumps(before),
+                new_value_json=json.dumps(after),
+                change_reason=payload.change_reason,
+                triggered_by=payload.triggered_by,
+            )
+        )
         db.commit()
         db.refresh(row)
         if name_changed:
@@ -266,6 +293,7 @@ def update_entity(entity_id: str, payload: EntityUpdateRequest, agent_id: str = 
         return result
     finally:
         db.close()
+
 
 @router.post("/merge")
 def merge_entity(payload: EntityMergeRequest, agent_id: str = Depends(get_agent_id)):
@@ -279,20 +307,23 @@ def merge_entity(payload: EntityMergeRequest, agent_id: str = Depends(get_agent_
         except ValueError as exc:
             raise HTTPException(404, str(exc)) from None
 
-        db.add(EntityHistory(
-            entity_id=keep.id,
-            changed_field="entity_merged",
-            old_value_json=json.dumps({"merged_entity_id": payload.merge_entity_id}),
-            new_value_json=json.dumps(_entity_to_dict(keep)),
-            change_reason="manual merge from the entity graph",
-            triggered_by="user",
-        ))
+        db.add(
+            EntityHistory(
+                entity_id=keep.id,
+                changed_field="entity_merged",
+                old_value_json=json.dumps({"merged_entity_id": payload.merge_entity_id}),
+                new_value_json=json.dumps(_entity_to_dict(keep)),
+                change_reason="manual merge from the entity graph",
+                triggered_by="user",
+            )
+        )
         db.commit()
         db.refresh(keep)
 
         return {"status": "ok", "entity": _entity_to_dict(keep)}
     finally:
         db.close()
+
 
 @router.post("/link")
 def link_entities(payload: EntityLinkRequest, agent_id: str = Depends(get_agent_id)):
@@ -329,20 +360,25 @@ def link_entities(payload: EntityLinkRequest, agent_id: str = Depends(get_agent_
     finally:
         db.close()
 
+
 @router.get("/{entity_id}/edges")
 def get_entity_edges(entity_id: str, agent_id: str = Depends(get_agent_id)):
     db = SessionLocal()
     try:
         _get_owned_entity(db, entity_id, agent_id)
 
-        rows = db.execute(
-            select(EntityEdge).where(
-                or_(
-                    EntityEdge.from_entity_id == entity_id,
-                    EntityEdge.to_entity_id == entity_id,
+        rows = (
+            db.execute(
+                select(EntityEdge).where(
+                    or_(
+                        EntityEdge.from_entity_id == entity_id,
+                        EntityEdge.to_entity_id == entity_id,
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
 
         return {
             "results": [
@@ -361,6 +397,7 @@ def get_entity_edges(entity_id: str, agent_id: str = Depends(get_agent_id)):
         }
     finally:
         db.close()
+
 
 @router.post("/event")
 def create_entity_event(payload: EntityEventCreateRequest, agent_id: str = Depends(get_agent_id)):
@@ -393,15 +430,22 @@ def create_entity_event(payload: EntityEventCreateRequest, agent_id: str = Depen
     finally:
         db.close()
 
+
 @router.get("/{entity_id}/events")
 def get_entity_events(entity_id: str, agent_id: str = Depends(get_agent_id)):
     db = SessionLocal()
     try:
         _get_owned_entity(db, entity_id, agent_id)
 
-        rows = db.execute(
-            select(EntityEvent).where(EntityEvent.entity_id == entity_id).order_by(EntityEvent.created_at.desc())
-        ).scalars().all()
+        rows = (
+            db.execute(
+                select(EntityEvent)
+                .where(EntityEvent.entity_id == entity_id)
+                .order_by(EntityEvent.created_at.desc())
+            )
+            .scalars()
+            .all()
+        )
 
         return {
             "results": [
@@ -419,15 +463,22 @@ def get_entity_events(entity_id: str, agent_id: str = Depends(get_agent_id)):
     finally:
         db.close()
 
+
 @router.get("/{entity_id}/history")
 def get_entity_history(entity_id: str, agent_id: str = Depends(get_agent_id)):
     db = SessionLocal()
     try:
         _get_owned_entity(db, entity_id, agent_id)
 
-        rows = db.execute(
-            select(EntityHistory).where(EntityHistory.entity_id == entity_id).order_by(EntityHistory.snapshot_at.desc())
-        ).scalars().all()
+        rows = (
+            db.execute(
+                select(EntityHistory)
+                .where(EntityHistory.entity_id == entity_id)
+                .order_by(EntityHistory.snapshot_at.desc())
+            )
+            .scalars()
+            .all()
+        )
 
         return {
             "results": [
@@ -486,14 +537,16 @@ def update_entity_by_id(payload: EntityUpdateByIdRequest, agent_id: str = Depend
 
         after = _entity_to_dict(row)
 
-        db.add(EntityHistory(
-            entity_id=row.id,
-            changed_field="entity_updated",
-            old_value_json=json.dumps(before),
-            new_value_json=json.dumps(after),
-            change_reason=payload.change_reason,
-            triggered_by=payload.triggered_by,
-        ))
+        db.add(
+            EntityHistory(
+                entity_id=row.id,
+                changed_field="entity_updated",
+                old_value_json=json.dumps(before),
+                new_value_json=json.dumps(after),
+                change_reason=payload.change_reason,
+                triggered_by=payload.triggered_by,
+            )
+        )
         db.commit()
         db.refresh(row)
         if name_changed:

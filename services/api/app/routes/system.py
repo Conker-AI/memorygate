@@ -82,11 +82,17 @@ def update_ai_runtime(payload: AiRuntimeUpdateRequest, request: Request):
     try:
         _confirm_admin(db, payload.current_key, request, "ai-runtime")
         current = get_runtime_status(db)
-        if payload.provider == "openai" and not (payload.api_key or current["api_key_configured"]) and not payload.clear_api_key:
+        if (
+            payload.provider == "openai"
+            and not (payload.api_key or current["api_key_configured"])
+            and not payload.clear_api_key
+        ):
             raise HTTPException(400, "Add an OpenAI API key before selecting OpenAI.")
         if payload.provider == "openai" and payload.clear_api_key:
             raise HTTPException(400, "OpenAI requires an API key.")
-        return update_runtime_config(db, payload.provider, payload.model, payload.api_key, payload.clear_api_key)
+        return update_runtime_config(
+            db, payload.provider, payload.model, payload.api_key, payload.clear_api_key
+        )
     finally:
         db.close()
 

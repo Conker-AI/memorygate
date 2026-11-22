@@ -8,7 +8,9 @@ from app.services.auth_settings_service import (
 from fastapi import Header, HTTPException, Request
 
 
-def require_key(request: Request, x_memorygate_key: str | None = Header(None, alias="X-MemoryGate-Key")) -> str:
+def require_key(
+    request: Request, x_memorygate_key: str | None = Header(None, alias="X-MemoryGate-Key")
+) -> str:
     """Admin tier. There is no unauthenticated tier: an instance with no key
     configured refuses to start rather than serving every route openly."""
     client_host = request.client.host if request.client else "unknown"
@@ -26,7 +28,11 @@ def require_key(request: Request, x_memorygate_key: str | None = Header(None, al
         db.close()
 
 
-def require_read_key(request: Request, x_memorygate_key: str | None = Header(None, alias="X-MemoryGate-Key"), x_agent_id: str | None = Header(None, alias="X-Agent-Id")) -> str:
+def require_read_key(
+    request: Request,
+    x_memorygate_key: str | None = Header(None, alias="X-MemoryGate-Key"),
+    x_agent_id: str | None = Header(None, alias="X-Agent-Id"),
+) -> str:
     agent_id = x_agent_id or "default"
     client_host = request.client.host if request.client else "unknown"
     db = SessionLocal()
@@ -40,11 +46,21 @@ def require_read_key(request: Request, x_memorygate_key: str | None = Header(Non
         if x_memorygate_key and x_memorygate_key.startswith("mg_read_"):
             # A read key never matches the admin hash: checking it first would stretch one
             # miss on every request. An admin key with this prefix still passes below.
-            tier = ("read" if verify_agent_access_key(db, x_memorygate_key, agent_id)
-                    else "admin" if verify_admin_key(db, x_memorygate_key) else None)
+            tier = (
+                "read"
+                if verify_agent_access_key(db, x_memorygate_key, agent_id)
+                else "admin"
+                if verify_admin_key(db, x_memorygate_key)
+                else None
+            )
         else:
-            tier = ("admin" if verify_admin_key(db, x_memorygate_key)
-                    else "read" if verify_agent_access_key(db, x_memorygate_key, agent_id) else None)
+            tier = (
+                "admin"
+                if verify_admin_key(db, x_memorygate_key)
+                else "read"
+                if verify_agent_access_key(db, x_memorygate_key, agent_id)
+                else None
+            )
         remaining = attempt(lock_scope, tier is not None)
         if remaining:
             raise HTTPException(429, f"Too many failed attempts. Try again in {remaining} seconds.")

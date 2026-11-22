@@ -1,4 +1,5 @@
 """Content-free deletion identities retained for recovery replay."""
+
 from datetime import UTC, datetime
 
 from app.core.db import Base
@@ -11,8 +12,9 @@ class DeletionReceipt(Base):
     agent_id: Mapped[str] = mapped_column(String, primary_key=True)
     object_kind: Mapped[str] = mapped_column(String, primary_key=True)
     object_id: Mapped[str] = mapped_column(String, primary_key=True)
-    deleted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),
-        default=lambda: datetime.now(UTC))
+    deleted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
 
 
 class RecoveryHold(Base):

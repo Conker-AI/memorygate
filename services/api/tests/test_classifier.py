@@ -89,8 +89,11 @@ def test_legacy_map_targets_are_current_types():
     ],
 )
 def test_a_phrase_inside_another_word_does_not_count(text):
-    assert classify_memory(text, "user") == {"memory_type": "context", "confidence": "medium",
-                                             "summary": text}
+    assert classify_memory(text, "user") == {
+        "memory_type": "context",
+        "confidence": "medium",
+        "summary": text,
+    }
 
 
 def test_a_curly_apostrophe_counts_as_a_straight_one():

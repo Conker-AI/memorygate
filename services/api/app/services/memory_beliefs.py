@@ -59,13 +59,21 @@ def _is_stated():
 
 
 def _belief_rows(agent_id: str) -> list:
-    forgotten = select(ConversationReceipt.id).where(
-        ConversationReceipt.agent_id == agent_id,
-        ConversationReceipt.memory_id == Memory.id,
-        ConversationReceipt.state == "deleted",
-    ).exists()
-    return [Memory.agent_id == agent_id, Memory.status.in_(LIVE_STATUSES),
-            Memory.memory_type.in_(BELIEF_TYPES), ~forgotten]
+    forgotten = (
+        select(ConversationReceipt.id)
+        .where(
+            ConversationReceipt.agent_id == agent_id,
+            ConversationReceipt.memory_id == Memory.id,
+            ConversationReceipt.state == "deleted",
+        )
+        .exists()
+    )
+    return [
+        Memory.agent_id == agent_id,
+        Memory.status.in_(LIVE_STATUSES),
+        Memory.memory_type.in_(BELIEF_TYPES),
+        ~forgotten,
+    ]
 
 
 def _filters(agent_id: str, origin: str, state: str, memory_type: str | None) -> list:
@@ -85,21 +93,34 @@ def _counts(db, where: list) -> dict:
     stated = case((_is_stated(), 1), else_=0)
     review = case((Memory.status == "needs_review", 1), else_=0)
     total, owner, waiting = db.execute(
-        select(func.count(Memory.id), func.coalesce(func.sum(stated), 0),
-               func.coalesce(func.sum(review), 0)).where(*where)
+        select(
+            func.count(Memory.id),
+            func.coalesce(func.sum(stated), 0),
+            func.coalesce(func.sum(review), 0),
+        ).where(*where)
     ).one()
     total, owner = int(total), int(owner)
-    return {"total": total, "counts": {"stated": owner, "concluded": total - owner,
-                                       "needs_review": int(waiting)}}
+    return {
+        "total": total,
+        "counts": {"stated": owner, "concluded": total - owner, "needs_review": int(waiting)},
+    }
 
 
 def _support(db, ids: list[str]) -> tuple[dict, dict]:
     """Support counts and the newest sources of support per memory. Invalidated support keeps its
     link with confidence 0, the same rule evidence invalidation uses."""
     links = db.execute(
-        select(ObjectLink.target_id, ObjectLink.source_type, ObjectLink.source_id, ObjectLink.confidence)
-        .where(ObjectLink.target_type == "memory", ObjectLink.relationship == "supports",
-               ObjectLink.target_id.in_(ids))
+        select(
+            ObjectLink.target_id,
+            ObjectLink.source_type,
+            ObjectLink.source_id,
+            ObjectLink.confidence,
+        )
+        .where(
+            ObjectLink.target_type == "memory",
+            ObjectLink.relationship == "supports",
+            ObjectLink.target_id.in_(ids),
+        )
         .order_by(ObjectLink.created_at.desc(), ObjectLink.id.desc())
     ).all()
     counts = {memory_id: {"supporting": 0, "withdrawn": 0} for memory_id in ids}
@@ -109,7 +130,12 @@ def _support(db, ids: list[str]) -> tuple[dict, dict]:
         counts[link.target_id]["withdrawn" if withdrawn else "supporting"] += 1
         if len(lineage[link.target_id]) < LINEAGE_LIMIT:
             lineage[link.target_id].append(
-                {"object_type": link.source_type, "object_id": link.source_id, "withdrawn": withdrawn})
+                {
+                    "object_type": link.source_type,
+                    "object_id": link.source_id,
+                    "withdrawn": withdrawn,
+                }
+            )
     return counts, lineage
 
 
@@ -117,16 +143,23 @@ def _conflicts(db, agent_id: str, ids: list[str]) -> dict:
     """Open conflicts naming a listed memory whose other side is also a belief."""
     rows = db.execute(
         select(MemoryConflict.id, MemoryConflict.memory_id, MemoryConflict.conflicting_memory_id)
-        .where(MemoryConflict.agent_id == agent_id, MemoryConflict.status == "open",
-               or_(MemoryConflict.memory_id.in_(ids), MemoryConflict.conflicting_memory_id.in_(ids)))
+        .where(
+            MemoryConflict.agent_id == agent_id,
+            MemoryConflict.status == "open",
+            or_(MemoryConflict.memory_id.in_(ids), MemoryConflict.conflicting_memory_id.in_(ids)),
+        )
         .order_by(MemoryConflict.created_at, MemoryConflict.id)
     ).all()
     named = {row.memory_id for row in rows} | {row.conflicting_memory_id for row in rows}
-    believed = set(db.scalars(select(Memory.id).where(Memory.id.in_(named), *_belief_rows(agent_id))))
+    believed = set(
+        db.scalars(select(Memory.id).where(Memory.id.in_(named), *_belief_rows(agent_id)))
+    )
     found: dict[str, list] = {memory_id: [] for memory_id in ids}
     for row in rows:
-        for mine, other in ((row.memory_id, row.conflicting_memory_id),
-                            (row.conflicting_memory_id, row.memory_id)):
+        for mine, other in (
+            (row.memory_id, row.conflicting_memory_id),
+            (row.conflicting_memory_id, row.memory_id),
+        ):
             if mine in found and other in believed:
                 found[mine].append({"conflict_id": row.id, "memory_id": other})
     return found
@@ -154,8 +187,16 @@ def _item(row, support: dict, lineage: list, conflicts: list) -> dict:
     }
 
 
-def list_beliefs(db, agent_id: str, *, origin: str = "all", state: str = "all",
-                 memory_type: str | None = None, limit: int = 50, after: str | None = None) -> dict:
+def list_beliefs(
+    db,
+    agent_id: str,
+    *,
+    origin: str = "all",
+    state: str = "all",
+    memory_type: str | None = None,
+    limit: int = 50,
+    after: str | None = None,
+) -> dict:
     """One page of beliefs, newest first, keyset-paged on (created_at, id) so a correction between
     pages never moves a row. `total` and `counts` cover every page under the same filters."""
     where = _filters(agent_id, origin, state, memory_type)
@@ -165,13 +206,18 @@ def list_beliefs(db, agent_id: str, *, origin: str = "all", state: str = "all",
         moment, memory_id = _decode(after)
         # The cursor row's own stored time when it still exists (exact on every store, whatever
         # precision the database kept); the cursor's copy only when it was forgotten meanwhile.
-        stored = select(Memory.created_at).where(Memory.agent_id == agent_id, Memory.id == memory_id)
+        stored = select(Memory.created_at).where(
+            Memory.agent_id == agent_id, Memory.id == memory_id
+        )
         mark = func.coalesce(stored.scalar_subquery(), moment)
-        page_where.append(or_(Memory.created_at < mark,
-                              and_(Memory.created_at == mark, Memory.id < memory_id)))
+        page_where.append(
+            or_(Memory.created_at < mark, and_(Memory.created_at == mark, Memory.id < memory_id))
+        )
     rows = db.scalars(
-        select(Memory).where(*page_where)
-        .order_by(Memory.created_at.desc(), Memory.id.desc()).limit(limit + 1)
+        select(Memory)
+        .where(*page_where)
+        .order_by(Memory.created_at.desc(), Memory.id.desc())
+        .limit(limit + 1)
     ).all()
     more, rows = len(rows) > limit, rows[:limit]
     ids = [row.id for row in rows]

@@ -58,7 +58,9 @@ def _evidence_to_dict(row: EvidenceObject) -> dict:
 def list_sources():
     db = SessionLocal()
     try:
-        rows = db.execute(select(EvidenceSource).order_by(EvidenceSource.label.asc())).scalars().all()
+        rows = (
+            db.execute(select(EvidenceSource).order_by(EvidenceSource.label.asc())).scalars().all()
+        )
         return {"results": [_source_to_dict(row) for row in rows]}
     finally:
         db.close()
@@ -69,7 +71,9 @@ def upsert_source(payload: EvidenceSourceUpsertRequest):
     db = SessionLocal()
     try:
         row = db.execute(
-            select(EvidenceSource).where(EvidenceSource.source_key == payload.source_key.strip().lower())
+            select(EvidenceSource).where(
+                EvidenceSource.source_key == payload.source_key.strip().lower()
+            )
         ).scalar_one_or_none()
         next_secret_json = json.dumps(payload.secrets)
         if row is None:
@@ -123,10 +127,17 @@ def rotate_ingest_key(source_key: str):
 
 
 @router.get("")
-def list_evidence(source_key: str | None = None, limit: int = 100, agent_id: str = Depends(get_agent_id)):
+def list_evidence(
+    source_key: str | None = None, limit: int = 100, agent_id: str = Depends(get_agent_id)
+):
     db = SessionLocal()
     try:
-        stmt = select(EvidenceObject).where(EvidenceObject.agent_id == agent_id).order_by(EvidenceObject.occurred_at.desc()).limit(max(1, min(limit, 300)))
+        stmt = (
+            select(EvidenceObject)
+            .where(EvidenceObject.agent_id == agent_id)
+            .order_by(EvidenceObject.occurred_at.desc())
+            .limit(max(1, min(limit, 300)))
+        )
         if source_key:
             stmt = stmt.where(EvidenceObject.source_key == source_key.strip().lower())
         rows = db.execute(stmt).scalars().all()
@@ -140,7 +151,9 @@ def create_evidence(payload: EvidenceObjectCreateRequest, agent_id: str = Depend
     db = SessionLocal()
     try:
         source_key = payload.source_key.strip().lower()
-        source = db.execute(select(EvidenceSource).where(EvidenceSource.source_key == source_key)).scalar_one_or_none()
+        source = db.execute(
+            select(EvidenceSource).where(EvidenceSource.source_key == source_key)
+        ).scalar_one_or_none()
         if source is None:
             raise HTTPException(404, f"Evidence source '{source_key}' not found")
         if not source.enabled:
@@ -173,9 +186,16 @@ def create_evidence(payload: EvidenceObjectCreateRequest, agent_id: str = Depend
 def list_analysis(limit: int = 100, agent_id: str = Depends(get_agent_id)):
     db = SessionLocal()
     try:
-        rows = db.execute(
-            select(AnalysisObject).where(AnalysisObject.agent_id == agent_id).order_by(AnalysisObject.created_at.desc()).limit(max(1, min(limit, 300)))
-        ).scalars().all()
+        rows = (
+            db.execute(
+                select(AnalysisObject)
+                .where(AnalysisObject.agent_id == agent_id)
+                .order_by(AnalysisObject.created_at.desc())
+                .limit(max(1, min(limit, 300)))
+            )
+            .scalars()
+            .all()
+        )
         return {
             "results": [
                 {

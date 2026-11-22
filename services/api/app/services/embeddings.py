@@ -60,7 +60,9 @@ def _probe() -> dict[str, Any]:
 
         result: dict[str, Any] = {"at": now}
         if not EMBEDDINGS_KEY:
-            result["reason"] = "EMBEDDINGS_KEY is not set, so the embedding sidecar cannot be called"
+            result["reason"] = (
+                "EMBEDDINGS_KEY is not set, so the embedding sidecar cannot be called"
+            )
         else:
             try:
                 response = httpx.get(

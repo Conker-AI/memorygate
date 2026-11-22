@@ -16,16 +16,24 @@ class Memory(Base):
 
     text: Mapped[str] = mapped_column(Text)
     summary: Mapped[str] = mapped_column(Text, default="")
-    memory_type: Mapped[str] = mapped_column(String, default="context")  # fact / phase / context / watch
+    memory_type: Mapped[str] = mapped_column(
+        String, default="context"
+    )  # fact / phase / context / watch
     source_type: Mapped[str] = mapped_column(String, default="user")
     confidence: Mapped[str] = mapped_column(String, default="medium")
     do_not_generalize: Mapped[bool] = mapped_column(Boolean, default=False)
-    review_by: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)  # required in practice for phase, optional otherwise
+    review_by: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )  # required in practice for phase, optional otherwise
     tags_json: Mapped[str] = mapped_column(Text, default="[]")
     status: Mapped[str] = mapped_column(String, default="active", index=True)
     valid_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     valid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # When recall last returned this memory (upkeep reads it); stamping it is not an edit.
-    last_recalled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_recalled_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

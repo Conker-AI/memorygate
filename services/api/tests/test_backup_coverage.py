@@ -30,12 +30,33 @@ def test_receipts_and_the_audit_trail_are_in_the_backup(tmp_path, monkeypatch):
     Base.metadata.create_all(engine)
     monkeypatch.setattr(backup_service, "BACKUP_DIR", str(tmp_path / "backups"))
     with sessionmaker(engine)() as db:
-        db.add(MemoryForget(agent_id="owner", request_id="forget-1", memory_id="m-1",
-                            payload_hash="a" * 64, revision=2, index_removal="removed"))
-        db.add(MemoryCorrection(agent_id="owner", request_id="fix-1", memory_id="m-2",
-                                payload_hash="b" * 64, previous_revision=1, revision=2))
-        db.add(MemoryAudit(action="owner_forget", memory_id="m-1",
-                           payload_json=json.dumps({"request_id": "forget-1"})))
+        db.add(
+            MemoryForget(
+                agent_id="owner",
+                request_id="forget-1",
+                memory_id="m-1",
+                payload_hash="a" * 64,
+                revision=2,
+                index_removal="removed",
+            )
+        )
+        db.add(
+            MemoryCorrection(
+                agent_id="owner",
+                request_id="fix-1",
+                memory_id="m-2",
+                payload_hash="b" * 64,
+                previous_revision=1,
+                revision=2,
+            )
+        )
+        db.add(
+            MemoryAudit(
+                action="owner_forget",
+                memory_id="m-1",
+                payload_json=json.dumps({"request_id": "forget-1"}),
+            )
+        )
         db.commit()
         result = backup_service.create_backup(db)
     engine.dispose()

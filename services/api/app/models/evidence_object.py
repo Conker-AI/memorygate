@@ -23,5 +23,7 @@ class EvidenceObject(Base):
     processing_state: Mapped[str] = mapped_column(String, default="pending", index=True)
     invalidated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     invalidation_reason: Mapped[str] = mapped_column(Text, default="")
-    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

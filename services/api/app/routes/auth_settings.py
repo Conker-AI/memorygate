@@ -73,7 +73,19 @@ def list_agent_keys():
     db = SessionLocal()
     try:
         rows = db.query(AgentAccessKey).order_by(AgentAccessKey.created_at.desc()).all()
-        return {"results": [{"id": row.id, "label": row.label, "agent_id": row.agent_id, "revoked": row.revoked, "created_at": row.created_at, "last_used_at": row.last_used_at} for row in rows]}
+        return {
+            "results": [
+                {
+                    "id": row.id,
+                    "label": row.label,
+                    "agent_id": row.agent_id,
+                    "revoked": row.revoked,
+                    "created_at": row.created_at,
+                    "last_used_at": row.last_used_at,
+                }
+                for row in rows
+            ]
+        }
     finally:
         db.close()
 

@@ -29,8 +29,10 @@ def test_memory_delete_records_only_identity_and_backup_retains_it(request, tmp_
 def test_delete_receipt_failure_rolls_back_memory(request, monkeypatch):
     http, sessions = request.getfixturevalue("setup")
     import app.models.deletion_receipt as receipts
+
     def fail(*args):
         raise RuntimeError("injected ledger failure")
+
     monkeypatch.setattr(receipts, "record", fail)
     assert http.delete("/memory/one?expected_revision=1").status_code == 500
     with sessions() as db:

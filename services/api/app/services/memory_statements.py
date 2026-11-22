@@ -90,8 +90,10 @@ def remember(agent_id, request_id, statement, origin="owner"):
                     row
                     for row in db.execute(
                         select(Memory).where(
-                            Memory.agent_id == agent_id, Memory.status == "active",
-                            Memory.text.ilike(f"%{escape_like(normalized)}%", escape="/"))
+                            Memory.agent_id == agent_id,
+                            Memory.status == "active",
+                            Memory.text.ilike(f"%{escape_like(normalized)}%", escape="/"),
+                        )
                     ).scalars()
                     if row.text.strip().lower() == normalized
                 ),

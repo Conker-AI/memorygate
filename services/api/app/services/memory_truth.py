@@ -10,14 +10,26 @@ from sqlalchemy import or_, select
 
 
 def snapshot(memory: Memory) -> dict:
-    return {"text": memory.text, "summary": memory.summary, "memory_type": memory.memory_type,
-            "confidence": memory.confidence, "status": memory.status,
-            "valid_from": memory.valid_from.isoformat() if memory.valid_from else None,
-            "valid_until": memory.valid_until.isoformat() if memory.valid_until else None}
+    return {
+        "text": memory.text,
+        "summary": memory.summary,
+        "memory_type": memory.memory_type,
+        "confidence": memory.confidence,
+        "status": memory.status,
+        "valid_from": memory.valid_from.isoformat() if memory.valid_from else None,
+        "valid_until": memory.valid_until.isoformat() if memory.valid_until else None,
+    }
 
 
 def add_revision(db, memory: Memory, reason: str, changed_by: str = "system") -> None:
-    db.add(MemoryRevision(memory_id=memory.id, changed_by=changed_by, reason=reason, snapshot_json=json.dumps(snapshot(memory))))
+    db.add(
+        MemoryRevision(
+            memory_id=memory.id,
+            changed_by=changed_by,
+            reason=reason,
+            snapshot_json=json.dumps(snapshot(memory)),
+        )
+    )
 
 
 # Memories in the owner's own words (an approved statement, or what they said in a chat).
@@ -33,15 +45,19 @@ def _words(text: str) -> list[str]:
 
 def _negated(words: list[str]) -> bool:
     joined = " ".join(words)
-    return (any(word in _NEGATIONS or word.endswith(("n't", "n" + _APOSTROPHE + "t")) for word in words)
-            or " no longer " in f" {joined} ")
+    return (
+        any(word in _NEGATIONS or word.endswith(("n't", "n" + _APOSTROPHE + "t")) for word in words)
+        or " no longer " in f" {joined} "
+    )
 
 
 def _long_terms(words: list[str]) -> set[str]:
     return {word for word in words if len(word) > 4}
 
 
-def detect_conflicts(db, memory: Memory, *, newest_owner_wins: bool = False) -> list[MemoryConflict]:
+def detect_conflicts(
+    db, memory: Memory, *, newest_owner_wins: bool = False
+) -> list[MemoryConflict]:
     """Conservative lexical conflict detector; ambiguous cases stay untouched.
 
     Two memories conflict when exactly one of them negates ("not", "never", "no longer",
@@ -58,29 +74,52 @@ def detect_conflicts(db, memory: Memory, *, newest_owner_wins: bool = False) -> 
         return []
     # Only memories sharing a long term can conflict; SQL narrows to them (a substring match),
     # the whole-word count below decides.
-    shares_a_term = or_(*(Memory.text.ilike(f"%{escape_like(term)}%", escape="/") for term in terms))
-    matches = db.execute(select(Memory).where(
-        Memory.agent_id == memory.agent_id, Memory.id != memory.id, Memory.status == "active",
-        shares_a_term)).scalars().all()
+    shares_a_term = or_(
+        *(Memory.text.ilike(f"%{escape_like(term)}%", escape="/") for term in terms)
+    )
+    matches = (
+        db.execute(
+            select(Memory).where(
+                Memory.agent_id == memory.agent_id,
+                Memory.id != memory.id,
+                Memory.status == "active",
+                shares_a_term,
+            )
+        )
+        .scalars()
+        .all()
+    )
     created = []
     for other in matches:
         other_words = _words(other.text)
         overlap = len(terms & _long_terms(other_words))
         if overlap < 2 or negated == _negated(other_words):
             continue
-        exists = db.execute(select(MemoryConflict).where(
-            MemoryConflict.memory_id == memory.id,
-            MemoryConflict.conflicting_memory_id == other.id,
-            MemoryConflict.status == "open",
-        )).scalar_one_or_none()
+        exists = db.execute(
+            select(MemoryConflict).where(
+                MemoryConflict.memory_id == memory.id,
+                MemoryConflict.conflicting_memory_id == other.id,
+                MemoryConflict.status == "open",
+            )
+        ).scalar_one_or_none()
         if not exists:
-            row = MemoryConflict(agent_id=memory.agent_id, memory_id=memory.id, conflicting_memory_id=other.id,
-                                 reason="Opposing temporal language over overlapping terms", confidence=min(0.85, 0.35 + overlap * 0.1))
+            row = MemoryConflict(
+                agent_id=memory.agent_id,
+                memory_id=memory.id,
+                conflicting_memory_id=other.id,
+                reason="Opposing temporal language over overlapping terms",
+                confidence=min(0.85, 0.35 + overlap * 0.1),
+            )
             db.add(row)
             # A contradiction is not silently promoted into agent context. Both
             # records remain auditable and require an explicit administrator decision.
-            owner_new, owner_other = memory.source_type in OWNER_SOURCES, other.source_type in OWNER_SOURCES
-            if memory.status == "active" and not (owner_new and (not owner_other or newest_owner_wins)):
+            owner_new, owner_other = (
+                memory.source_type in OWNER_SOURCES,
+                other.source_type in OWNER_SOURCES,
+            )
+            if memory.status == "active" and not (
+                owner_new and (not owner_other or newest_owner_wins)
+            ):
                 memory.status = "needs_review"
                 add_revision(db, memory, "possible contradiction detected", "conflict_detector")
             if other.status == "active" and not (owner_other and not owner_new):

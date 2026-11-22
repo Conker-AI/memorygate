@@ -39,8 +39,11 @@ def _client(monkeypatch, sessions):
 
 def _listener_event(agent_id="owner"):
     return EvidenceObject(
-        agent_id=agent_id, source_id="source-1", source_key="listener",
-        source_type="listener", summary="A bounded event",
+        agent_id=agent_id,
+        source_id="source-1",
+        source_key="listener",
+        source_type="listener",
+        summary="A bounded event",
         normalized_payload_json='{"content":"A bounded event"}',
     )
 
@@ -52,9 +55,15 @@ def test_escape_like_treats_every_metacharacter_as_literal():
 def test_memory_search_fallback_matches_wildcards_literally(tmp_path, monkeypatch):
     engine, sessions = _database(tmp_path)
     try:
-        monkeypatch.setattr(memory_routes, "semantic_status", lambda: {
-            "status": "degraded", "component": "vector_index", "reason": "test",
-        })
+        monkeypatch.setattr(
+            memory_routes,
+            "semantic_status",
+            lambda: {
+                "status": "degraded",
+                "component": "vector_index",
+                "reason": "test",
+            },
+        )
         client = _client(monkeypatch, sessions)
         with sessions() as db:
             db.add(Memory(agent_id="owner", text="50% off", tags_json="[]"))

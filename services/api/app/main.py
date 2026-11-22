@@ -9,7 +9,7 @@ from app.core.db import Base, database_health, engine
 from app.core.migrations import run_migrations
 from app.models import (
     memory_forget,  # noqa: F401 - registers the table for create_all
-    )
+)
 from app.routes.agent_config import router as agent_config_router
 from app.routes.audit import router as audit_router
 from app.routes.auth_settings import router as auth_settings_router
@@ -66,6 +66,7 @@ async def validation_error(_request: Request, error: RequestValidationError):
         status_code=422,
     )
 
+
 # Only the bundled dashboard's own origin by default. `*` is available as an
 # explicit development override via MEMORYGATE_CORS_ORIGINS and is logged when
 # used, because a wildcard puts every route in reach of any page the owner has
@@ -90,6 +91,7 @@ def startup():
     Base.metadata.create_all(bind=engine)
     from app.core.db import SessionLocal
     from app.services.deletion_recovery import assert_not_held
+
     with SessionLocal() as recovery_db:
         assert_not_held(recovery_db)
     run_migrations(engine)
@@ -103,22 +105,34 @@ def startup():
         log.info("Admin key source: %s", key_source)
         bootstrap_read_key = os.environ.get("MEMORYGATE_BOOTSTRAP_READ_KEY", "").strip()
         if bootstrap_read_key:
-            bootstrap_agent_id = os.environ.get("MEMORYGATE_BOOTSTRAP_AGENT_ID", "agent_pi_operator").strip() or "agent_pi_operator"
+            bootstrap_agent_id = (
+                os.environ.get("MEMORYGATE_BOOTSTRAP_AGENT_ID", "agent_pi_operator").strip()
+                or "agent_pi_operator"
+            )
             ensure_bootstrap_agent_access_key(db, bootstrap_read_key, bootstrap_agent_id)
     finally:
         db.close()
     # Qdrant and the embedding provider are reported, not required. MemoryGate
     # serves lexical retrieval without them and says so on every response;
     # crashing instead would take the whole memory boundary down with the index.
-    for ensure in (ensure_qdrant_collection, ensure_observation_collection, ensure_entity_collection):
+    for ensure in (
+        ensure_qdrant_collection,
+        ensure_observation_collection,
+        ensure_entity_collection,
+    ):
         try:
             ensure()
         except Exception:
-            log.warning("Vector index unreachable at startup; collections will be created on first use.")
+            log.warning(
+                "Vector index unreachable at startup; collections will be created on first use."
+            )
             break
     provider = embedding_health()
     if provider["status"] != "ok":
-        log.warning("Semantic retrieval is degraded: %s. Falling back to lexical search.", provider["reason"])
+        log.warning(
+            "Semantic retrieval is degraded: %s. Falling back to lexical search.",
+            provider["reason"],
+        )
     if pi_configured():
         log.info("Model calls go through Pi's memory-sorting role.")
     elif PI_URL or PI_SERVICE_KEY:
@@ -134,9 +148,11 @@ def startup():
         )
     start_worker()
 
+
 @app.on_event("shutdown")
 def shutdown():
     stop_worker()
+
 
 @app.get("/health")
 def health():
@@ -157,7 +173,9 @@ def health():
     }
     # not_configured is not a failure. "Nothing here yet" and "it broke" are
     # different facts, and collapsing them is how a dashboard starts lying.
-    degraded = sorted(name for name, probe in checks.items() if probe["status"] not in HEALTHY_STATUSES)
+    degraded = sorted(
+        name for name, probe in checks.items() if probe["status"] not in HEALTHY_STATUSES
+    )
     result = {
         "service": "memorygate",
         "version": SERVICE_VERSION,
@@ -170,9 +188,11 @@ def health():
     _health_cache["checked_at"] = now
     return {**result, "age_seconds": 0.0}
 
+
 @app.get("/auth/check")
 def auth_check(tier: str = Depends(require_key)):
     return {"tier": tier}
+
 
 _auth = [Depends(require_key)]
 

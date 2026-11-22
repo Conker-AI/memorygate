@@ -98,7 +98,10 @@ def qdrant_health() -> dict:
             mismatched.append(f"{name}={size}")
 
     if unverified:
-        return {"status": "degraded", "reason": "Cannot verify vector collections: " + "; ".join(unverified)}
+        return {
+            "status": "degraded",
+            "reason": "Cannot verify vector collections: " + "; ".join(unverified),
+        }
     if mismatched:
         return {
             "status": "degraded",
@@ -151,7 +154,9 @@ def upsert_memory_embedding(memory_id: str, text: str, payload: dict | None = No
     )
 
 
-def search_memory_embeddings(query: str, limit: int = 20, agent_id: str | None = None) -> list[dict]:
+def search_memory_embeddings(
+    query: str, limit: int = 20, agent_id: str | None = None
+) -> list[dict]:
     client = get_qdrant_client()
     _ensure_collection(QDRANT_COLLECTION)
     query_vector = embed_text(query)
@@ -169,7 +174,9 @@ def search_memory_embeddings(query: str, limit: int = 20, agent_id: str | None =
 def delete_memory_embedding(memory_id: str) -> None:
     client = get_qdrant_client()
     # Forgetting before the first successful vector write is already satisfied.
-    if QDRANT_COLLECTION not in {collection.name for collection in client.get_collections().collections}:
+    if QDRANT_COLLECTION not in {
+        collection.name for collection in client.get_collections().collections
+    }:
         return
     client.delete(collection_name=QDRANT_COLLECTION, points_selector=[memory_id])
 
@@ -196,7 +203,9 @@ def find_near_duplicate(text: str, limit: int = 3, agent_id: str | None = None) 
     ]
 
 
-def upsert_observation_embedding(observation_id: str, text: str, payload: dict | None = None) -> None:
+def upsert_observation_embedding(
+    observation_id: str, text: str, payload: dict | None = None
+) -> None:
     client = get_qdrant_client()
     _ensure_collection(OBSERVATION_COLLECTION)
     vector = embed_text(text)
@@ -215,7 +224,9 @@ def upsert_observation_embedding(observation_id: str, text: str, payload: dict |
 def delete_observation_embedding(observation_id: str) -> None:
     client = get_qdrant_client()
     # Forgetting before the first successful vector write is already satisfied.
-    if OBSERVATION_COLLECTION not in {collection.name for collection in client.get_collections().collections}:
+    if OBSERVATION_COLLECTION not in {
+        collection.name for collection in client.get_collections().collections
+    }:
         return
     client.delete(collection_name=OBSERVATION_COLLECTION, points_selector=[observation_id])
 
@@ -263,7 +274,9 @@ def upsert_entity_embedding(entity_id: str, text: str, payload: dict | None = No
 def delete_entity_embedding(entity_id: str) -> None:
     client = get_qdrant_client()
     # Forgetting before the first successful vector write is already satisfied.
-    if ENTITY_COLLECTION not in {collection.name for collection in client.get_collections().collections}:
+    if ENTITY_COLLECTION not in {
+        collection.name for collection in client.get_collections().collections
+    }:
         return
     client.delete(collection_name=ENTITY_COLLECTION, points_selector=[entity_id])
 

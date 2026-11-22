@@ -57,11 +57,38 @@ HUMOR_TERMS = ["dark humor", "sarcasm", "deadpan", "joke style", "humor style"]
 PATTERN_LANGUAGE = ["always", "usually", "tend to", "kind of humor", "style of humor"]
 
 TEMPORARY_TIMEFRAMES = ["right now", "lately", "these days", "this week"]
-EMOTIONAL_LANGUAGE = ["exhausted", "hate everyone", "disappear", "nothing matters", "sad", "overwhelmed", "anxious", "stressed"]
+EMOTIONAL_LANGUAGE = [
+    "exhausted",
+    "hate everyone",
+    "disappear",
+    "nothing matters",
+    "sad",
+    "overwhelmed",
+    "anxious",
+    "stressed",
+]
 
-HARMFUL_BEHAVIOR_INDICATORS = ["again", "keep doing", "can't stop", "relapse", "binge", "self-destructive", "spiraling", "hurting myself"]
+HARMFUL_BEHAVIOR_INDICATORS = [
+    "again",
+    "keep doing",
+    "can't stop",
+    "relapse",
+    "binge",
+    "self-destructive",
+    "spiraling",
+    "hurting myself",
+]
 
-SUPPORT_EMOTIONAL_WORDS = ["sad", "upset", "anxious", "stressed", "overwhelmed", "hurt", "struggling", "hard time"]
+SUPPORT_EMOTIONAL_WORDS = [
+    "sad",
+    "upset",
+    "anxious",
+    "stressed",
+    "overwhelmed",
+    "hurt",
+    "struggling",
+    "hard time",
+]
 SUPPORT_TIMEFRAMES = ["today", "right now", "this week"]
 
 
@@ -136,7 +163,9 @@ def _confidence_for(signal_count: int) -> str:
 
 
 def classify_memory(text: str, source_type: str = "user") -> dict:
-    lower = text.lower().replace(chr(0x2019), "'")  # a curly apostrophe (typed on a phone) counts as a straight one
+    lower = text.lower().replace(
+        chr(0x2019), "'"
+    )  # a curly apostrophe (typed on a phone) counts as a straight one
 
     scores = {
         "watch": _score_watch(lower, source_type),

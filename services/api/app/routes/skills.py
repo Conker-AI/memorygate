@@ -17,12 +17,16 @@ MAX_SKILL_BYTES = 8192
 
 
 def _skill_tags(linked_tools: list[str], version: str, active: bool) -> str:
-    return json.dumps({
-        "kind": "skill",
-        "linked_tools": linked_tools,
-        "version": version,
-        "active": active,
-    }, ensure_ascii=True, sort_keys=True)
+    return json.dumps(
+        {
+            "kind": "skill",
+            "linked_tools": linked_tools,
+            "version": version,
+            "active": active,
+        },
+        ensure_ascii=True,
+        sort_keys=True,
+    )
 
 
 def _parse_tags(row: Memory) -> dict:
@@ -31,7 +35,12 @@ def _parse_tags(row: Memory) -> dict:
     except json.JSONDecodeError:
         value = {}
     if isinstance(value, list):
-        return {"kind": "skill", "linked_tools": value, "version": "1", "active": row.status == "active"}
+        return {
+            "kind": "skill",
+            "linked_tools": value,
+            "version": "1",
+            "active": row.status == "active",
+        }
     return value if isinstance(value, dict) else {}
 
 
@@ -58,7 +67,9 @@ def _require_fits(title: str, body: str) -> None:
     one tool's skills share; a longer one is refused instead of being cut on every read."""
     size = len((title + body).encode("utf-8"))
     if size > MAX_SKILL_BYTES:
-        raise HTTPException(422, f"Skill title and body are {size} bytes; the limit is {MAX_SKILL_BYTES}.")
+        raise HTTPException(
+            422, f"Skill title and body are {size} bytes; the limit is {MAX_SKILL_BYTES}."
+        )
 
 
 def _require_skill(row: Memory | None, agent_id: str) -> Memory:
@@ -71,11 +82,15 @@ def _require_skill(row: Memory | None, agent_id: str) -> Memory:
 def list_skills(agent_id: str = Depends(get_agent_id)):
     db = SessionLocal()
     try:
-        rows = db.execute(
-            select(Memory)
-            .where(Memory.agent_id == agent_id, Memory.memory_type == "skill")
-            .order_by(Memory.updated_at.desc())
-        ).scalars().all()
+        rows = (
+            db.execute(
+                select(Memory)
+                .where(Memory.agent_id == agent_id, Memory.memory_type == "skill")
+                .order_by(Memory.updated_at.desc())
+            )
+            .scalars()
+            .all()
+        )
         return {"results": [_row_to_skill(row) for row in rows]}
     finally:
         db.close()
@@ -152,7 +167,11 @@ def update_skill(skill_id: str, payload: SkillPatchRequest, agent_id: str = Depe
         if payload.active is not None:
             tags["active"] = payload.active
             row.status = "active" if payload.active else "inactive"
-        row.tags_json = _skill_tags(tags.get("linked_tools", []), str(tags.get("version", "1")), bool(tags.get("active", row.status == "active")))
+        row.tags_json = _skill_tags(
+            tags.get("linked_tools", []),
+            str(tags.get("version", "1")),
+            bool(tags.get("active", row.status == "active")),
+        )
         enqueue_upsert(
             db,
             "memory",
@@ -184,6 +203,7 @@ def delete_skill(skill_id: str, agent_id: str = Depends(get_agent_id)):
     try:
         row = _require_skill(db.get(Memory, skill_id), agent_id)
         from app.models.deletion_receipt import record
+
         record(db, agent_id, "memory", row.id)
         enqueue_delete(db, "memory", row.id, agent_id=agent_id)
         db.delete(row)
@@ -194,15 +214,25 @@ def delete_skill(skill_id: str, agent_id: str = Depends(get_agent_id)):
 
 
 @context_router.get("/skills", dependencies=[Depends(require_read_key)])
-def context_skills(tool: str = Query(min_length=1, max_length=200), agent_id: str = Depends(get_agent_id)):
+def context_skills(
+    tool: str = Query(min_length=1, max_length=200), agent_id: str = Depends(get_agent_id)
+):
     db = SessionLocal()
     try:
-        rows = db.execute(
-            select(Memory)
-            .where(Memory.agent_id == agent_id, Memory.memory_type == "skill", Memory.status == "active")
-            .order_by(Memory.updated_at.desc())
-            .limit(50)
-        ).scalars().all()
+        rows = (
+            db.execute(
+                select(Memory)
+                .where(
+                    Memory.agent_id == agent_id,
+                    Memory.memory_type == "skill",
+                    Memory.status == "active",
+                )
+                .order_by(Memory.updated_at.desc())
+                .limit(50)
+            )
+            .scalars()
+            .all()
+        )
         matches = []
         total = 0
         for row in rows:

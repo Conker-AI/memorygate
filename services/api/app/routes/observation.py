@@ -27,6 +27,7 @@ from sqlalchemy import and_, select
 SEARCH_LIMIT = 50
 router = APIRouter(prefix="/observation", tags=["observation"])
 
+
 def _obs_to_dict(row: Observation) -> dict:
     return {
         "id": row.id,
@@ -52,14 +53,18 @@ def _obs_to_dict(row: Observation) -> dict:
         "related_observation_ids": json.loads(row.related_observation_ids_json),
     }
 
+
 def _get_owned_observation(db, observation_id: str, agent_id: str) -> Observation:
     row = db.get(Observation, observation_id)
     if not row or row.agent_id != agent_id:
         raise HTTPException(404, "Observation not found")
     return row
 
+
 @router.post("/create")
-def create_observation(payload: ObservationCreateRequest, header_agent_id: str = Depends(get_agent_id)):
+def create_observation(
+    payload: ObservationCreateRequest, header_agent_id: str = Depends(get_agent_id)
+):
     agent_id = resolve_agent_id(header_agent_id, payload.agent_id)
     db = SessionLocal()
     try:
@@ -70,13 +75,20 @@ def create_observation(payload: ObservationCreateRequest, header_agent_id: str =
                 row.confirmation_count += 1
                 db.commit()
                 db.refresh(row)
-                return {"status": "ok", "observation": _obs_to_dict(row), "deduplicated": True, "similarity": dup["score"]}
+                return {
+                    "status": "ok",
+                    "observation": _obs_to_dict(row),
+                    "deduplicated": True,
+                    "similarity": dup["score"],
+                }
 
         config = get_or_create_config(db, agent_id)
         enforce_budget(db, agent_id, config.max_observations)
 
         require_known(db, Entity, agent_id, payload.entity_ids, "entity_ids")
-        require_known(db, Observation, agent_id, payload.related_observation_ids, "related_observation_ids")
+        require_known(
+            db, Observation, agent_id, payload.related_observation_ids, "related_observation_ids"
+        )
         row = Observation(
             agent_id=agent_id,
             session_id=payload.session_id,
@@ -123,8 +135,11 @@ def create_observation(payload: ObservationCreateRequest, header_agent_id: str =
     finally:
         db.close()
 
+
 @router.post("/search")
-def search_observations(payload: ObservationSearchRequest, header_agent_id: str = Depends(get_agent_id)):
+def search_observations(
+    payload: ObservationSearchRequest, header_agent_id: str = Depends(get_agent_id)
+):
     agent_id = resolve_agent_id(header_agent_id, payload.agent_id)
     db = SessionLocal()
     try:
@@ -142,12 +157,24 @@ def search_observations(payload: ObservationSearchRequest, header_agent_id: str 
         if payload.entity_id:
             filters.append(Observation.entity_ids_json.contains(payload.entity_id, autoescape=True))
         if payload.query:
-            filters.append(matches_any((Observation.description, Observation.raw_context, Observation.hypothesis,
-                                        Observation.status, Observation.signal_type), payload.query))
+            filters.append(
+                matches_any(
+                    (
+                        Observation.description,
+                        Observation.raw_context,
+                        Observation.hypothesis,
+                        Observation.status,
+                        Observation.signal_type,
+                    ),
+                    payload.query,
+                )
+            )
         if filters:
             stmt = stmt.where(and_(*filters))
 
-        rows = db.execute(stmt.order_by(Observation.observed_at.desc()).execution_options(yield_per=100)).scalars()
+        rows = db.execute(
+            stmt.order_by(Observation.observed_at.desc()).execution_options(yield_per=100)
+        ).scalars()
 
         results = []
         for row in rows:
@@ -159,13 +186,15 @@ def search_observations(payload: ObservationSearchRequest, header_agent_id: str 
                 continue
 
             if payload.query:
-                hay = " ".join([
-                    item["description"],
-                    item["raw_context"],
-                    item["hypothesis"],
-                    item["status"],
-                    item["signal_type"],
-                ]).lower()
+                hay = " ".join(
+                    [
+                        item["description"],
+                        item["raw_context"],
+                        item["hypothesis"],
+                        item["status"],
+                        item["signal_type"],
+                    ]
+                ).lower()
                 if payload.query.lower() not in hay:
                     continue
 
@@ -175,11 +204,16 @@ def search_observations(payload: ObservationSearchRequest, header_agent_id: str 
     finally:
         db.close()
 
+
 @router.get("/active")
-def list_active_observations(agent_id: str = Depends(get_agent_id), needs_clarification: bool | None = None):
+def list_active_observations(
+    agent_id: str = Depends(get_agent_id), needs_clarification: bool | None = None
+):
     db = SessionLocal()
     try:
-        stmt = select(Observation).where(Observation.agent_id == agent_id, Observation.status != "archived")
+        stmt = select(Observation).where(
+            Observation.agent_id == agent_id, Observation.status != "archived"
+        )
         if needs_clarification is not None:
             stmt = stmt.where(Observation.needs_clarification == needs_clarification)
         rows = db.execute(stmt.order_by(Observation.observed_at.desc())).scalars().all()
@@ -187,8 +221,11 @@ def list_active_observations(agent_id: str = Depends(get_agent_id), needs_clarif
     finally:
         db.close()
 
+
 @router.post("/session-context")
-def observation_session_context(payload: ObservationSessionContextRequest, header_agent_id: str = Depends(get_agent_id)):
+def observation_session_context(
+    payload: ObservationSessionContextRequest, header_agent_id: str = Depends(get_agent_id)
+):
     agent_id = resolve_agent_id(header_agent_id, payload.agent_id)
     db = SessionLocal()
     try:
@@ -197,12 +234,14 @@ def observation_session_context(payload: ObservationSessionContextRequest, heade
     finally:
         db.close()
 
+
 @router.delete("/{observation_id}")
 def delete_observation(observation_id: str, agent_id: str = Depends(get_agent_id)):
     db = SessionLocal()
     try:
         row = _get_owned_observation(db, observation_id, agent_id)
         from app.models.deletion_receipt import record
+
         record(db, agent_id, "observation", row.id)
         enqueue_delete(db, "observation", row.id, agent_id=agent_id)
         erase_observation_dependents(db, row.id)
@@ -216,6 +255,7 @@ def delete_observation(observation_id: str, agent_id: str = Depends(get_agent_id
     finally:
         db.close()
 
+
 @router.get("/{observation_id}")
 def get_observation(observation_id: str, agent_id: str = Depends(get_agent_id)):
     db = SessionLocal()
@@ -225,8 +265,11 @@ def get_observation(observation_id: str, agent_id: str = Depends(get_agent_id)):
     finally:
         db.close()
 
+
 @router.post("/update/{observation_id}")
-def update_observation(observation_id: str, payload: ObservationUpdateRequest, agent_id: str = Depends(get_agent_id)):
+def update_observation(
+    observation_id: str, payload: ObservationUpdateRequest, agent_id: str = Depends(get_agent_id)
+):
     db = SessionLocal()
     try:
         row = _get_owned_observation(db, observation_id, agent_id)
@@ -246,7 +289,13 @@ def update_observation(observation_id: str, payload: ObservationUpdateRequest, a
         if payload.needs_clarification is not None:
             row.needs_clarification = payload.needs_clarification
         if payload.related_observation_ids is not None:
-            require_known(db, Observation, agent_id, payload.related_observation_ids, "related_observation_ids")
+            require_known(
+                db,
+                Observation,
+                agent_id,
+                payload.related_observation_ids,
+                "related_observation_ids",
+            )
             row.related_observation_ids_json = json.dumps(payload.related_observation_ids)
 
         db.commit()
@@ -255,8 +304,11 @@ def update_observation(observation_id: str, payload: ObservationUpdateRequest, a
     finally:
         db.close()
 
+
 @router.post("/{observation_id}/confirm")
-def confirm_observation(observation_id: str, payload: ObservationConfirmRequest, agent_id: str = Depends(get_agent_id)):
+def confirm_observation(
+    observation_id: str, payload: ObservationConfirmRequest, agent_id: str = Depends(get_agent_id)
+):
     db = SessionLocal()
     try:
         row = _get_owned_observation(db, observation_id, agent_id)
@@ -273,8 +325,13 @@ def confirm_observation(observation_id: str, payload: ObservationConfirmRequest,
     finally:
         db.close()
 
+
 @router.post("/{observation_id}/contradict")
-def contradict_observation(observation_id: str, payload: ObservationContradictRequest, agent_id: str = Depends(get_agent_id)):
+def contradict_observation(
+    observation_id: str,
+    payload: ObservationContradictRequest,
+    agent_id: str = Depends(get_agent_id),
+):
     db = SessionLocal()
     try:
         row = _get_owned_observation(db, observation_id, agent_id)
@@ -285,8 +342,11 @@ def contradict_observation(observation_id: str, payload: ObservationContradictRe
     finally:
         db.close()
 
+
 @router.post("/{observation_id}/archive")
-def archive_observation(observation_id: str, payload: ObservationArchiveRequest, agent_id: str = Depends(get_agent_id)):
+def archive_observation(
+    observation_id: str, payload: ObservationArchiveRequest, agent_id: str = Depends(get_agent_id)
+):
     db = SessionLocal()
     try:
         row = _get_owned_observation(db, observation_id, agent_id)

@@ -210,8 +210,12 @@ def test_the_config_route_refuses_numbers_out_of_range():
     from app.schemas.agent_config import AgentConfigUpdateRequest
     from pydantic import ValidationError
 
-    for bad in ({"max_observations": 0}, {"max_observations": -1}, {"value_threshold": 1.5},
-                {"novelty_threshold": -0.1}):
+    for bad in (
+        {"max_observations": 0},
+        {"max_observations": -1},
+        {"value_threshold": 1.5},
+        {"novelty_threshold": -0.1},
+    ):
         with pytest.raises(ValidationError):
             AgentConfigUpdateRequest(**bad)
     assert AgentConfigUpdateRequest(max_observations=1, value_threshold=0, novelty_threshold=1)
@@ -220,8 +224,17 @@ def test_the_config_route_refuses_numbers_out_of_range():
 def test_the_budget_counts_in_sql_and_loads_only_the_rows_it_archives(db):
     from sqlalchemy import event
 
-    db.add_all([Observation(agent_id="owner", signal_type="verbal", description=f"note {n}", exposure_count=n % 5)
-                for n in range(200)])
+    db.add_all(
+        [
+            Observation(
+                agent_id="owner",
+                signal_type="verbal",
+                description=f"note {n}",
+                exposure_count=n % 5,
+            )
+            for n in range(200)
+        ]
+    )
     db.commit()
     db.expunge_all()
     loaded = []

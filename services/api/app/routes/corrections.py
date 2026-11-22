@@ -53,9 +53,7 @@ def require_correction_key(
 ):
     expected = os.environ.get("MEMORYGATE_CORRECTION_KEY", "")
     agent = os.environ.get("MEMORYGATE_CORRECTION_AGENT_ID", "")
-    if len(expected) < 32 or not re.fullmatch(
-        r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}", agent
-    ):
+    if len(expected) < 32 or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}", agent):
         raise HTTPException(401, "Correction capability unavailable")
     if not key or not secrets.compare_digest(expected.encode(), key.encode()):
         raise HTTPException(401, "Invalid correction capability")

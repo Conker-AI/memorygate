@@ -44,18 +44,14 @@ def payload_hash(text, memory_id="one", expected_revision=1):
 @pytest.fixture
 def setup(tmp_path, monkeypatch):
     path = tmp_path / "corrections.db"
-    engine = create_engine(
-        f"sqlite:///{path}", connect_args={"check_same_thread": False}
-    )
+    engine = create_engine(f"sqlite:///{path}", connect_args={"check_same_thread": False})
     Base.metadata.create_all(engine)
     sessions = sessionmaker(engine, autoflush=False)
     monkeypatch.setenv("MEMORYGATE_CORRECTION_KEY", KEY)
     monkeypatch.setenv("MEMORYGATE_CORRECTION_AGENT_ID", "owner")
     monkeypatch.setattr(service, "SessionLocal", sessions)
     monkeypatch.setattr(auth, "SessionLocal", sessions)
-    monkeypatch.setattr(
-        auth_settings_service, "MEMORYGATE_ADMIN_KEY", "separate-synthetic-admin"
-    )
+    monkeypatch.setattr(auth_settings_service, "MEMORYGATE_ADMIN_KEY", "separate-synthetic-admin")
     calls = []
 
     def index(*args, **kwargs):
@@ -132,9 +128,7 @@ def test_atomic_edit_preserves_metadata_and_exact_summary(setup):
     }
     assert response.json() == expected
     assert put(http).json() == expected
-    assert (
-        http.get("/runtime/corrections/" + REQUEST, headers=HEADERS).json() == expected
-    )
+    assert http.get("/runtime/corrections/" + REQUEST, headers=HEADERS).json() == expected
     assert len(calls) == 1
     with sessions() as db:
         row = db.get(Memory, "one")
@@ -240,10 +234,7 @@ def test_capability_namespace_and_admin_are_separate(setup):
     url = "/runtime/corrections/memories/one"
     assert http.get(url).status_code == 401
     assert (
-        http.get(
-            url, headers={"X-MemoryGate-Key": "separate-synthetic-admin"}
-        ).status_code
-        == 401
+        http.get(url, headers={"X-MemoryGate-Key": "separate-synthetic-admin"}).status_code == 401
     )
     assert (
         http.get(
@@ -253,18 +244,10 @@ def test_capability_namespace_and_admin_are_separate(setup):
     )
     assert http.get(url, headers={**HEADERS, "X-Agent-Id": "other"}).status_code == 403
     assert http.get("/admin-only", headers={"X-MemoryGate-Key": KEY}).status_code == 401
-    assert (
-        http.get("/runtime/corrections/memories/foreign", headers=HEADERS).status_code
-        == 404
-    )
+    assert http.get("/runtime/corrections/memories/foreign", headers=HEADERS).status_code == 404
     assert put(http, memory_id="foreign").status_code == 404
     assert put(http, memory_id="missing").status_code == 404
-    assert (
-        http.get(
-            "/runtime/corrections/missing_request_0000", headers=HEADERS
-        ).status_code
-        == 404
-    )
+    assert http.get("/runtime/corrections/missing_request_0000", headers=HEADERS).status_code == 404
 
 
 @pytest.mark.parametrize(
@@ -274,10 +257,7 @@ def test_missing_configuration_fails_closed(setup, monkeypatch, key, agent):
     http, _, _, _ = setup
     monkeypatch.setenv("MEMORYGATE_CORRECTION_KEY", key)
     monkeypatch.setenv("MEMORYGATE_CORRECTION_AGENT_ID", agent)
-    assert (
-        http.get("/runtime/corrections/memories/one", headers=HEADERS).status_code
-        == 401
-    )
+    assert http.get("/runtime/corrections/memories/one", headers=HEADERS).status_code == 401
 
 
 @pytest.mark.parametrize(
@@ -306,9 +286,7 @@ def test_validation_is_bounded_and_never_reflects_payload(setup, changes):
 
 def test_raw_body_bound(setup):
     http, _, _, _ = setup
-    response = http.put(
-        "/runtime/corrections/" + REQUEST, headers=HEADERS, content=b"x" * 128001
-    )
+    response = http.put("/runtime/corrections/" + REQUEST, headers=HEADERS, content=b"x" * 128001)
     assert response.status_code == 413
 
 
@@ -367,17 +345,12 @@ def test_committed_timeout_replay_and_reopen_never_repeat_effect(setup, monkeypa
     payload = {"memory_id": "one", "expected_revision": 1, "text": "Corrected"}
     with pytest.raises(Crash):
         service.apply("owner", REQUEST, payload)
-    engine = create_engine(
-        f"sqlite:///{path}", connect_args={"check_same_thread": False}
-    )
+    engine = create_engine(f"sqlite:///{path}", connect_args={"check_same_thread": False})
     monkeypatch.setattr(service, "SessionLocal", sessionmaker(engine, autoflush=False))
     try:
         result = put(http)
         assert result.status_code == 200 and result.json()["indexing"] == "pending"
-        assert (
-            http.get("/runtime/corrections/" + REQUEST, headers=HEADERS).json()
-            == result.json()
-        )
+        assert http.get("/runtime/corrections/" + REQUEST, headers=HEADERS).json() == result.json()
         with sessions() as db:
             assert db.get(Memory, "one").revision == 2
             assert db.scalar(select(func.count()).select_from(MemoryAudit)) == 1
@@ -387,9 +360,7 @@ def test_committed_timeout_replay_and_reopen_never_repeat_effect(setup, monkeypa
 
 def test_index_failure_is_visible_without_reapplying_text(setup, monkeypatch):
     http, _, _, _ = setup
-    monkeypatch.setattr(
-        service, "_reconcile_index_intent", lambda *a, **kw: {"status": "degraded"}
-    )
+    monkeypatch.setattr(service, "_reconcile_index_intent", lambda *a, **kw: {"status": "degraded"})
     result = put(http)
     assert result.status_code == 200 and result.json()["indexing"] == "degraded"
     assert put(http).json() == result.json()
@@ -419,9 +390,7 @@ def test_request_race_across_targets_rolls_back_losing_target(setup):
     http, sessions, calls, _ = setup
     with ThreadPoolExecutor(max_workers=2) as pool:
         results = list(
-            pool.map(
-                lambda memory: put(http, memory_id=memory).status_code, ("one", "two")
-            )
+            pool.map(lambda memory: put(http, memory_id=memory).status_code, ("one", "two"))
         )
     assert sorted(results) == [200, 409]
     with sessions() as db:
@@ -434,6 +403,4 @@ def test_receipt_read_is_namespace_bound(setup, monkeypatch):
     http, _, _, _ = setup
     assert put(http).status_code == 200
     monkeypatch.setenv("MEMORYGATE_CORRECTION_AGENT_ID", "other")
-    assert (
-        http.get("/runtime/corrections/" + REQUEST, headers=HEADERS).status_code == 404
-    )
+    assert http.get("/runtime/corrections/" + REQUEST, headers=HEADERS).status_code == 404

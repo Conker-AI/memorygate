@@ -1,4 +1,5 @@
 """Provider configuration and encrypted credentials for MemoryGate's bounded AI calls."""
+
 import contextlib
 from pathlib import Path
 from threading import Lock
@@ -58,7 +59,9 @@ def get_runtime_status(db) -> dict:
     }
 
 
-def update_runtime_config(db, provider: str, model: str, api_key: str | None, clear_api_key: bool = False) -> dict:
+def update_runtime_config(
+    db, provider: str, model: str, api_key: str | None, clear_api_key: bool = False
+) -> dict:
     row = _row(db)
     if not row:
         row = AiRuntimeSetting(id=_SINGLETON_ID, provider="ollama", model=OLLAMA_MODEL)

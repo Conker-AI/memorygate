@@ -10,10 +10,14 @@ from sqlalchemy import or_, select, text
 
 def erase_links(db, kind: str, object_id: str) -> None:
     """Delete every lineage link with `kind`/`object_id` at either end (no commit)."""
-    links = db.scalars(select(ObjectLink).where(or_(
-        (ObjectLink.source_type == kind) & (ObjectLink.source_id == object_id),
-        (ObjectLink.target_type == kind) & (ObjectLink.target_id == object_id),
-    ))).all()
+    links = db.scalars(
+        select(ObjectLink).where(
+            or_(
+                (ObjectLink.source_type == kind) & (ObjectLink.source_id == object_id),
+                (ObjectLink.target_type == kind) & (ObjectLink.target_id == object_id),
+            )
+        )
+    ).all()
     for link in links:
         if link in db.deleted:  # already erased from its other end in this delete
             continue
@@ -43,7 +47,9 @@ def strip_id(db, table: str, column: str, object_id: str) -> list[tuple[str, lis
     for row in rows:
         kept = _without(row.ids, object_id)
         if kept is not None:
-            db.execute(text(f"UPDATE {table} SET {column} = :v WHERE id = :id"),
-                       {"v": json.dumps(kept), "id": row.id})
+            db.execute(
+                text(f"UPDATE {table} SET {column} = :v WHERE id = :id"),
+                {"v": json.dumps(kept), "id": row.id},
+            )
             changed.append((row.id, kept))
     return changed

@@ -66,8 +66,12 @@ def unchanged(stack, before):
 
 def test_patch_changes_only_the_given_fields_and_records_the_reason(stack):
     maya = entity(
-        stack, "Maya Rowan", description="climbing partner", tags=["friend"],
-        attributes={"city": "Leeds"}, agent_notes="met at the wall",
+        stack,
+        "Maya Rowan",
+        description="climbing partner",
+        tags=["friend"],
+        attributes={"city": "Leeds"},
+        agent_notes="met at the wall",
     )
     change = {
         "tags": ["friend", "neighbour"],
@@ -105,7 +109,9 @@ def test_patch_renaming_an_entity_moves_its_vector_to_the_new_name(stack):
     stored = stack.get(f"/entity/{maya['id']}").json()
     assert (stored["name"], stored["description"]) == ("Maya Hale", "married in May")
     assert indexed_name(stack, maya["id"], "Maya Hale")
-    updated = [row for row in history(stack, maya["id"]) if row["changed_field"] == "entity_updated"]
+    updated = [
+        row for row in history(stack, maya["id"]) if row["changed_field"] == "entity_updated"
+    ]
     assert len(updated) == 1
     assert updated[0]["old_value"]["name"] == "Maya Rowan"
 
@@ -158,11 +164,15 @@ def test_update_by_id_changes_only_the_given_fields_and_records_the_reason(stack
     assert "indexing" not in response.json()
     stored = stack.get(f"/entity/{office['id']}").json()
     assert (stored["name"], stored["attributes"], stored["agent_notes"]) == (
-        "Harbour Office", {"floor": 3}, "moved in October",
+        "Harbour Office",
+        {"floor": 3},
+        "moved in October",
     )
     assert (stored["description"], stored["tags"]) == ("third floor", [])
     assert indexed_name(stack, office["id"], "Harbour Office")
-    updated = [row for row in history(stack, office["id"]) if row["changed_field"] == "entity_updated"]
+    updated = [
+        row for row in history(stack, office["id"]) if row["changed_field"] == "entity_updated"
+    ]
     assert [(row["change_reason"], row["triggered_by"]) for row in updated] == [
         ("the team moved", "system")
     ]
@@ -174,8 +184,11 @@ def test_update_by_id_with_the_same_name_does_not_reindex(stack):
     queued = stack.outbox()
     stack.index.down = True
 
-    response = post(stack, "/entity/update", {"entity_id": office["id"], "name": "Quayside Office",
-                                             "tags": ["work"]})
+    response = post(
+        stack,
+        "/entity/update",
+        {"entity_id": office["id"], "name": "Quayside Office", "tags": ["work"]},
+    )
 
     assert response.status_code == 200 and "indexing" not in response.json()
     assert stack.get(f"/entity/{office['id']}").json()["tags"] == ["work"]
@@ -202,7 +215,9 @@ def test_update_by_id_while_the_index_is_down_saves_the_rename_and_reports_it(st
 def test_update_by_id_without_an_id_or_with_a_bad_field_is_refused_and_changes_nothing(stack):
     office = entity(stack, "Quayside Office", entity_type="place", tags=["work"])
 
-    assert refused_fields(post(stack, "/entity/update", {"name": "Harbour Office"})) == {"entity_id"}
+    assert refused_fields(post(stack, "/entity/update", {"name": "Harbour Office"})) == {
+        "entity_id"
+    }
     bad = post(stack, "/entity/update", {"entity_id": office["id"], "tags": {"work": True}})
     assert refused_fields(bad) == {"tags"}
     missing = post(stack, "/entity/update", {"entity_id": "ent_missing", "name": "Harbour Office"})
@@ -260,7 +275,11 @@ def test_events_of_an_unknown_entity_are_not_found(stack):
 def test_a_link_with_an_unknown_end_or_a_bad_field_is_refused_and_stores_no_edge(stack):
     maya = entity(stack, "Maya Rowan")
     office = entity(stack, "Quayside Office", entity_type="place")
-    base = {"from_entity_id": maya["id"], "to_entity_id": office["id"], "relationship_type": "works at"}
+    base = {
+        "from_entity_id": maya["id"],
+        "to_entity_id": office["id"],
+        "relationship_type": "works at",
+    }
 
     for end in ("from_entity_id", "to_entity_id"):
         missing = post(stack, "/entity/link", {**base, end: "ent_missing"})
@@ -389,11 +408,16 @@ def test_a_read_key_cannot_reach_the_entity_routes(stack):
     read = stack.read_headers()
     assert stack.http.get("/context/skills?tool=x", headers=read).status_code == 200
 
-    create = stack.http.post("/entity/create", headers=read, json={"entity_type": "human", "name": "Tom"})
+    create = stack.http.post(
+        "/entity/create", headers=read, json={"entity_type": "human", "name": "Tom"}
+    )
     assert create.status_code == 401
     assert create.json()["detail"] == "missing or invalid X-MemoryGate-Key"
     stack.clear_lockouts()
-    assert stack.http.patch(f"/entity/{maya['id']}", headers=read, json={"name": "x"}).status_code == 401
+    assert (
+        stack.http.patch(f"/entity/{maya['id']}", headers=read, json={"name": "x"}).status_code
+        == 401
+    )
     stack.clear_lockouts()
     fetched = stack.http.get(f"/entity/{maya['id']}", headers=read)
     assert fetched.status_code == 401

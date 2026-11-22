@@ -1,4 +1,5 @@
 """Revision-aware editing and atomic audit on an isolated database."""
+
 import pytest
 from app.core.db import Base
 from app.models.audit import MemoryAudit
@@ -14,7 +15,9 @@ from sqlalchemy.orm.exc import StaleDataError
 
 @pytest.fixture
 def setup(tmp_path, monkeypatch):
-    engine = create_engine(f"sqlite:///{tmp_path / 'revisions.db'}", connect_args={"check_same_thread": False})
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'revisions.db'}", connect_args={"check_same_thread": False}
+    )
     Base.metadata.create_all(engine)
     sessions = sessionmaker(engine, autoflush=False)
     monkeypatch.setattr(memory, "SessionLocal", sessions)
@@ -30,13 +33,16 @@ def setup(tmp_path, monkeypatch):
         yield client, sessions
     engine.dispose()
 
+
 def test_stale_edit_and_delete_preserve_newer_memory(setup):
     http, sessions = setup
     assert http.get("/memory/one").json()["revision"] == 1
     response = http.patch("/memory/one", json={"text": "Newer", "expected_revision": 1})
     assert response.status_code == 200
     assert response.json()["memory"]["revision"] == 2
-    assert http.patch("/memory/one", json={"text": "Stale", "expected_revision": 1}).status_code == 409
+    assert (
+        http.patch("/memory/one", json={"text": "Stale", "expected_revision": 1}).status_code == 409
+    )
     assert http.delete("/memory/one?expected_revision=1").status_code == 409
     with sessions() as db:
         assert db.get(Memory, "one").text == "Newer"
@@ -44,16 +50,25 @@ def test_stale_edit_and_delete_preserve_newer_memory(setup):
         assert db.scalar(select(func.count()).select_from(MemoryRevision)) == 1
     assert http.delete("/memory/one?expected_revision=2").status_code == 200
 
+
 def test_audit_failure_rolls_back_content_and_history(setup, monkeypatch):
     http, sessions = setup
+
     def fail(*args):
         raise RuntimeError("Simulated conflict/audit failure")
+
     monkeypatch.setattr(memory, "detect_conflicts", fail)
-    assert http.patch("/memory/one", json={"text": "Should roll back", "expected_revision": 1}).status_code == 500
+    assert (
+        http.patch(
+            "/memory/one", json={"text": "Should roll back", "expected_revision": 1}
+        ).status_code
+        == 500
+    )
     with sessions() as db:
         assert db.get(Memory, "one").text == "Original"
         assert db.get(Memory, "one").revision == 1
         assert db.scalar(select(func.count()).select_from(MemoryRevision)) == 0
+
 
 def test_concurrent_orm_writers_cannot_bypass_revision(setup):
     _, sessions = setup
@@ -64,6 +79,7 @@ def test_concurrent_orm_writers_cannot_bypass_revision(setup):
         b.text = "Loser"
         with pytest.raises(StaleDataError):
             second.commit()
+
 
 def test_legacy_patch_and_invalid_revision(setup):
     http, _ = setup
