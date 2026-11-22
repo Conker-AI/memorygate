@@ -86,8 +86,8 @@ CASES = [
     (
         "backup-loses-tombstones",
         "services/api/app/services/backup_service.py",
-        "MemoryRevision, MemoryConflict, ConversationReceipt,",
-        "MemoryRevision, MemoryConflict,",
+        "    MemoryConflict,\n    ConversationReceipt,\n",
+        "    MemoryConflict,\n",
     ),
     (
         "invalid-source-still-recalled",
