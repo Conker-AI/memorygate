@@ -11,7 +11,7 @@ from app.models.conversation_receipt import ConversationReceipt
 from app.models.evidence_object import EvidenceObject
 from app.models.memory import Memory
 from app.models.processing_job import ProcessingJob
-from app.routes import runtime
+from app.routes import runtime_read
 from app.schemas.runtime import AgentContextRequest
 from app.services import backup_service
 from app.services import conversation_memory as service
@@ -153,7 +153,7 @@ def test_direct_decline_filters_even_high_signal_without_scheduling_later_promot
     assert receipt["value_score"] == score_value(content) and receipt["memory_id"] is None
     assert receipt["index_pending"] == "none"
     monkeypatch.setattr(
-        runtime, "semantic_status", lambda: {"status": "not_configured", "reason": "isolated"}
+        runtime_read, "semantic_status", lambda: {"status": "not_configured", "reason": "isolated"}
     )
     with database() as db:
         assert db.scalar(select(func.count()).select_from(Memory)) == 0
@@ -165,12 +165,12 @@ def test_direct_decline_filters_even_high_signal_without_scheduling_later_promot
         assert "owner_declined_retention" in json.loads(
             db.scalars(select(AnalysisObject)).one().steps_json
         )
-        package = runtime._build_context(
+        package = runtime_read._build_context(
             db, AgentContextRequest(query="answers короткие", include_evidence=False), "owner"
         )
         assert package["memories"] == [] and package["evidence"] == []
         # A declined message keeps no words, so even a raw-evidence read finds nothing.
-        evidence_package = runtime._build_context(
+        evidence_package = runtime_read._build_context(
             db, AgentContextRequest(query="answers короткие", include_evidence=True), "owner"
         )
         assert evidence_package["evidence"] == []

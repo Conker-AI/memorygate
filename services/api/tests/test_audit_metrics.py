@@ -2,7 +2,7 @@ from app.core import auth
 from app.core.db import Base
 from app.models.memory import Memory
 from app.models.session_transcript import SessionTranscript
-from app.routes import audit, runtime, transcript
+from app.routes import audit, runtime_read, transcript
 from app.services.auth_settings_service import create_agent_access_key, set_admin_key
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
@@ -18,10 +18,10 @@ def make_client(tmp_path, monkeypatch):
     Base.metadata.create_all(bind=engine)
     monkeypatch.setattr(auth, "SessionLocal", Session)
     monkeypatch.setattr(audit, "SessionLocal", Session)
-    monkeypatch.setattr(runtime, "SessionLocal", Session)
+    monkeypatch.setattr(runtime_read, "SessionLocal", Session)
     monkeypatch.setattr(transcript, "SessionLocal", Session)
-    monkeypatch.setattr(runtime, "search_memory_embeddings", lambda *args, **kwargs: [])
-    monkeypatch.setattr(runtime, "build_briefing", lambda *args, **kwargs: {})
+    monkeypatch.setattr(runtime_read, "search_memory_embeddings", lambda *args, **kwargs: [])
+    monkeypatch.setattr(runtime_read, "build_briefing", lambda *args, **kwargs: {})
     with Session() as db:
         set_admin_key(db, "Admin-key-123!")
         _, read_key = create_agent_access_key(db, "test", "hermes")
@@ -40,7 +40,7 @@ def make_client(tmp_path, monkeypatch):
         )
         db.commit()
     app = FastAPI()
-    app.include_router(runtime.router)
+    app.include_router(runtime_read.router)
     app.include_router(transcript.router, dependencies=[Depends(auth.require_key)])
     app.include_router(audit.router, dependencies=[Depends(auth.require_key)])
     return TestClient(app), read_key

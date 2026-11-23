@@ -7,6 +7,7 @@ from app.models.entity import Entity, EntityEdge
 from app.models.evidence_object import EvidenceObject
 from app.models.memory import Memory
 from app.models.object_link import ObjectLink
+from app.routes import runtime_read
 from app.schemas.explorer import ExploreRequest
 from app.schemas.runtime import AgentContextRequest
 from app.services.memory_explorer import compact, explore
@@ -164,14 +165,13 @@ def test_library_pages_search_and_scopes_preserve_connections(db):
 
 
 def test_read_tier_cannot_switch_namespace_in_body():
-    from app.routes import runtime
     from app.schemas.runtime import MemoryQuestionRequest
 
     for handler, body in [
-        (runtime.agent_context, AgentContextRequest(query="x", agent_id="other")),
-        (runtime.ask_memorygate, MemoryQuestionRequest(question="x", agent_id="other")),
+        (runtime_read.agent_context, AgentContextRequest(query="x", agent_id="other")),
+        (runtime_read.ask_memorygate, MemoryQuestionRequest(question="x", agent_id="other")),
         (
-            runtime.explore_memory,
+            runtime_read.explore_memory,
             ExploreRequest(object_type="memory", object_id="m", agent_id="other"),
         ),
     ]:
@@ -230,7 +230,6 @@ def test_mcp_context_and_followup_use_same_operator_scope(db, monkeypatch):
 
 def test_transcripts_are_for_the_admin_key_only(db, monkeypatch):
     from app.models.session_transcript import SessionTranscript
-    from app.routes import runtime
     from app.schemas.explorer import LibraryRequest
 
     db.add_all(
@@ -247,20 +246,22 @@ def test_transcripts_are_for_the_admin_key_only(db, monkeypatch):
         ]
     )
     db.commit()
-    monkeypatch.setattr(runtime, "SessionLocal", sessionmaker(db.get_bind()))
+    monkeypatch.setattr(runtime_read, "SessionLocal", sessionmaker(db.get_bind()))
     content = ExploreRequest(
         object_type="transcript", object_id="t", operation="content", field="transcript"
     )
     with pytest.raises(HTTPException) as error:
-        runtime.explore_memory(content, "owner", "read")
+        runtime_read.explore_memory(content, "owner", "read")
     assert error.value.status_code == 404
     for request in (
         LibraryRequest(),
         LibraryRequest(search="secret plan"),
         LibraryRequest(object_type="transcript"),
     ):
-        assert "secret plan" not in json.dumps(runtime.memory_library(request, "owner", "read"))
-    linked = runtime.explore_memory(
+        assert "secret plan" not in json.dumps(
+            runtime_read.memory_library(request, "owner", "read")
+        )
+    linked = runtime_read.explore_memory(
         ExploreRequest(object_type="memory", object_id="m"), "owner", "read"
     )
     assert linked["connections"] == {"about": 1, "derived_from": 1}
@@ -275,11 +276,15 @@ def test_transcripts_are_for_the_admin_key_only(db, monkeypatch):
     )
     assert summary["objects"][0]["connections"] == {"about": 1, "derived_from": 1}
     # The admin key still reads the archive.
-    assert runtime.explore_memory(content, "owner", "admin")["content"] == "owner: my secret plan"
     assert (
-        runtime.memory_library(LibraryRequest(object_type="transcript"), "owner", "admin")["total"]
+        runtime_read.explore_memory(content, "owner", "admin")["content"] == "owner: my secret plan"
+    )
+    assert (
+        runtime_read.memory_library(LibraryRequest(object_type="transcript"), "owner", "admin")[
+            "total"
+        ]
         == 1
     )
-    assert runtime.explore_memory(
+    assert runtime_read.explore_memory(
         ExploreRequest(object_type="memory", object_id="m"), "owner", "admin"
     )["connections"] == {"about": 1, "derived_from": 2}

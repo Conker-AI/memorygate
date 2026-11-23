@@ -4,7 +4,7 @@ import pytest
 from app.core import auth
 from app.core.db import Base
 from app.models.memory import Memory
-from app.routes import runtime
+from app.routes import runtime_read
 from app.services import auth_settings_service as keys
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -20,7 +20,7 @@ def api(tmp_path, monkeypatch):
     Base.metadata.create_all(engine)
     sessions = sessionmaker(engine)
     monkeypatch.setattr(auth, "SessionLocal", sessions)
-    monkeypatch.setattr(runtime, "SessionLocal", sessions)
+    monkeypatch.setattr(runtime_read, "SessionLocal", sessions)
     monkeypatch.setattr(keys, "MEMORYGATE_ADMIN_KEY", "synthetic-unused-admin-key")
     monkeypatch.setattr(keys, "_attempt_state", {})
     with sessions() as db:
@@ -33,7 +33,7 @@ def api(tmp_path, monkeypatch):
         )
         db.commit()
     app = FastAPI()
-    app.include_router(runtime.router)
+    app.include_router(runtime_read.router)
     with TestClient(app) as client:
         yield client
     engine.dispose()

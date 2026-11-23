@@ -21,7 +21,7 @@ from app.models.memory import Memory
 from app.models.object_link import ObjectLink
 from app.models.object_types import OBJECT_MODELS
 from app.models.processing_job import ProcessingJob
-from app.routes import corrections, runtime
+from app.routes import corrections, runtime, runtime_read
 from app.routes import memory as memory_routes
 from app.schemas.explorer import LibraryRequest
 from app.schemas.runtime import AgentContextRequest
@@ -71,6 +71,7 @@ def setup(tmp_path, monkeypatch):
     Base.metadata.create_all(engine)
     for module in (
         runtime,
+        runtime_read,
         listener_forgetting,
         memory_forgetting,
         memory_corrections,
@@ -85,7 +86,7 @@ def setup(tmp_path, monkeypatch):
     for module in (memory_forgetting, memory_routes):
         monkeypatch.setattr(module, "delete_memory_embedding", lambda memory_id: None)
     monkeypatch.setattr(
-        runtime, "semantic_status", lambda: {"status": "degraded", "reason": "test"}
+        runtime_read, "semantic_status", lambda: {"status": "degraded", "reason": "test"}
     )
     # The model's proposal repeats the event's words, as a real one would.
     monkeypatch.setattr(
@@ -178,12 +179,12 @@ PATHS = {"forget": forget, "delete": delete}
 
 
 def library_ids(search=""):
-    found = runtime.memory_library(LibraryRequest(search=search, limit=50), "owner", "admin")
+    found = runtime_read.memory_library(LibraryRequest(search=search, limit=50), "owner", "admin")
     return {(item["type"], item["id"]) for item in found["objects"]}, json.dumps(found)
 
 
 def context(query):
-    return runtime.agent_context(
+    return runtime_read.agent_context(
         AgentContextRequest(query=query, include_evidence=True), "owner", "admin"
     )
 

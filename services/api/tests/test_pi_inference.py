@@ -20,7 +20,7 @@ from app.models.ai_runtime_setting import AiRuntimeSetting
 from app.models.analysis_object import AnalysisObject
 from app.models.evidence_object import EvidenceObject
 from app.models.processing_job import ProcessingJob
-from app.routes import runtime as runtime_routes
+from app.routes import runtime_read as runtime_read_routes
 from app.routes import system as system_routes
 from app.services import ollama_service, pi_inference, runtime_pipeline
 from app.services.ai_runtime_service import update_runtime_config
@@ -266,13 +266,13 @@ def client(tmp_path, monkeypatch):
     )
     Base.metadata.create_all(engine)
     sessions = sessionmaker(engine, autoflush=False, autocommit=False)
-    for module in (system_routes, runtime_routes):
+    for module in (system_routes, runtime_read_routes):
         monkeypatch.setattr(module, "SessionLocal", sessions)
     with sessions() as db:
         update_runtime_config(db, "ollama", "qwen3:4b", None)
     app = FastAPI()
     app.include_router(system_routes.router)
-    app.include_router(runtime_routes.router)
+    app.include_router(runtime_read_routes.router)
     app.dependency_overrides[auth.require_key] = lambda: "admin"
     app.dependency_overrides[auth.require_read_key] = lambda: "admin"
     test_client = TestClient(app, raise_server_exceptions=False)
@@ -314,7 +314,7 @@ def test_with_pi_the_model_setting_is_read_only_and_says_where_it_is_chosen(pi, 
 
 def test_with_pi_unavailable_ask_names_where_the_model_is_chosen(pi, client, monkeypatch):
     pi.reply = (503, {"detail": {"code": "no_model", "message": "No model for this role"}}, 0)
-    monkeypatch.setattr(runtime_routes, "_build_context", lambda *_a: CONTEXT)
+    monkeypatch.setattr(runtime_read_routes, "_build_context", lambda *_a: CONTEXT)
     refused = client.post("/runtime/ask", json={"question": "What do I drink?"})
     assert refused.status_code == 503
     assert pi_inference.CHOSEN_IN in refused.json()["detail"]
@@ -336,7 +336,7 @@ def test_without_pi_the_stored_setting_still_shows_and_decides(client, monkeypat
 def test_service_key_never_reaches_logs_or_responses(pi, client, monkeypatch, caplog):
     caplog.set_level(logging.DEBUG)
     monkeypatch.setattr(pi_inference, "TIMEOUT", httpx.Timeout(0.3, connect=0.3))
-    monkeypatch.setattr(runtime_routes, "_build_context", lambda *_a: CONTEXT)
+    monkeypatch.setattr(runtime_read_routes, "_build_context", lambda *_a: CONTEXT)
     bodies = []
     for reply in [
         (200, {"text": '{"answer": "Tea."}', "model": "m", "provider": "p"}, 0),

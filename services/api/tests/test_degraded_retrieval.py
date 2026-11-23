@@ -14,7 +14,7 @@ from app.core import db as core_db
 from app.core.db import Base
 from app.models.memory import Memory
 from app.routes import memory as memory_routes
-from app.routes import runtime as runtime_routes
+from app.routes import runtime_read as runtime_read_routes
 from app.routes import system as system_routes
 from app.services import auth_settings_service, embeddings, qdrant_store, vector_outbox
 from app.services.auth_settings_service import (
@@ -44,7 +44,7 @@ def session(tmp_path, monkeypatch):
     )
     Base.metadata.create_all(bind=engine)
     Session = sessionmaker(bind=engine, autoflush=False, autocommit=False)
-    for module in (auth, memory_routes, runtime_routes, system_routes):
+    for module in (auth, memory_routes, runtime_read_routes, system_routes):
         monkeypatch.setattr(module, "SessionLocal", Session)
     monkeypatch.setattr(core_db, "engine", engine)
     yield Session
@@ -159,9 +159,9 @@ def test_health_reports_the_age_of_a_cached_probe(session, no_semantic_retrieval
 
 
 def _runtime_client(monkeypatch):
-    monkeypatch.setattr(runtime_routes, "build_briefing", lambda *args, **kwargs: {})
+    monkeypatch.setattr(runtime_read_routes, "build_briefing", lambda *args, **kwargs: {})
     app = FastAPI()
-    app.include_router(runtime_routes.router)
+    app.include_router(runtime_read_routes.router)
     return TestClient(app, raise_server_exceptions=False)
 
 
