@@ -6,7 +6,7 @@ import pytest
 from app.core.db import Base
 from app.models.conversation_receipt import ConversationReceipt
 from app.models.memory import Memory
-from app.routes import runtime
+from app.routes import runtime_read
 from app.schemas.runtime import AgentContextRequest
 from app.services import lexical_retrieval as lexical
 from app.services.scoring import memory_rank_bonus
@@ -27,7 +27,7 @@ def db(monkeypatch):
 
     Base.metadata.create_all(engine)
     monkeypatch.setattr(
-        runtime,
+        runtime_read,
         "semantic_status",
         lambda: {
             "status": "degraded",
@@ -35,14 +35,14 @@ def db(monkeypatch):
             "reason": "synthetic unavailable",
         },
     )
-    monkeypatch.setattr(runtime, "build_briefing", lambda *_args: {})
+    monkeypatch.setattr(runtime_read, "build_briefing", lambda *_args: {})
     with Session(engine) as session:
         yield session
     engine.dispose()
 
 
 def context(db, query, **kwargs):
-    return runtime._build_context(db, AgentContextRequest(query=query, **kwargs), "owner")
+    return runtime_read._build_context(db, AgentContextRequest(query=query, **kwargs), "owner")
 
 
 def add(db, identity, text, **kwargs):
@@ -231,9 +231,9 @@ def test_hybrid_search_also_finds_old_unindexed_literal_match(db, monkeypatch):
     for index in range(201):
         add(db, f"new-{index:03}", "Unrelated newer note")
     db.commit()
-    monkeypatch.setattr(runtime, "semantic_status", lambda: {"status": "ok"})
+    monkeypatch.setattr(runtime_read, "semantic_status", lambda: {"status": "ok"})
     monkeypatch.setattr(
-        runtime,
+        runtime_read,
         "search_memory_embeddings",
         lambda *_args, **_kwargs: [
             {"id": "semantic", "score": 0.8},
@@ -245,7 +245,7 @@ def test_hybrid_search_also_finds_old_unindexed_literal_match(db, monkeypatch):
     assert len(result["memories"]) == 2 and result["retrieval"]["mode"] == "hybrid"
     # A second search with a sparse index must still find the old lexical row.
     monkeypatch.setattr(
-        runtime,
+        runtime_read,
         "search_memory_embeddings",
         lambda *_args, **_kwargs: [
             {"id": "semantic", "score": 0.8},

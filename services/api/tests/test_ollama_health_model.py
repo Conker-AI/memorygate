@@ -2,7 +2,7 @@
 
 from app.core import auth
 from app.core.db import Base
-from app.routes import runtime as runtime_routes
+from app.routes import runtime_read as runtime_read_routes
 from app.routes import system as system_routes
 from app.services import ollama_service, pi_inference
 from app.services.ai_runtime_service import update_runtime_config
@@ -43,7 +43,7 @@ def test_health_checks_the_model_the_owner_chose(tmp_path, monkeypatch):
     )
     Base.metadata.create_all(engine)
     sessions = sessionmaker(engine, autoflush=False)
-    for module in (system_routes, runtime_routes):
+    for module in (system_routes, runtime_read_routes):
         monkeypatch.setattr(module, "SessionLocal", sessions)
     monkeypatch.setattr(pi_inference, "PI_URL", "")
     monkeypatch.setattr(pi_inference, "PI_SERVICE_KEY", "")
@@ -52,7 +52,7 @@ def test_health_checks_the_model_the_owner_chose(tmp_path, monkeypatch):
         update_runtime_config(db, "ollama", "chosen:7b", None)
     app = FastAPI()
     app.include_router(system_routes.router)
-    app.include_router(runtime_routes.router)
+    app.include_router(runtime_read_routes.router)
     app.dependency_overrides[auth.require_key] = lambda: "admin"
     client = TestClient(app, raise_server_exceptions=False)
 

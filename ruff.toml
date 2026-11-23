@@ -38,10 +38,3 @@ ignore = [
 "services/api/app/models/__init__.py" = ["F401"]
 # Russian vocabulary for multilingual signal detection (ADR-0004), not look-alike letters.
 "services/api/app/services/signal_filter.py" = ["RUF001"]
-
-[format]
-# Formatting these grows them past the 600-line limit; they join the format run once split.
-exclude = [
-    "services/api/app/routes/runtime.py",  # formats to 756 lines; split first
-    "services/api/tests/test_briefing_and_pattern_routes.py",  # formats to 627 lines; split first
-]

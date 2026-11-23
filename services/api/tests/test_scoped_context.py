@@ -2,7 +2,7 @@ import pytest
 from app.core.db import Base
 from app.models.conversation_receipt import ConversationReceipt
 from app.models.memory import Memory
-from app.routes import runtime
+from app.routes import runtime_read
 from app.schemas.runtime import AgentContextRequest
 from pydantic import ValidationError
 from sqlalchemy import create_engine
@@ -17,8 +17,8 @@ def db(tmp_path, monkeypatch):
     def forbidden(*args, **kwargs):
         raise AssertionError("Scoped retrieval must not use broad helpers")
 
-    monkeypatch.setattr(runtime, "semantic_status", forbidden)
-    monkeypatch.setattr(runtime, "build_briefing", forbidden)
+    monkeypatch.setattr(runtime_read, "semantic_status", forbidden)
+    monkeypatch.setattr(runtime_read, "build_briefing", forbidden)
     with sessionmaker(engine)() as session:
         for identity, agent, status in [
             ("selected", "owner", "active"),
@@ -59,7 +59,7 @@ def test_selected_never_widens_to_other_memory_or_helpers(db):
         memory_ids=["selected", "foreign", "inactive"],
         include_evidence=True,
     )
-    result = runtime._build_context(db, body, "owner")
+    result = runtime_read._build_context(db, body, "owner")
     assert [item["id"] for item in result["memories"]] == ["selected"]
     assert result["entities"] == result["episodes"] == result["evidence"] == []
     assert result["briefing"] == {}
@@ -68,12 +68,12 @@ def test_selected_never_widens_to_other_memory_or_helpers(db):
 
 def test_conversation_scope_and_none(db):
     body = AgentContextRequest(query="anything", scope="conversation", session_id="session-two")
-    result = runtime._build_context(db, body, "owner")
+    result = runtime_read._build_context(db, body, "owner")
     assert [item["id"] for item in result["memories"]] == ["other"]
     assert result["memories"][0]["citations"][0]["session_id"] == "session-two"
-    assert runtime._build_context(db, body, "another")["memories"] == []
+    assert runtime_read._build_context(db, body, "another")["memories"] == []
     assert (
-        runtime._build_context(db, AgentContextRequest(query="x", scope="none"), "owner")[
+        runtime_read._build_context(db, AgentContextRequest(query="x", scope="none"), "owner")[
             "memories"
         ]
         == []

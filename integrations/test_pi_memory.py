@@ -12,7 +12,7 @@ import pytest
 from app.core import auth
 from app.core.db import Base
 from app.models.memory import Memory as MemoryRow
-from app.routes import conversation, runtime
+from app.routes import conversation, runtime, runtime_read
 from app.services import conversation_memory, embeddings, qdrant_store
 from app.services.auth_settings_service import create_agent_access_key
 from fastapi import FastAPI
@@ -56,7 +56,7 @@ def test_remembers_after_restart_then_forgets_source_and_cached_context(
     )
     Base.metadata.create_all(engine)
     sessions = sessionmaker(engine, expire_on_commit=False)
-    for module in (auth, runtime, conversation_memory):
+    for module in (auth, runtime, runtime_read, conversation_memory):
         monkeypatch.setattr(module, "SessionLocal", sessions)
     monkeypatch.setenv("MEMORYGATE_CONVERSATION_KEY", "test-ingestion-credential")
     monkeypatch.setenv("MEMORYGATE_CONVERSATION_AGENT_ID", "owner")
@@ -77,6 +77,7 @@ def test_remembers_after_restart_then_forgets_source_and_cached_context(
     remote = FastAPI()
     remote.include_router(conversation.router)
     remote.include_router(runtime.router)
+    remote.include_router(runtime_read.router)
 
     def connect(store):
         client = MemoryClient("http://testserver", "test-ingestion-credential", read_key, "owner")
