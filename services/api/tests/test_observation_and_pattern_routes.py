@@ -17,9 +17,11 @@ from route_helpers import OTHER, entity, observe, post
 from sqlalchemy import select
 
 UNKNOWN = {"code": "unknown_ids"}
-UNREACHABLE = {"status": "degraded", "component": "vector_index",
-               "reason": "vector index unreachable"}
-
+UNREACHABLE = {
+    "status": "degraded",
+    "component": "vector_index",
+    "reason": "vector index unreachable",
+}
 
 
 def make_pattern(stack, name, agent="owner", **body):
@@ -38,9 +40,11 @@ def observation_rows(stack) -> int:
 
 def test_the_same_observation_twice_counts_once_more_instead_of_a_new_row(stack):
     first = observe(stack, "Hums while cooking dinner")
-    response = post(stack, "/observation/create",
-                    {"signal_type": "verbal", "description": "Hums while cooking dinner",
-                     "hypothesis": "h"})
+    response = post(
+        stack,
+        "/observation/create",
+        {"signal_type": "verbal", "description": "Hums while cooking dinner", "hypothesis": "h"},
+    )
     body = response.json()
     assert response.status_code == 200 and body["deduplicated"] is True
     assert body["observation"]["id"] == first["id"]
@@ -54,9 +58,11 @@ def test_the_same_observation_twice_counts_once_more_instead_of_a_new_row(stack)
 
 def test_with_the_index_down_an_observation_is_stored_and_deleted_and_the_reply_says_so(stack):
     stack.index.down = True
-    response = post(stack, "/observation/create",
-                    {"signal_type": "verbal", "description": "Whistles on the stairs",
-                     "hypothesis": "h"})
+    response = post(
+        stack,
+        "/observation/create",
+        {"signal_type": "verbal", "description": "Whistles on the stairs", "hypothesis": "h"},
+    )
     body = response.json()
     assert response.status_code == 200
     assert (body["dedup"], body["indexing"]) == (UNREACHABLE, UNREACHABLE)
@@ -107,15 +113,30 @@ def test_observation_search_returns_the_fifty_newest_matches_not_fifty_scanned_r
     # the cap of 50 must count results, not rows looked at.
     start = datetime.now(UTC)
     with stack.sessions() as db:
-        db.add_all(Observation(id=f"obs_near_{n:02}", agent_id="owner", signal_type="verbal",
-                               description="near miss", hypothesis="h",
-                               entity_ids_json='["ent_ab"]', observed_at=start - timedelta(minutes=n))
-                   for n in range(20))
-        db.add_all(Observation(id=f"obs_hit_{n:02}", agent_id="owner", signal_type="verbal",
-                               description=f"note {n}", hypothesis="h",
-                               entity_ids_json='["ent_a"]',
-                               observed_at=start - timedelta(hours=1, minutes=n))
-                   for n in range(55))
+        db.add_all(
+            Observation(
+                id=f"obs_near_{n:02}",
+                agent_id="owner",
+                signal_type="verbal",
+                description="near miss",
+                hypothesis="h",
+                entity_ids_json='["ent_ab"]',
+                observed_at=start - timedelta(minutes=n),
+            )
+            for n in range(20)
+        )
+        db.add_all(
+            Observation(
+                id=f"obs_hit_{n:02}",
+                agent_id="owner",
+                signal_type="verbal",
+                description=f"note {n}",
+                hypothesis="h",
+                entity_ids_json='["ent_a"]',
+                observed_at=start - timedelta(hours=1, minutes=n),
+            )
+            for n in range(55)
+        )
         db.commit()
 
     response = post(stack, "/observation/search", {"entity_id": "ent_a"})
@@ -130,8 +151,11 @@ def test_session_context_exposes_matching_unconfirmed_observations_of_the_agent_
     unrelated = observe(stack, "Likes rain", trigger_context="weather")
     theirs = observe(stack, "Their tension", agent=OTHER, trigger_context="budget meeting")
 
-    reply = post(stack, "/observation/session-context",
-                 {"session_context": "We have the budget meeting at ten."})
+    reply = post(
+        stack,
+        "/observation/session-context",
+        {"session_context": "We have the budget meeting at ten."},
+    )
     assert reply.status_code == 200
     assert reply.json() == {"status": "ok", "exposed": [mine["id"]], "archived": []}
     assert stack.get(f"/observation/{mine['id']}").json()["exposure_count"] == 1
@@ -142,9 +166,16 @@ def test_session_context_exposes_matching_unconfirmed_observations_of_the_agent_
 def test_an_observation_update_changes_every_field_it_names(stack):
     mine = observe(stack, "Cycles to work")
     linked = observe(stack, "Bought a new helmet")
-    body = {"status": "confirmed", "hypothesis": "commutes by bike", "hypothesis_confidence": 0.8,
-            "confirmed_by": "owner", "trigger_context": "commute", "raise_condition": "on rain",
-            "needs_clarification": True, "related_observation_ids": [linked["id"]]}
+    body = {
+        "status": "confirmed",
+        "hypothesis": "commutes by bike",
+        "hypothesis_confidence": 0.8,
+        "confirmed_by": "owner",
+        "trigger_context": "commute",
+        "raise_condition": "on rain",
+        "needs_clarification": True,
+        "related_observation_ids": [linked["id"]],
+    }
     response = post(stack, f"/observation/update/{mine['id']}", body)
     assert response.status_code == 200
     row = stack.get(f"/observation/{mine['id']}").json()
@@ -158,12 +189,17 @@ def test_an_observation_update_naming_an_unknown_or_foreign_observation_changes_
     mine = observe(stack, "Bakes bread on Saturdays")
     theirs = observe(stack, "Their bread", agent=OTHER)
     for ids in (["obs_missing"], [theirs["id"]]):
-        response = post(stack, f"/observation/update/{mine['id']}",
-                        {"status": "confirmed", "hypothesis": "changed",
-                         "related_observation_ids": ids})
+        response = post(
+            stack,
+            f"/observation/update/{mine['id']}",
+            {"status": "confirmed", "hypothesis": "changed", "related_observation_ids": ids},
+        )
         assert response.status_code == 422
-        assert response.json()["detail"] == {**UNKNOWN, "field": "related_observation_ids",
-                                             "ids": ids}
+        assert response.json()["detail"] == {
+            **UNKNOWN,
+            "field": "related_observation_ids",
+            "ids": ids,
+        }
     assert stack.get(f"/observation/{mine['id']}").json() == mine
 
 
@@ -174,10 +210,18 @@ def test_a_pattern_update_changes_every_field_it_names(stack):
     mine = make_pattern(stack, "tired on Mondays")
     seen = observe(stack, "Yawned at standup")
     person = entity(stack, "human", "Lea Brandt")
-    body = {"description": "low energy", "observation_ids": [seen["id"]], "instance_count": 4,
-            "confirmation_count": 2, "contradiction_count": 1, "confidence": 0.7,
-            "interpretation": "late Sundays", "recommended_action": "lighter Monday plans",
-            "applies_to_entity_ids": [person["id"]], "context_conditions": {"day": "monday"}}
+    body = {
+        "description": "low energy",
+        "observation_ids": [seen["id"]],
+        "instance_count": 4,
+        "confirmation_count": 2,
+        "contradiction_count": 1,
+        "confidence": 0.7,
+        "interpretation": "late Sundays",
+        "recommended_action": "lighter Monday plans",
+        "applies_to_entity_ids": [person["id"]],
+        "context_conditions": {"day": "monday"},
+    }
     response = post(stack, f"/pattern/update/{mine['id']}", body)
     assert response.status_code == 200
     row = stack.get(f"/pattern/{mine['id']}").json()
@@ -188,11 +232,16 @@ def test_a_pattern_update_naming_unknown_ids_changes_nothing(stack):
     mine = make_pattern(stack, "early riser", description="up at six")
     their_obs = observe(stack, "Their note", agent=OTHER)
     their_entity = entity(stack, "human", "Their person", agent=OTHER)
-    for field, ids in (("observation_ids", ["obs_missing"]),
-                       ("observation_ids", [their_obs["id"]]),
-                       ("applies_to_entity_ids", [their_entity["id"]])):
-        response = post(stack, f"/pattern/update/{mine['id']}",
-                        {"description": "changed", "confidence": 0.1, field: ids})
+    for field, ids in (
+        ("observation_ids", ["obs_missing"]),
+        ("observation_ids", [their_obs["id"]]),
+        ("applies_to_entity_ids", [their_entity["id"]]),
+    ):
+        response = post(
+            stack,
+            f"/pattern/update/{mine['id']}",
+            {"description": "changed", "confidence": 0.1, field: ids},
+        )
         assert response.status_code == 422
         assert response.json()["detail"] == {**UNKNOWN, "field": field, "ids": ids}
     assert stack.get(f"/pattern/{mine['id']}").json() == mine
@@ -217,14 +266,26 @@ def test_pattern_search_never_matches_an_id_fragment_and_combines_words_with_sta
 def test_pattern_search_returns_the_fifty_newest_matches_not_fifty_scanned_rows(stack):
     start = datetime.now(UTC)
     with stack.sessions() as db:
-        db.add_all(Pattern(id=f"pat_near_{n:02}", agent_id="owner", pattern_name="near miss",
-                           applies_to_entity_ids_json='["ent_ab"]',
-                           updated_at=start - timedelta(minutes=n))
-                   for n in range(20))
-        db.add_all(Pattern(id=f"pat_hit_{n:02}", agent_id="owner", pattern_name=f"pattern {n}",
-                           applies_to_entity_ids_json='["ent_a"]',
-                           updated_at=start - timedelta(hours=1, minutes=n))
-                   for n in range(55))
+        db.add_all(
+            Pattern(
+                id=f"pat_near_{n:02}",
+                agent_id="owner",
+                pattern_name="near miss",
+                applies_to_entity_ids_json='["ent_ab"]',
+                updated_at=start - timedelta(minutes=n),
+            )
+            for n in range(20)
+        )
+        db.add_all(
+            Pattern(
+                id=f"pat_hit_{n:02}",
+                agent_id="owner",
+                pattern_name=f"pattern {n}",
+                applies_to_entity_ids_json='["ent_a"]',
+                updated_at=start - timedelta(hours=1, minutes=n),
+            )
+            for n in range(55)
+        )
         db.commit()
 
     response = post(stack, "/pattern/search", {"entity_id": "ent_a"})
@@ -239,13 +300,18 @@ def test_promote_counts_only_observations_naming_the_whole_entity_id(stack):
     for when in ("at breakfast", "at lunch", "at dinner"):
         observe(stack, f"Mentions Mira {when}", entity_ids=[person["id"]])
 
-    fragment = post(stack, "/pattern/promote",
-                    {"pattern_name": "talks about Mira", "entity_id": person["id"][:8]})
+    fragment = post(
+        stack,
+        "/pattern/promote",
+        {"pattern_name": "talks about Mira", "entity_id": person["id"][:8]},
+    )
     assert fragment.json() == {"status": "not_enough_evidence", "matched_count": 0, "required": 3}
     assert post(stack, "/pattern/search", {}).json() == {"results": []}
 
-    promoted = post(stack, "/pattern/promote",
-                    {"pattern_name": "talks about Mira", "entity_id": person["id"],
-                     "query": "mentions mira"}).json()
+    promoted = post(
+        stack,
+        "/pattern/promote",
+        {"pattern_name": "talks about Mira", "entity_id": person["id"], "query": "mentions mira"},
+    ).json()
     assert promoted["status"] == "ok"
     assert promoted["pattern"]["applies_to_entity_ids"] == [person["id"]]

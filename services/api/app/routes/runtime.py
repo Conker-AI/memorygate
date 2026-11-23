@@ -25,15 +25,26 @@ router = APIRouter(prefix="/runtime", tags=["runtime"])
 
 
 def _enqueue(db, source: EvidenceSource, payload: IngestEventRequest, agent_id: str) -> dict:
-    content = payload.content.strip() or payload.title.strip() or json.dumps(payload.payload, ensure_ascii=True)
+    content = (
+        payload.content.strip()
+        or payload.title.strip()
+        or json.dumps(payload.payload, ensure_ascii=True)
+    )
     if not content:
         raise HTTPException(422, "Event must contain content, a title, or a payload")
     row = EvidenceObject(
-        agent_id=agent_id, source_id=source.id, source_key=source.source_key, source_type=source.source_type,
-        title=payload.title.strip() or content[:120], summary=content[:500],
-        raw_payload_json=json.dumps(payload.payload), normalized_payload_json=json.dumps({"content": content}),
-        tags_json=json.dumps(payload.tags), integrity_confidence=payload.integrity_confidence,
-        processing_state="pending", occurred_at=parse_timestamp(payload.occurred_at, "occurred_at") or datetime.now(UTC),
+        agent_id=agent_id,
+        source_id=source.id,
+        source_key=source.source_key,
+        source_type=source.source_type,
+        title=payload.title.strip() or content[:120],
+        summary=content[:500],
+        raw_payload_json=json.dumps(payload.payload),
+        normalized_payload_json=json.dumps({"content": content}),
+        tags_json=json.dumps(payload.tags),
+        integrity_confidence=payload.integrity_confidence,
+        processing_state="pending",
+        occurred_at=parse_timestamp(payload.occurred_at, "occurred_at") or datetime.now(UTC),
     )
     db.add(row)
     db.flush()  # the job below needs the evidence id; both commit together
@@ -46,15 +57,27 @@ def _enqueue(db, source: EvidenceSource, payload: IngestEventRequest, agent_id: 
     db.refresh(row)
     if job:
         db.refresh(job)
-    return {"status": "queued" if job else "accepted", "evidence_id": row.id, "job_id": job.id if job else None}
+    return {
+        "status": "queued" if job else "accepted",
+        "evidence_id": row.id,
+        "job_id": job.id if job else None,
+    }
 
 
 @router.post("/ingest")
-def ingest(payload: IngestEventRequest, header_agent_id: str = Depends(get_agent_id), _: str = Depends(require_key)):
+def ingest(
+    payload: IngestEventRequest,
+    header_agent_id: str = Depends(get_agent_id),
+    _: str = Depends(require_key),
+):
     agent_id = resolve_agent_id(header_agent_id, payload.agent_id)
     db = SessionLocal()
     try:
-        source = db.execute(select(EvidenceSource).where(EvidenceSource.source_key == payload.source_key.strip().lower())).scalar_one_or_none()
+        source = db.execute(
+            select(EvidenceSource).where(
+                EvidenceSource.source_key == payload.source_key.strip().lower()
+            )
+        ).scalar_one_or_none()
         if not source or not source.enabled:
             raise HTTPException(404, "Enabled evidence source not found")
         return _enqueue(db, source, payload, agent_id)
@@ -62,12 +85,18 @@ def ingest(payload: IngestEventRequest, header_agent_id: str = Depends(get_agent
         db.close()
 
 
-def _listener_source(db, source_key: str, request: Request, key: str | None, *,
-                     require_enabled: bool = True) -> tuple[EvidenceSource, str]:
+def _listener_source(
+    db, source_key: str, request: Request, key: str | None, *, require_enabled: bool = True
+) -> tuple[EvidenceSource, str]:
     """The listener a source key names, checked against its own key; and its agent id."""
-    source = db.execute(select(EvidenceSource).where(EvidenceSource.source_key == source_key.strip().lower())).scalar_one_or_none()
+    source = db.execute(
+        select(EvidenceSource).where(EvidenceSource.source_key == source_key.strip().lower())
+    ).scalar_one_or_none()
     if not source or (require_enabled and not source.enabled):
-        raise HTTPException(404, "Enabled evidence source not found" if require_enabled else "Evidence source not found")
+        raise HTTPException(
+            404,
+            "Enabled evidence source not found" if require_enabled else "Evidence source not found",
+        )
     client_host = request.client.host if request.client else "unknown"
     lock_scope = f"listener:{client_host}:{source.source_key}"
     secret = json.loads(source.secret_json or "{}").get("ingest_key", "")
@@ -82,7 +111,12 @@ def _listener_source(db, source_key: str, request: Request, key: str | None, *,
 
 
 @router.post("/listeners/{source_key}")
-def listener_ingest(source_key: str, payload: IngestEventRequest, request: Request, x_memorygate_listener_key: str | None = Header(None, alias="X-MemoryGate-Listener-Key")):
+def listener_ingest(
+    source_key: str,
+    payload: IngestEventRequest,
+    request: Request,
+    x_memorygate_listener_key: str | None = Header(None, alias="X-MemoryGate-Listener-Key"),
+):
     """Dedicated listener ingress: source token only, never an admin credential."""
     db = SessionLocal()
     try:
@@ -95,11 +129,18 @@ def listener_ingest(source_key: str, payload: IngestEventRequest, request: Reque
 
 
 @router.delete("/listeners/{source_key}/evidence/{evidence_id}")
-def listener_erase(source_key: str, evidence_id: str, request: Request, x_memorygate_listener_key: str | None = Header(None, alias="X-MemoryGate-Listener-Key")):
+def listener_erase(
+    source_key: str,
+    evidence_id: str,
+    request: Request,
+    x_memorygate_listener_key: str | None = Header(None, alias="X-MemoryGate-Listener-Key"),
+):
     """Erase one event this listener sent and what was derived from it. Works on a disabled source."""
     db = SessionLocal()
     try:
-        source, agent_id = _listener_source(db, source_key, request, x_memorygate_listener_key, require_enabled=False)
+        source, agent_id = _listener_source(
+            db, source_key, request, x_memorygate_listener_key, require_enabled=False
+        )
     finally:
         db.close()
     result = listener_forgetting.erase_evidence(agent_id, evidence_id, source_id=source.id)
@@ -126,7 +167,12 @@ def retry_job(job_id: str, agent_id: str = Depends(get_agent_id), _: str = Depen
 
 
 @router.post("/evidence/{evidence_id}/invalidate")
-def invalidate_evidence(evidence_id: str, reason: str, agent_id: str = Depends(get_agent_id), _: str = Depends(require_key)):
+def invalidate_evidence(
+    evidence_id: str,
+    reason: str,
+    agent_id: str = Depends(get_agent_id),
+    _: str = Depends(require_key),
+):
     db = SessionLocal()
     try:
         evidence = db.get(EvidenceObject, evidence_id)
@@ -135,30 +181,79 @@ def invalidate_evidence(evidence_id: str, reason: str, agent_id: str = Depends(g
         evidence.invalidated_at = datetime.now(UTC)
         evidence.invalidation_reason = reason
         evidence.processing_state = "invalidated"
-        links = db.execute(select(ObjectLink).where(ObjectLink.source_type == "evidence", ObjectLink.source_id == evidence_id)).scalars().all()
+        links = (
+            db.execute(
+                select(ObjectLink).where(
+                    ObjectLink.source_type == "evidence", ObjectLink.source_id == evidence_id
+                )
+            )
+            .scalars()
+            .all()
+        )
         for link in links:
             link.confidence = 0.0
             link.metadata_json = json.dumps({"invalidated": True, "reason": reason})
         episode_ids = [link.target_id for link in links if link.target_type == "episode"]
-        analysis_links = db.execute(select(ObjectLink).where(ObjectLink.source_type == "episode", ObjectLink.source_id.in_(episode_ids), ObjectLink.target_type == "analysis")).scalars().all() if episode_ids else []
+        analysis_links = (
+            db.execute(
+                select(ObjectLink).where(
+                    ObjectLink.source_type == "episode",
+                    ObjectLink.source_id.in_(episode_ids),
+                    ObjectLink.target_type == "analysis",
+                )
+            )
+            .scalars()
+            .all()
+            if episode_ids
+            else []
+        )
         affected_analysis_ids = [link.target_id for link in analysis_links]
         # Conversation evidence supports its admission analysis directly; it
         # has no inferred episode between the owner's words and the claim.
-        affected_analysis_ids.extend(link.target_id for link in links if link.target_type == "analysis")
+        affected_analysis_ids.extend(
+            link.target_id for link in links if link.target_type == "analysis"
+        )
         affected_memories = []
         if affected_analysis_ids:
-            memory_links = db.execute(select(ObjectLink).where(ObjectLink.source_type == "analysis", ObjectLink.source_id.in_(affected_analysis_ids), ObjectLink.target_type == "memory")).scalars().all()
+            memory_links = (
+                db.execute(
+                    select(ObjectLink).where(
+                        ObjectLink.source_type == "analysis",
+                        ObjectLink.source_id.in_(affected_analysis_ids),
+                        ObjectLink.target_type == "memory",
+                    )
+                )
+                .scalars()
+                .all()
+            )
             for memory_link in memory_links:
                 memory_link.confidence = 0.0
-                memory_link.metadata_json = json.dumps({"invalidated": True, "reason": reason, "via": evidence_id})
+                memory_link.metadata_json = json.dumps(
+                    {"invalidated": True, "reason": reason, "via": evidence_id}
+                )
                 memory = db.get(Memory, memory_link.target_id)
                 if memory and memory.source_type in {"automatic_listener", "owner_statement"}:
                     db.flush()
-                    active_support = db.execute(select(ObjectLink).where(ObjectLink.target_type == "memory", ObjectLink.target_id == memory.id, ObjectLink.relationship == "supports", ObjectLink.confidence > 0)).scalars().all()
+                    active_support = (
+                        db.execute(
+                            select(ObjectLink).where(
+                                ObjectLink.target_type == "memory",
+                                ObjectLink.target_id == memory.id,
+                                ObjectLink.relationship == "supports",
+                                ObjectLink.confidence > 0,
+                            )
+                        )
+                        .scalars()
+                        .all()
+                    )
                     if not active_support:
                         mark_unsupported(db, memory, f"all evidence support invalidated: {reason}")
                         affected_memories.append(memory.id)
         db.commit()
-        return {"status": "ok", "affected_links": len(links), "memories_needing_review": affected_memories}
+        return {
+            "status": "ok",
+            "affected_links": len(links),
+            "memories_needing_review": affected_memories,
+        }
     finally:
         db.close()

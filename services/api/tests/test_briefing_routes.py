@@ -24,17 +24,25 @@ def event(stack, entity_id, description, agent="owner", event_type="note", days_
     if days_ago:
         when = datetime.now(UTC) - timedelta(days=days_ago)
         with stack.sessions() as db:
-            db.execute(update(EntityEvent).where(EntityEvent.id == event_id).values(created_at=when))
+            db.execute(
+                update(EntityEvent).where(EntityEvent.id == event_id).values(created_at=when)
+            )
             db.commit()
     return event_id
 
 
 def watch(stack, value, agent="owner", summary="", days_ago=0, memory_type="watch"):
     with stack.sessions() as db:
-        db.add(Memory(
-            agent_id=agent, text=value, summary=summary, memory_type=memory_type, status="active",
-            created_at=datetime.now(UTC) - timedelta(days=days_ago),
-        ))
+        db.add(
+            Memory(
+                agent_id=agent,
+                text=value,
+                summary=summary,
+                memory_type=memory_type,
+                status="active",
+                created_at=datetime.now(UTC) - timedelta(days=days_ago),
+            )
+        )
         db.commit()
 
 
@@ -42,7 +50,6 @@ def briefing(stack, agent="owner"):
     response = stack.get(f"/briefing/{agent}")
     assert response.status_code == 200, response.text
     return response.json()
-
 
 
 # --- briefing ---------------------------------------------------------------
@@ -68,22 +75,43 @@ def test_an_agent_with_nothing_stored_gets_an_empty_briefing(stack):
 
 
 def test_pending_clarifications_are_the_two_surest_unconfirmed_questions_of_the_agent(stack):
-    observe(stack, "Mentioned a trip", needs_clarification=True,
-                  hypothesis_confidence=0.2, raise_condition="when travel comes up")
-    high = observe(stack, "Said the move is off", needs_clarification=True,
-                   hypothesis_confidence=0.9, raise_condition="when housing comes up")
-    middle = observe(stack, "Hinted at a new job", needs_clarification=True,
-                     hypothesis_confidence=0.6)
-    answered = observe(stack, "Asked about the dentist", needs_clarification=True,
-                       hypothesis_confidence=0.99)
+    observe(
+        stack,
+        "Mentioned a trip",
+        needs_clarification=True,
+        hypothesis_confidence=0.2,
+        raise_condition="when travel comes up",
+    )
+    high = observe(
+        stack,
+        "Said the move is off",
+        needs_clarification=True,
+        hypothesis_confidence=0.9,
+        raise_condition="when housing comes up",
+    )
+    middle = observe(
+        stack, "Hinted at a new job", needs_clarification=True, hypothesis_confidence=0.6
+    )
+    answered = observe(
+        stack, "Asked about the dentist", needs_clarification=True, hypothesis_confidence=0.99
+    )
     confirm = post(stack, f"/observation/{answered['id']}/confirm", {"confirmed_by": "owner"})
     assert confirm.status_code == 200, confirm.text
     observe(stack, "Not a question", hypothesis_confidence=0.95)
-    observe(stack, "Their own question", agent=OTHER, needs_clarification=True,
-            hypothesis_confidence=1.0)
+    observe(
+        stack,
+        "Their own question",
+        agent=OTHER,
+        needs_clarification=True,
+        hypothesis_confidence=1.0,
+    )
 
     assert briefing(stack)["pending_clarifications"] == [
-        {"id": high["id"], "what": "Said the move is off", "trigger_condition": "when housing comes up"},
+        {
+            "id": high["id"],
+            "what": "Said the move is off",
+            "trigger_condition": "when housing comes up",
+        },
         {"id": middle["id"], "what": "Hinted at a new job", "trigger_condition": ""},
     ]
     other = briefing(stack, OTHER)["pending_clarifications"]
@@ -105,7 +133,12 @@ def test_active_tasks_are_open_projects_touched_in_the_last_three_weeks(stack):
 
     assert briefing(stack)["active_tasks"] == [
         {"entity_id": stuck["id"], "name": "Garden shed", "status": "blocked", "sessions_stuck": 4},
-        {"entity_id": fresh["id"], "name": "Tax return", "status": "in progress", "sessions_stuck": 1},
+        {
+            "entity_id": fresh["id"],
+            "name": "Tax return",
+            "status": "in progress",
+            "sessions_stuck": 1,
+        },
     ]
     assert [task["name"] for task in briefing(stack, OTHER)["active_tasks"]] == ["Their roadmap"]
 
@@ -127,12 +160,24 @@ def test_people_are_those_touched_this_week_or_scheduled_today(stack, monkeypatc
 
     people = {person["name"]: person for person in briefing(stack)["people_relevant"]}
     assert people == {
-        "Sam Reyes": {"entity_id": sam["id"], "name": "Sam Reyes", "warmth_level": 0.9,
-                      "note": "lent a ladder"},
-        "Ida Lund": {"entity_id": noted["id"], "name": "Ida Lund", "warmth_level": 0.5,
-                     "note": "call back about the lease"},
-        "Theo Marsh": {"entity_id": scheduled["id"], "name": "Theo Marsh", "warmth_level": 0.5,
-                       "note": ""},
+        "Sam Reyes": {
+            "entity_id": sam["id"],
+            "name": "Sam Reyes",
+            "warmth_level": 0.9,
+            "note": "lent a ladder",
+        },
+        "Ida Lund": {
+            "entity_id": noted["id"],
+            "name": "Ida Lund",
+            "warmth_level": 0.5,
+            "note": "call back about the lease",
+        },
+        "Theo Marsh": {
+            "entity_id": scheduled["id"],
+            "name": "Theo Marsh",
+            "warmth_level": 0.5,
+            "note": "",
+        },
     }
     assert [p["name"] for p in briefing(stack, OTHER)["people_relevant"]] == ["Their friend"]
 
@@ -166,7 +211,11 @@ def test_watch_flags_are_the_five_newest_recent_watch_memories(stack):
     watch(stack, "their watch item", agent=OTHER)
 
     assert briefing(stack)["watch_flags"] == [
-        "a" * 120, "Sleep is short", "watch item 0", "watch item 1", "watch item 2",
+        "a" * 120,
+        "Sleep is short",
+        "watch item 0",
+        "watch item 1",
+        "watch item 2",
     ]
     assert briefing(stack, OTHER)["watch_flags"] == ["their watch item"]
 
@@ -195,7 +244,8 @@ def test_an_overflowing_briefing_drops_watch_flags_first(stack):
     assert [task["name"] for task in result["active_tasks"]] == ["Shed", "Taxes"]
     assert [person["name"] for person in result["people_relevant"]] == ["Sam Reyes"]
     assert sorted(item["what"] for item in result["pending_clarifications"]) == [
-        "Asked a first thing", "Asked a second thing",
+        "Asked a first thing",
+        "Asked a second thing",
     ]
 
 
@@ -215,8 +265,7 @@ def test_people_go_second_when_dropping_watch_flags_is_not_enough(stack):
 
 def test_tasks_beyond_the_most_stuck_go_third_and_both_questions_stay(stack):
     for number in range(3):
-        project = entity(stack, "project", f"Project {number} " + "p" * 400,
-                         sessions_stuck=number)
+        project = entity(stack, "project", f"Project {number} " + "p" * 400, sessions_stuck=number)
         event(stack, project["id"], "worked on it")
     for word in ("first", "second"):
         observe(stack, f"Asked a {word} thing", needs_clarification=True, signal_type=word)
@@ -228,11 +277,15 @@ def test_tasks_beyond_the_most_stuck_go_third_and_both_questions_stay(stack):
 
 def test_a_briefing_far_over_budget_keeps_one_task_and_one_question(stack):
     for number in range(4):
-        observe(stack, f"Question {number} " + "q" * 700, needs_clarification=True,
-                signal_type=f"kind{number}", hypothesis_confidence=number / 10)
+        observe(
+            stack,
+            f"Question {number} " + "q" * 700,
+            needs_clarification=True,
+            signal_type=f"kind{number}",
+            hypothesis_confidence=number / 10,
+        )
     for number in range(6):
-        project = entity(stack, "project", f"Project {number} " + "p" * 120,
-                         sessions_stuck=number)
+        project = entity(stack, "project", f"Project {number} " + "p" * 120, sessions_stuck=number)
         event(stack, project["id"], "worked on it")
     for number in range(4):
         person = entity(stack, "human", f"Person {number} " + "n" * 100)

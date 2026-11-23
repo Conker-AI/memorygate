@@ -10,7 +10,6 @@ def post(stack, path, body=None, agent="owner"):
     return stack.http.post(path, headers=stack.admin_headers(agent), json=body or {})
 
 
-
 def observe(stack, description, agent="owner", **body):
     response = post(
         stack,
@@ -20,7 +19,6 @@ def observe(stack, description, agent="owner", **body):
     )
     assert response.status_code == 200, response.text
     return response.json()["observation"]
-
 
 
 def entity(stack, entity_type, name, agent="owner", **attributes):
